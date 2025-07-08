@@ -26,47 +26,7 @@ class DBManager {
             $this->db = new PDO($this->access_info, $this->user, $this->password);
             $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         } catch (PDOException $e) {
-            
-            //  例外をスローして、呼び出し元で処理できるようにする
-            throw $e; 
-//             `connect()`メソッド内で`throw $e;`が実行されると、
-// **呼び出し元（たとえば`get_allstudents()`など）
-// のtry-catch構文のcatchブロックに制御が移ります**。
-
-// ### 具体例
-
-// ```php
-// public function get_allstudents() {
-//     try {
-//         $this->connect(); // ここで例外が発生するとcatchにジャンプ
-//         // ...以降の処理...
-//     } catch (PDOException $e) {
-//         $this->disconnect();
-//         return null;
-//     }
-// }
-// ```
-
-// #### 流れ
-
-// 1. `connect()`で例外（PDOException）が発生し、`throw $e;`が実行される
-// 2. `connect()`の呼び出し元（ここでは`get_allstudents()`）
-// のtryブロックの処理が中断され、catchブロックにジャンプ
-// 3. catchブロック内の処理（例：`$this->disconnect(); return null;`）
-// が実行される
-
-// ---
-
-// ### ポイント
-
-// - `throw`された例外は**呼び出し元のcatchで受け取ることができる**
-// - 例外発生後は、tryブロック内の残りの処理は実行されない
-// - catchブロックでエラー処理や後始末を行うことができる
-
-// ---
-
-// **まとめ:**  
-// `connect()`で`throw $e;`が実行されると、呼び出し元のcatchブロックで例外処理が行われます。 
+            echo 'Connection failed: ' . $e->getMessage();
         }
     }
     //  データベースに接続しているか確認するメソッド
@@ -96,12 +56,6 @@ class DBManager {
             $this->disconnect();
             return null;
         }
-        // 何らかの理由でエラーが起こっても
-        // 例外が発生しない場合は、
-        // ここで切断して false を返すようにします。
-        // データベースから切断して false を返す
-        $this->disconnect();
-        return false; // 何らかの理由でエラーが起こった場合は null を返す
     }
 
     //  id カラムが $id の学生情報を取得するメソッド
@@ -137,11 +91,6 @@ class DBManager {
             $this->disconnect();
             return null;
         }
-        // 何らかの理由でエラーが起こっても
-        // 例外が発生しない場合は、
-        // ここで切断して false を返すようにします。
-        $this->disconnect();
-        return false; // 何らかの理由でエラーが起こった場合は false を返す
     }
     //  if_id_exists メソッドは、
     // 指定された ID の学生が
@@ -215,31 +164,6 @@ class DBManager {
         }
         $this->disconnect();
         return false; //  削除に失敗した場合は false を返す
-//     **205行目・206行目（`$this->disconnect(); return false;`）
-// は記述しておくほうが安全です**。
-
-// ### 理由
-
-// - `setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);` 
-// の指定により、  
-//   通常は`execute()`でエラーが発生した場合は
-// 例外（PDOException）がスローされ、catchブロックで処理されます。
-// - しかし、**何らかの理由で例外が発生しない場合**
-// （たとえば、PDOのバージョンや設定の違い、
-// またはSQL自体は構文的に正しいが影響行が0件など）、
-// catchに入らずにtryブロックの後ろまで進む可能性があります。
-
-// ### まとめ
-
-// - **catchで捕まえられなかった異常時や、
-// execute()がfalseを返した場合の保険として、
-// try-catchの外側にも`$this->disconnect(); return false;
-// `を記述しておくのが堅牢な実装です。**
-// - これにより、どんな場合でも確実に接続解除とエラー値の返却が行われます。
-
-// ---
-
-// **結論：205行目・206行目は残しておくべきです。**
     }
     //  update_student メソッドは、$old_id で指定された学生情報を
     //  $new_id, $new_name, $new_grade 
@@ -298,3 +222,146 @@ class DBManager {
 }
 
 ?>
+
+<?php
+//  以下は、DBManager クラスのテストコードです。
+//  DBManager クラスのインスタンスを作成
+$db_manager = new DBManager();
+//  データベースに接続
+$db_manager->connect();
+//  データベースに接続できたか確認
+if ($db_manager->is_connected()) {
+    echo "データベースに接続しました。<br>";
+    //  データベースから切断します。
+    $db_manager->disconnect(); 
+        if ($db_manager->get_db()===null) {
+        //  データベースから切断できたか確認
+        echo "データベースから切断しました。<br>";
+    }
+    }else {
+    echo "データベースに接続できませんでした。<br>";
+}
+//  データベースからすべての学生情報を取得
+$students = $db_manager->get_allstudents();
+     if ($students !== null) {
+        
+foreach ($students as $student) {
+    echo "ID: " . htmlspecialchars($student['id'], ENT_QUOTES, 'UTF-8')
+        . ", 名前: " . htmlspecialchars($student['name'], ENT_QUOTES, 'UTF-8')
+        . ", 学年:" . htmlspecialchars($student['grade'], ENT_QUOTES, 'UTF-8') . "<br>";
+}
+    /*foreach ($students as $student) {
+        echo "ID: " . $student['id'] . ", 名前: " . $student['name'] .", 学年:".$student[ 'grade' ]."<br>";  }
+} */
+}else {
+    echo "学生情報が取得できませんでした。<br>";
+}
+
+//  特定の学生情報を取得
+$student_id = 1001; // 取得したい学生の ID
+//  $student_id の値は、データベースに存在する学生の ID に置き換えてください。
+$student = $db_manager->get_student($student_id);
+//  学生情報が連想配列として取得できた場合
+if ($student !== null) {
+    echo "get_student メソッドを使用して、学生情報を取得しました。<br>";
+    echo "ID: " . htmlspecialchars($student['id'], ENT_QUOTES, 'UTF-8')
+        . ", 名前: " . htmlspecialchars($student['name'], ENT_QUOTES, 'UTF-8')
+        . ", 学年: " . htmlspecialchars($student['grade'], ENT_QUOTES, 'UTF-8') . "<br>";
+}else {
+    echo "ID: $student_id の学生情報は存在しません。<br>";
+}
+
+//  存在しない学生 ID を指定して、get_student メソッドを呼び出す
+$non_existent_id = 9999; // 存在しない学生の ID
+$non_existent_student = $db_manager->get_student($non_existent_id);
+if ($non_existent_student !== null) {
+    echo "get_student メソッドを使用して、学生情報を取得しました。<br>";
+    echo "ID: " . htmlspecialchars($student['id'], ENT_QUOTES, 'UTF-8')
+        . ", 名前: " . htmlspecialchars($student['name'], ENT_QUOTES, 'UTF-8')
+        . ", 学年: " . htmlspecialchars($student['grade'], ENT_QUOTES, 'UTF-8') . "<br>";
+}else {
+    echo "ID: $non_existent_id の学生情報は存在しません。<br>";
+}
+
+//  存在する学生 ID を指定して、if_id_exists メソッドを呼び出す
+$existing_id = 1001; // 存在する学生の ID
+if ($db_manager->if_id_exists($existing_id)) {
+    echo "ID: $existing_id の学生は存在します。<br>";
+}else {
+    echo "ID: $existing_id の学生は存在しません。<br>";
+}
+
+//  存在しない学生 ID を指定して、if_id_exists メソッドを呼び出す
+$non_existing_id = 9999; // 存在しない学生の ID
+if ($db_manager->if_id_exists($non_existing_id)) {
+    echo "ID: $non_existing_id の学生は存在します。<br>";
+}else {
+    echo "ID: $non_existing_id の学生は存在しません。<br>";
+}
+
+//  新しい学生情報を挿入
+//  注意：リロードするたびに id を変える必要があります。
+//  すでに存在する ID を使用すると、挿入に失敗します。
+$new_id = 1009; // 新しい学生の ID
+$new_name = "新しい学生";
+$new_grade = 1; // 新しい学生の学年
+if ($db_manager->insert_student($new_id, $new_name, $new_grade)) {
+    echo "新しい学生情報を挿入しました。<br>";
+}
+
+//  挿入した学生情報を再度取得して確認
+$inserted_student = $db_manager->get_student($new_id);
+if ($inserted_student !== null) {
+    echo "挿入した学生情報を確認しました。<br>";
+    echo "ID: " . htmlspecialchars($inserted_student['id'], ENT_QUOTES, 'UTF-8')
+        . ", 名前: " . htmlspecialchars($inserted_student['name'], ENT_QUOTES, 'UTF-8')
+        . ", 学年: " . htmlspecialchars($inserted_student['grade'], ENT_QUOTES, 'UTF-8') . "<br>";
+}
+
+//  挿入した学生情報を削除
+if ($db_manager->delete_student($new_id)) {
+    echo "ID: $new_id の学生情報を削除しました。<br>";
+
+//  データベースからすべての学生情報を取得
+$students = $db_manager->get_allstudents();
+     if ($students !== null) {
+        
+foreach ($students as $student) {
+    echo "ID: " . htmlspecialchars($student['id'], ENT_QUOTES, 'UTF-8')
+        . ", 名前: " . htmlspecialchars($student['name'], ENT_QUOTES, 'UTF-8')
+        . ", 学年:" . htmlspecialchars($student['grade'], ENT_QUOTES, 'UTF-8') . "<br>";
+}
+    /*foreach ($students as $student) {
+        echo "ID: " . $student['id'] . ", 名前: " . $student['name'] .", 学年:".$student[ 'grade' ]."<br>";  }
+} */
+}
+}else {
+    echo "学生情報が取得できませんでした。<br>";
+}
+//  update_student($new_id, $new_name, $new_grade, $old_id)
+//  をテストする。
+//  新しい学生情報
+$new_id = 1011; // 新しい学生の ID
+$new_name = "更新された学生";
+$new_grade = 2; // 新しい学生の学年
+$old_id = 1001; // 更新前の学生の ID
+
+//  学生情報を更新に成功した場合の処理
+if ($db_manager->update_student($new_id, $new_name, $new_grade, $old_id)) {
+    echo "ID: $old_id の学生情報を更新しました。<br>";
+    //  データベースからすべての学生情報を取得
+$students = $db_manager->get_allstudents();
+     if ($students !== null) {
+        
+foreach ($students as $student) {
+    echo "ID: " . htmlspecialchars($student['id'], ENT_QUOTES, 'UTF-8')
+        . ", 名前: " . htmlspecialchars($student['name'], ENT_QUOTES, 'UTF-8')
+        . ", 学年:" . htmlspecialchars($student['grade'], ENT_QUOTES, 'UTF-8') . "<br>";
+}
+    /*foreach ($students as $student) {
+        echo "ID: " . $student['id'] . ", 名前: " . $student['name'] .", 学年:".$student[ 'grade' ]."<br>";  }
+} */
+}
+}else {
+    echo "学生情報が取得できませんでした。<br>";
+}
