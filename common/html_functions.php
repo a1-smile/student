@@ -173,35 +173,43 @@
     function show_student_list($member) {
         echo <<<TABLE_TOP
         <table class="table">
-        <thead>
-            <tr>
-                <th>学生番号</th>
-                <th>名前</th>
-                <th>学年</th>
-            </tr>
-        </thead>
-        TABLE_TOP;
-        <tbody>
+            <thead>
+                <tr>
+                    <th>学生番号</th>
+                    <th>名前</th>
+                    <th>学年</th>
+                </tr>
+            </thead>
+            <tbody>
+    TABLE_TOP;
+        
         //  $member は2次元配列で、各学生の情報が格納されています。
         //  foreach文を使用して、$memberの各行を処理します。
         foreach ($member as $row) {
             echo <<<TR
             <tr>
                 <td>{$row['id']}</td>
-                <td><a href="student_edit.php?id={$row["id"]}">{$row['name']}</a></td>"
+                <td><a href="student_edit.php?id={$row["id"]}">{$row['name']}</a></td>
                 <td>{$row['grade']}</td>
             </tr>
-        }
         TR;
+        }
+        
+        //  テーブルのフッターを表示
+        //  合計行数を表示するために、count()関数を使用して
+        //  $memberの行数を取得し、1名と表示します。
+        $total = count($member);
+        
         echo <<<TABLE_BOTTOM
         </tbody>
         <tfoot>
-            <tr><td>合計</td><td colspan="2">{$member->rowCount()}名</td></tr>
+            <tr><td>学籍情報</td><td colspan="2">合計{$total}名</td></tr>
         </tfoot>
         </table>
         <br>
-        TABLE_BOTTOM;
+    TABLE_BOTTOM;
     }
+
 ?>
 <?php  //  以下テストコード
     //  エラーメッセージを取得する関数を仮に定義
@@ -236,4 +244,14 @@ show_delete($member);
 
 //  show_update($id, $name, $grade, $old_id) 関数のテストコード
 show_update(1001, '山田太郎', 2, 1001);
+
+//  
+//
+//  show_student_list($member) 関数のテストコード
+$member = [
+    ['id' => 1001, 'name' => '山田太郎', 'grade' => 2],
+    ['id' => 1002, 'name' => '佐藤花子', 'grade' => 1],
+    ['id' => 1003, 'name' => '鈴木一郎', 'grade' => 3]
+];
+show_student_list($member);
 ?>
