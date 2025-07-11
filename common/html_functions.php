@@ -203,11 +203,58 @@
         echo <<<TABLE_BOTTOM
         </tbody>
         <tfoot>
-            <tr><td>学籍情報</td><td colspan="2">合計{$total}名</td></tr>
+            <tr>
+                <td>学籍情報</td>
+                <td colspan="2">合計{$total}名</td>
+            </tr>
         </tfoot>
         </table>
         <br>
     TABLE_BOTTOM;
+    }
+    //  編集画面の操作の一覧の表示
+    //  index.php で function show_student_list($member) を
+    //  呼び出した後に、各学生の名前をクリックすると
+    //  学生情報の編集画面 student_edit.php に遷移します。
+    //  student_edit.php では、
+    //  function show_operations($id) を呼び出して
+    //  学生情報の更新と削除のリンクを表示します。
+    //  
+    //  引数 $id は、
+    //  <a href="student_edit.php?id={$id}">mane</a>
+    //  という形式で、GETメソッドで渡されます。
+    //
+    //  更新ボタンをクリックすると、
+    //  student_update.php に遷移し、
+    //  
+    //  削除ボタンをクリックすると、
+    //  student_delete.php に遷移します。
+    //
+    //  student_update.php では
+    //  show_update() 関数を呼び出して
+    //  学生情報の更新フォームを表示します。
+    //  
+    //  student_delete.php では
+    //  show_delete() 関数を呼び出して
+    //  学生情報の削除フォームを表示します。
+    //  それぞれ、
+    //  更新ボタンと削除ボタンをクリックすると
+    //  post_data.php にデータが送信されます。
+    //  post_data.php では、$_POST['data']の値に応じて
+    //  データベースの更新や削除を行います。
+    //  data => 'update' の場合は
+    //  学生情報の更新を行い、
+    //  data => 'delete' の場合は
+    //  学生情報の削除を行います。
+    //  
+    function show_operations($id) {
+        echo <<<OPERATIONS
+            <a href="student_update.php?id={$id}">更新</a>
+            <br>
+            <a href="student_delete.php?id={$id}">削除</a>
+            <br>
+            <br>           
+        OPERATIONS;
     }
 
 ?>
@@ -254,4 +301,7 @@ $member = [
     ['id' => 1003, 'name' => '鈴木一郎', 'grade' => 3]
 ];
 show_student_list($member);
+
+//  show_operations($id) 関数のテストコード
+show_operations(1001);
 ?>
