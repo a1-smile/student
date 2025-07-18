@@ -30,23 +30,23 @@
     //  function check_input のテストコードを以下に示します。
 
     //  function check_input のテストコード
-    $student_data = [
-        ['id' => '1234', 'name' => '山田太郎', 'grade' => 1],
-        ['id' => '8456', 'name' => '鈴木一郎', 'grade' => 3],
-        ['id' => '2345', 'name' => '', 'grade' => 2],
-        ['id' => '2345', 'name' => '佐藤花子', 'grade' => ''],
-        ['id' => '2345', 'name' => '佐藤花子', 'grade' => 2],
-        ]
-    ;
-    foreach ($student_data as $data) {
-        $error = '';
-        $result = check_input($data['id'], $data['name'], $data['grade'], $error);
-        if ($result) {
-            echo "ID: {$data['id']}, Name: {$data['name']}, Grade: {$data['grade']} - 入力値は正しいです。<br>";
-        }else {
-            echo $error . "<br>";
-    }
-        }
+    // $student_data = [
+    //     ['id' => '1234', 'name' => '山田太郎', 'grade' => 1],
+    //     ['id' => '8456', 'name' => '鈴木一郎', 'grade' => 3],
+    //     ['id' => '2345', 'name' => '', 'grade' => 2],
+    //     ['id' => '2345', 'name' => '佐藤花子', 'grade' => ''],
+    //     ['id' => '2345', 'name' => '佐藤花子', 'grade' => 2],
+    //     ]
+    // ;
+    // foreach ($student_data as $data) {
+    //     $error = '';
+    //     $result = check_input($data['id'], $data['name'], $data['grade'], $error);
+    //     if ($result) {
+    //         echo "ID: {$data['id']}, Name: {$data['name']}, Grade: {$data['grade']} - 入力値は正しいです。<br>";
+    //     }else {
+    //         echo $error . "<br>";
+    // }
+    //     }
     //  上記のテストコードを実行すると、以下のような出力が得られます。
 //     ID: 1234, Name: 山田太郎, Grade: 1 - 入力値は正しいです。
 // idには1～3ではじまる4桁の整数を入力してください。

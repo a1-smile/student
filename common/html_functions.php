@@ -38,12 +38,17 @@
             echo "</option>";
         }
         //  フォームの下部を表示
+        $old_id = htmlspecialchars($old_id, ENT_QUOTES, 'UTF-8');
+        $data   = htmlspecialchars($data, ENT_QUOTES, 'UTF-8');
+        $token  = htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8');
+        $button = htmlspecialchars($button, ENT_QUOTES, 'UTF-8');
         echo <<<INPUT_BOTTOM
         </select>
         <p>{$error}</p>
         <input type="hidden" name="old_id" value="{$old_id}">
         <input type="hidden" name="data" value="{$data}">
         <input type="submit" name="button" value="{$button}">
+        <input type="hidden" name="csrf_token" value="{$token}">
         </form>
         INPUT_BOTTOM;
     }
@@ -89,10 +94,6 @@
 
     //  show_input()は、新しい学生情報を入力するためのフォームを表示する関数です。
     function show_input() {
-        $error = get_error();
-        //  get_error()関数は、$_GET['error']が存在する場合にその値を返し、
-        //  存在しない場合は空文字を返す関数です。
-        //  この関数は、エラーメッセージを表示するために使用されます。
         show_edit_input_common('', '', 1, '', 'create', '登録');
     }
 
@@ -142,6 +143,7 @@
         <p>この情報を削除しますか？</p>
         <input type="hidden" name="id" value="{$member['id']}">
         <input type="hidden" name="data" value="delete">
+        <input type="hidden" name="csrf_token" value="{$_SESSION['csrf_token']}">
         <input type="submit" value="削除">
         </form>
         DELETE_FORM;
@@ -178,6 +180,8 @@
                     <th>学生番号</th>
                     <th>名前</th>
                     <th>学年</th>
+                    <th>編集操作</th>
+                    <th>削除操作</th>
                 </tr>
             </thead>
             <tbody>
@@ -186,11 +190,34 @@
         //  $member は2次元配列で、各学生の情報が格納されています。
         //  foreach文を使用して、$memberの各行を処理します。
         foreach ($member as $row) {
+            $id = htmlspecialchars($row['id'], ENT_QUOTES, 'UTF-8');
+            $name = htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8');
+            $grade = htmlspecialchars($row['grade'], ENT_QUOTES, 'UTF-8');
+            $token = htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8');
+            //  htmlspecialchars() 関数は、HTML特殊文字をエスケープします。
+            //  ENT_QUOTES は、シングルクォートとダブルクォートの両方をエスケープします。
+            //  'UTF-8' は、文字エンコーディングを指定します。
             echo <<<TR
             <tr>
-                <td>{$row['id']}</td>
-                <td><a href="student_edit.php?id={$row["id"]}">{$row['name']}</a></td>
-                <td>{$row['grade']}</td>
+                <td>{$id}</td>
+                <td>{$name}</td>
+                <td>{$grade}</td>
+                <td>
+                    <form action="student_update.php" method="post">
+                        <input type="hidden" name="id" value="{$id}">
+                        <input type="hidden" name="data" value="update">
+                        <input type="hidden" name="csrf_token" value="{$token}">
+                        <input type="submit" value="編集操作">
+                    </form>
+                </td>
+                <td>
+                    <form action="student_delete.php" method="post">
+                        <input type="hidden" name="id" value="{$id}">
+                        <input type="hidden" name="data" value="delete">
+                        <input type="hidden" name="csrf_token" value="{$token}">
+                        <input type="submit" value="削除操作">
+                    </form>
+                </td>
             </tr>
         TR;
         }
@@ -205,25 +232,14 @@
         <tfoot>
             <tr>
                 <td>学籍情報</td>
-                <td colspan="2">合計{$total}名</td>
+                <td colspan="4">合計{$total}名</td>
             </tr>
         </tfoot>
         </table>
         <br>
     TABLE_BOTTOM;
     }
-    //  編集画面の操作の一覧の表示
-    //  index.php で function show_student_list($member) を
-    //  呼び出した後に、各学生の名前をクリックすると
-    //  学生情報の編集画面 student_edit.php に遷移します。
-    //  student_edit.php では、
-    //  function show_operations($id) を呼び出して
-    //  学生情報の更新と削除のリンクを表示します。
-    //  
-    //  引数 $id は、
-    //  <a href="student_edit.php?id={$id}">mane</a>
-    //  という形式で、GETメソッドで渡されます。
-    //
+    
     //  更新ボタンをクリックすると、
     //  student_update.php に遷移し、
     //  
@@ -259,49 +275,54 @@
 
 ?>
 <?php  //  以下テストコード
+       //  コメントアウトしてありますので、
+       //  必要に応じてコメントを外して実行してください。
     //  エラーメッセージを取得する関数を仮に定義
-function get_error() {
-        $error = '';
-        return $error;
-    }
+    //  本番環境では、get_error()関数は
+    //  common.php に定義されているので
+    //  コメントアウトします。
+        // function get_error() {
+        // $error = '';
+        // return $error;
+        // }
 
-//  show_edit_input_common()関数はのテストコード
+//  show_edit_input_common()関数のテストコード
 
-show_edit_input_common(1001, '山田太郎', 2, 1001, 'edit', '更新');
+#show_edit_input_common(1001, '山田太郎', 2, 1001, 'edit', '更新');
 //  この関数は、学生情報の編集フォームを表示するために使用されます。
 //  引数には、学生番号、名前、学年、古い学生番号、データの種類（例：'edit'）、
 //  ボタンのラベル（例：'更新'）が含まれます。
 
 //  function show_top() のテストコード
-show_top('学生一覧');
+#show_top('学生一覧');
 
 //  function show_input() のテストコード
-show_input();
+#show_input();
 
 //  show_student($member) 関数のテストコード
-$member = [
-    'id' => 1001,
-    'name' => '山田太郎',
-    'grade' => 2
-];
-show_student($member);
+// $member = [
+//     'id' => 1001,
+//     'name' => '山田太郎',
+//     'grade' => 2
+// ];
+// show_student($member);
 
-//  show_delete($member) 関数のテストコード
-show_delete($member);
+// //  show_delete($member) 関数のテストコード
+// show_delete($member);
 
 //  show_update($id, $name, $grade, $old_id) 関数のテストコード
-show_update(1001, '山田太郎', 2, 1001);
+#show_update(1001, '山田太郎', 2, 1001);
 
 //  
 //
 //  show_student_list($member) 関数のテストコード
-$member = [
-    ['id' => 1001, 'name' => '山田太郎', 'grade' => 2],
-    ['id' => 1002, 'name' => '佐藤花子', 'grade' => 1],
-    ['id' => 1003, 'name' => '鈴木一郎', 'grade' => 3]
-];
-show_student_list($member);
+// $member = [
+//     ['id' => 1001, 'name' => '山田太郎', 'grade' => 2],
+//     ['id' => 1002, 'name' => '佐藤花子', 'grade' => 1],
+//     ['id' => 1003, 'name' => '鈴木一郎', 'grade' => 3]
+// ];
+// show_student_list($member);
 
 //  show_operations($id) 関数のテストコード
-show_operations(1001);
+#show_operations(1001);
 ?>
