@@ -12,8 +12,11 @@ require_once ("common/data_check.php");
 //  $error を戻り値としてかえします。
 function get_error() {
     $error = '';
-    if (isset($_GET['error'])) {
-        $error = $_GET['error'];
+    if (isset($_SESSION['error'])) {
+        $error = $_SESSION['error'];
+        //  サニタイズ
+        $error = htmlspecialchars($error, ENT_QUOTES, 'UTF-8');
+        unset($_SESSION['error']); //  エラーを表示した後は、セッションから削除します。
     }
     return $error;
 }

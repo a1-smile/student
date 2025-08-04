@@ -21,13 +21,16 @@
     $session_timeout = 600; // 10分（600秒）
     if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
     // セッションの有効期限が切れた場合は
-    //  session_regenerate_id(true) を呼び出して
-    // セッションIDを再生成します。
-    session_regenerate_id(true);
+    //  セッションをクリアして、プログラムを終了します。
+    session_unset();
+    session_destroy();
+    die('セッションタイムアウト');
     }else {
     // セッションの有効期限が切れていない場合は
     // 最終アクティビティのタイムスタンプを更新します。
         $_SESSION['last_activity'] = time();
+        // セッションIDを再生成します。
+        session_regenerate_id(true);
     }
 
         //  ユーザーエージェントをチェックする
@@ -85,38 +88,129 @@
         }
     }
 
-    //  CSRF対策のためのトークンを確認します。
-    if (!isset($_SESSION['csrf_token'])) {
-        session_unset();  //  id が残る。
-        session_destroy();  //  destroy だけではデータが残る可能性がある。
-        die('安全対策のため、学生情報一覧画面から再操作を行ってください');
-    }
-    if ($_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        session_unset();  //  id が残る。
-        session_destroy();
-        die('不正なアクセス');
-    }
-
-        //  POST メソッドで送信されたかを確認し、
-    //  そうでない場合は、不正なアクセスとして処理を終了します。
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        die('通信形式が一致しません');
-    }
-
+    //  共通ファイルを読み込みます。
+    //  common.php が存在しない場合はエラーを表示します。
     if (file_exists(__DIR__."/common.php")) {
         require_once (__DIR__."/common.php");
     }else {
         die('common.php が見つかりません');
     }
-
-    $id = $_POST['id'] ?? null;
-    if ($id === null) {
-        die('学生番号が指定されていません');
+    //  SESSION から、 token を取得
+    if (!isset($_SESSION['csrf_token'])) {
+        session_unset();  //  id が残る。
+        session_destroy();  //  destroy だけではデータが残る可能性がある。
+        die('安全対策のため、学生情報一覧画面から再操作を行ってください');
+    }else{
+        $token_s = $_SESSION['csrf_token'];
+        //  サニタイズ
+        $token_s = htmlspecialchars($token_s, ENT_QUOTES, 'UTF-8');
     }
-    //  get_student() で $member に連想配列の形で
-    //  学生情報を取得します。
+
+
+    //  送信メソッドを確認します。
+    $method = $_SERVER['REQUEST_METHOD'];
+
+    if ($method === 'POST') {
+        delete_post($token_s);
+    }elseif ($method === 'GET') {
+        delete_get($token_s);
+    } else {
+        die('不正なアクセス');
+    }
     
+
+
+    function delete_post($token_s) {
+    //  共通ファイルを読み込みます。
+    //  common.php が存在しない場合はエラーを表示します。
+        if (file_exists(__DIR__."/common.php")) {
+            require_once (__DIR__."/common.php");
+        }else {
+            die('common.php が見つかりません');
+        }
+        global $dbm; // グローバル変数$dbmにアクセス
+        //  POST からのデータを取得します。
+        if (!isset($_POST['csrf_token'])) {
+            session_unset();  //  id が残る。
+            session_destroy();  //  destroy だけではデータが残る可能性がある。
+            die('POST からのトークンが取得できません');
+        }else {
+            //  CSRF トークンが設定されている場合は、
+            //  htmlspecialchars() を使用してエスケープします。
+            $token_p = htmlspecialchars($_POST['csrf_token'], ENT_QUOTES, 'UTF-8');
+        }
+        if (!isset($_POST['id'])) {
+            session_unset();  //  id が残る。
+            session_destroy();  //  destroy だけではデータが残る可能性がある。
+            die('POST で、学生番号が送信されていません');
+        } else {
+            $id = htmlspecialchars($_POST['id'], ENT_QUOTES, 'UTF-8');
+        }
+        if (!isset($_POST['data'])) {
+            session_unset();  //  id が残る。
+            session_destroy();  //  destroy だけではデータが残る可能性がある。
+            die('POST で、$data が送信されていません');
+        } else {
+            $data = htmlspecialchars($_POST['data'], ENT_QUOTES, 'UTF-8');
+        }
+
+        //  トークンを比較します。
+        if ($token_p !== $token_s) {
+            session_unset();  //  id が残る。
+            session_destroy();
+            die('トークンが一致しません');
+        }
     $member = $dbm->get_student($id);
+    show_top('学生情報の削除');
+    //  show_delete() 関数を呼び出して
+    //  table で学生情報を表示し、
+    //  学生情報の削除フォームを表示します。
+    show_delete($member);
+    //  true なら、「学生情報の一覧に戻る」というリンクを表示します。
+    show_bottom(true);  
+    }
+    function delete_get($token_s) {
+    //  共通ファイルを読み込みます。
+    //  common.php が存在しない場合はエラーを表示します。
+        if (file_exists(__DIR__."/common.php")) {
+            require_once (__DIR__."/common.php");
+        }else {
+            die('common.php が見つかりません');
+        }
+
+        //  post_data.php からリダイレクトされるときに
+        //  SESSION にデータを保存して、
+        //  ここで取得します。
+        if (!isset($_SESSION['id'])) {
+            die('学生番号が保存されていません');
+        }else {
+            $id = $_SESSION['id'];
+        }
+        
+        if (!isset($_SESSION['error'])) {
+            die('エラーが保存されていません');
+        }else {
+            $error = $_SESSION['error'];
+        }
+        
+        if (!isset($_SESSION['token_re'])) {
+            session_unset();  //  id が残る。
+            session_destroy();  //  destroy だけではデータが残る可能性がある。
+            die('token_re が保存されていません');
+        }else {
+            $token_re = $_SESSION['token_re'];
+        }
+        //  サニタイズ
+        $token_re = htmlspecialchars($token_re, ENT_QUOTES, 'UTF-8');
+        $id       = htmlspecialchars($id, ENT_QUOTES, 'UTF-8');
+        $error    = htmlspecialchars($error, ENT_QUOTES, 'UTF-8');
+        //  トークンを比較します。
+        if ($token_re !== $token_s) {
+            session_unset();  //  id が残る。
+            session_destroy();
+            die('トークンが一致しません');
+        }
+        $member = $dbm->get_student($id);
     show_top('学生情報の削除');
     //  show_delete() 関数を呼び出して
     //  table で学生情報を表示し、
@@ -126,4 +220,5 @@
     show_bottom(true);
 
 
+    }
 ?>

@@ -5,11 +5,11 @@
     //  HTMLのボタンで送信される
     //  form をhtml で表示する関数
     //  function show_edit_input_common($id, $name, $grade, $old_id,$data, $button) 
-    function show_edit_input_common($id, $name, $grade, $old_id, $data, $button) {
+    function show_edit_input_common($id, $name, $grade, $old_id, $data, $button, $token) {
         $error = '';
         $error = get_error();
-        //  GETメソッドからエラーを取得する関数 
-        //  get_error()は、$_GET['error']が存在する場合にその値を返し、
+        //  sessionからエラーを取得する関数 
+        //  get_error()は、$_SESSION['error']が存在する場合にその値を返し、
         //  存在しない場合は空文字を返す関数です。
         //  この関数は、エラーメッセージを表示するために使用されます。
         //  common.phpに定義します。
@@ -18,9 +18,9 @@
         echo <<<INPUT_TOP
         <form action="post_data.php" method="post">
         <p>学生番号</p>
-        <input type="text" name="id" value="{$id}" placeholder="例) 1001">
+        <input type="text" name="id" value="{$id}">
         <p>名前</p>
-        <input type="text" name="name" value="{$name}" placeholder="例) 山田太郎">
+        <input type="text" name="name" value="{$name}">
         <p>学年</p>
         <select name="grade">
         INPUT_TOP;
@@ -38,10 +38,8 @@
             echo "</option>";
         }
         //  フォームの下部を表示
-        $old_id = htmlspecialchars($old_id, ENT_QUOTES, 'UTF-8');
-        $data   = htmlspecialchars($data, ENT_QUOTES, 'UTF-8');
-        $token  = htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8');
-        $button = htmlspecialchars($button, ENT_QUOTES, 'UTF-8');
+        //  selectタグの閉じタグを表示
+        //  $error が空でない場合は、エラーメッセージ
         echo <<<INPUT_BOTTOM
         </select>
         <p>{$error}</p>
@@ -93,8 +91,9 @@
     }
 
     //  show_input()は、新しい学生情報を入力するためのフォームを表示する関数です。
-    function show_input() {
-        show_edit_input_common('', '', 1, '', 'create', '登録');
+    function show_input($token) {
+        
+        show_edit_input_common('', '', 1, '', 'create', '登録', $token);
     }
 
     //  DBManager クラスの get_student($id) メソッドを使用して
@@ -102,6 +101,11 @@
     //  そして、$member の値を show_student($member) 関数に渡して
     //  table で学生情報を表示する
     function show_student($member) {
+        //  XSS 対策として htmlspecialchars() を使用して
+        //  特殊文字をエスケープします。
+        $id = htmlspecialchars($member['id'], ENT_QUOTES, 'UTF-8');
+        $name = htmlspecialchars($member['name'], ENT_QUOTES, 'UTF-8');
+        $grade = htmlspecialchars($member['grade'], ENT_QUOTES, 'UTF-8');
         echo <<<STUDENT_INFO
         <table class="table">
         <thead>
@@ -114,9 +118,9 @@
 
         <tbody>
             <tr>
-                <td>{$member['id']}</td>
-                <td>{$member['name']}</td>
-                <td>{$member['grade']}</td>
+                <td>{$id}</td>
+                <td>{$name}</td>
+                <td>{$grade}</td>
             </tr>        
         </tbody>
         <tfoot>
@@ -138,12 +142,16 @@
         }
         $error = "";
         $error = get_error();
+        $error = htmlspecialchars($error, ENT_QUOTES, 'UTF-8');
+        $id = htmlspecialchars($member['id'], ENT_QUOTES, 'UTF-8');
+        $token = htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8');
         echo <<<DELETE_FORM
         <form action="post_data.php" method="post">
         <p>この情報を削除しますか？</p>
-        <input type="hidden" name="id" value="{$member['id']}">
+        <p>{$error}</p>
+        <input type="hidden" name="id" value="{$id}">
         <input type="hidden" name="data" value="delete">
-        <input type="hidden" name="csrf_token" value="{$_SESSION['csrf_token']}">
+        <input type="hidden" name="csrf_token" value="{$token}">
         <input type="submit" value="削除">
         </form>
         DELETE_FORM;
@@ -155,8 +163,8 @@
     //  学生番号、名前、学年、古い学生番号を引数として渡し、
     //  data は update に設定します。
     //  ボタンのラベルは「更新」とします。
-    function show_update($id, $name, $grade, $old_id) {
-        show_edit_input_common($id, $name, $grade, $old_id, 'update', '更新');
+    function show_update($id, $name, $grade, $old_id, $token) {
+        show_edit_input_common($id, $name, $grade, $old_id, 'update', '更新', $token);
     }
 
     //  DBManager クラスの get_allstudents() は
@@ -172,7 +180,7 @@
     //  戻り値として null を返します。
     //  function show_student_list($member) は、
     //  テーブルに$member の値を表示する関数です。
-    function show_student_list($member) {
+    function show_student_list($members) {
         echo <<<TABLE_TOP
         <table class="table">
             <thead>
@@ -189,7 +197,7 @@
         
         //  $member は2次元配列で、各学生の情報が格納されています。
         //  foreach文を使用して、$memberの各行を処理します。
-        foreach ($member as $row) {
+        foreach ($members as $row) {
             $id = htmlspecialchars($row['id'], ENT_QUOTES, 'UTF-8');
             $name = htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8');
             $grade = htmlspecialchars($row['grade'], ENT_QUOTES, 'UTF-8');
@@ -197,35 +205,36 @@
             //  htmlspecialchars() 関数は、HTML特殊文字をエスケープします。
             //  ENT_QUOTES は、シングルクォートとダブルクォートの両方をエスケープします。
             //  'UTF-8' は、文字エンコーディングを指定します。
-            echo <<<TR
-            <tr>
-                <td>{$id}</td>
-                <td>{$name}</td>
-                <td>{$grade}</td>
-                <td>
-                    <form action="student_update.php" method="post">
-                        <input type="hidden" name="id" value="{$id}">
-                        <input type="hidden" name="data" value="update">
-                        <input type="hidden" name="csrf_token" value="{$token}">
-                        <input type="submit" value="編集操作">
-                    </form>
-                </td>
-                <td>
-                    <form action="student_delete.php" method="post">
-                        <input type="hidden" name="id" value="{$id}">
-                        <input type="hidden" name="data" value="delete">
-                        <input type="hidden" name="csrf_token" value="{$token}">
-                        <input type="submit" value="削除操作">
-                    </form>
-                </td>
-            </tr>
-        TR;
-        }
+echo <<<TR
+<tr>
+    <td>{$id}</td>
+    <td>{$name}</td>
+    <td>{$grade}</td>
+    <td>
+        <form action="student_edit.php" method="post" class="table-form">
+            <input type="hidden" name="id" value="{$id}">
+            <input type="hidden" name="data" value="update">
+            <input type="hidden" name="csrf_token" value="{$token}">
+            <button type="submit">編集確認へ...</button>
+        </form>
+    </td>
+    <!--  削除操作のフォーム -->
+    <td>
+        <form action="student_edit.php" method="post" class="table-form">
+            <input type="hidden" name="id" value="{$id}">
+            <input type="hidden" name="data" value="delete">
+            <input type="hidden" name="csrf_token" value="{$token}">
+            <button type="submit">削除確認へ...</button>
+        </form>
+    </td>
+</tr>
+TR;
+}
         
         //  テーブルのフッターを表示
         //  合計行数を表示するために、count()関数を使用して
         //  $memberの行数を取得し、1名と表示します。
-        $total = count($member);
+        $total = count($members);
         
         echo <<<TABLE_BOTTOM
         </tbody>
@@ -263,17 +272,19 @@
     //  data => 'delete' の場合は
     //  学生情報の削除を行います。
     //  
-    function show_operations($id) {
+    function show_operations($id,$data,$operation, $post_file, $token) {
         echo <<<OPERATIONS
-            <a href="student_update.php?id={$id}">更新</a>
-            <br>
-            <a href="student_delete.php?id={$id}">削除</a>
-            <br>
-            <br>           
+        <form action="{$post_file}" method="post" class="operation-form">
+            <input type="hidden" name="id" value="{$id}">
+            <input type="hidden" name="data" value="{$data}">
+            <input type="hidden" name="csrf_token" value="{$token}">
+            <input type="submit" value="{$operation}">
+        </form>
         OPERATIONS;
     }
 
 ?>
+
 <?php  //  以下テストコード
        //  コメントアウトしてありますので、
        //  必要に応じてコメントを外して実行してください。

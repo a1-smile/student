@@ -87,21 +87,35 @@
         }
     }
 //  CSRF対策のためのトークンを確認します。
-    if (!isset($_SESSION['csrf_token'])) {
-        session_unset();  //  id が残る。
-        session_destroy();  //  destroy だけではデータが残る可能性がある。
-        die('安全対策のため、学生情報一覧画面から再操作を行ってください');
+    
+    $method = $_SERVER['REQUEST_METHOD'];
+
+ //  GET メソッドのみのアクセスを想定
+    if ($method !== 'GET') {
+        http_response_code(405); // 405 Method Not Allowed
+        die('通信形式が一致しません。');
     }
-    if ($_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        session_unset();  //  id が残る。
-        session_destroy();
-        die('不正なアクセス');
-    }
-    //  POST メソッドで送信されたかを確認し、
-    //  そうでない場合は、不正なアクセスとして処理を終了します。
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        die('通信形式が一致しません');
-    }
+        //  $token_re に $_SESSION['token_re'] をセット
+        if (isset($_SESSION['token_re'])) {
+            $token_re = $_SESSION['token_re'];
+        }else {
+            unset($token_re);
+        }
+        //  $error に $_SESSION['error'] をセット
+        if (isset($_SESSION['error'])) {
+            $error = $_SESSION['error'];
+        }
+        
+        $token_session = $_SESSION['csrf_token'];
+        //  トークンが一致しない場合はエラー
+        if (isset($token_re) ){
+            if ($token_re !== $token_session) {
+                session_unset();  //  id が残る。
+                session_destroy();  //  destroy だけではデータが残る可能性がある。
+                die('トークンが一致しません。');
+            }
+        }
+    
 
     if (file_exists(__DIR__."/common.php")) {
         require_once (__DIR__."/common.php");
@@ -110,7 +124,11 @@
     }
 
     show_top('学生情報の追加');
-    show_input();
+    //  トークンを生成
+    $token = bin2hex(random_bytes(32));
+    //  トークンをセッションに保存
+    $_SESSION['csrf_token'] = $token;
+    show_input($token);
     //  true なら、「学生情報の一覧に戻る」というリンクを表示します。
     show_bottom(true);
 

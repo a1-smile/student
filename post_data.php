@@ -100,10 +100,9 @@ if (!isset($_SESSION['ip_prefix'])) {
 
 
 //  POST メソッドで送信されたかを確認し、
-//  そうでない場合は、不正なアクセスとして処理を終了します。
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    die('通信形式が一致しません');
-}
+//  token の検証を行います。
+$method = $_SERVER['REQUEST_METHOD'];
+if ($method === 'POST') {
 
 //  CSRF トークンの検証を行います。
 //  フォームから送信されたトークンとセッションに保存されているトークンを比較します。
@@ -113,16 +112,24 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 if (!isset($_POST['csrf_token'])) {
     die('トークンが送信されていません。');
 }
-$post_token    = $_POST['csrf_token'] ;
-var_dump($post_token);
-$session_token = $_SESSION['csrf_token'];
-var_dump($session_token);
+if (!isset($_SESSION['csrf_token'])) {
+    die('セッションにトークンが保存されていません。');
+}
+$post_token    = htmlspecialchars($_POST['csrf_token'], ENT_QUOTES, 'UTF-8');
+
+$session_token = htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8');
+
 if ($post_token !== $session_token) {
     
     session_unset();
+    session_destroy();
     die('トークンが一致しません。');
 }
-
+}else {
+    //  POST メソッドで送信されていない場合は、
+    //  不正なアクセスとして処理を終了します。
+    die('通信形式が一致しません。POST メソッドで送信してください。');
+}
 //  POST データを処理するためのコードをここに記述します。
 
 
@@ -152,21 +159,53 @@ if ($post_token !== $session_token) {
     // セットされていない場合は、不正なアクセスとして処理を終了します。
     if (!isset($_POST['data'])) {
         die('処理が指定されていません');
-    }
+    }else {$data = htmlspecialchars($_POST['data'], ENT_QUOTES, 'UTF-8');}
     //  $_POST の値を取得します。
-    $data = $_POST['data'];
+        if (isset($_POST["csrf_token"])) {
+        $token = htmlspecialchars($_POST["csrf_token"], ENT_QUOTES, 'UTF-8');
+        }else {
+            die('CSRF トークンが指定されていません');
+        }
+
         if (isset($_POST["id"])) {
-        $id = $_POST["id"];
+        $id = htmlspecialchars($_POST["id"], ENT_QUOTES, 'UTF-8');
         }
-        if (isset($_POST["name"])) {
-        $name = $_POST["name"];
+
+        if ($data === 'update' or $data === 'create') {
+            if (isset($_POST["name"])) {
+            $name = htmlspecialchars($_POST["name"], ENT_QUOTES, 'UTF-8');
+            }else {
+                die('名前が指定されていません');
+            }
+            if (isset($_POST["grade"])) {
+            $grade = htmlspecialchars($_POST["grade"], ENT_QUOTES, 'UTF-8');
+            }else {
+                die('学年が指定されていません');
+            }
+            if (isset($_POST["old_id"])) {
+            $old_id = htmlspecialchars($_POST["old_id"], ENT_QUOTES, 'UTF-8');
+            }else {
+                die('更新前の学生 ID が指定されていません');
+            }
         }
-        if (isset($_POST["grade"])) {
-        $grade = $_POST["grade"];
+        
+        //  session にデータを保存します。
+        $_SESSION['id']       = $id;
+        $_SESSION['token_re'] = $token;
+        $_SESSION['data']     = $data;
+
+        if (isset($name)){
+            $_SESSION['name']   = $name;
         }
-        if (isset($_POST["old_id"])) {
-        $old_id = $_POST["old_id"];
+        if (isset($grade)){
+            $_SESSION['grade']  = $grade;
         }
+        if (isset($old_id)){
+            $_SESSION['old_id'] = $old_id;
+        }
+        
+        
+
         //  データー挿入処理
         if ($data === 'create') {
             //  check_input() 関数を使用して、
@@ -179,8 +218,9 @@ if ($post_token !== $session_token) {
                 //  check_input() 関数内で
                 //  エラーメッセージが設定されます。
 
-        $token = urlencode($_SESSION['csrf_token']);
-        header("Location: student_input.php?error={$error}&csrf_token={$token}");
+        //  $_SESSION にエラーメッセージを保存します。
+                $_SESSION['error'] = $error;
+        header("Location: student_input.php");
         exit();
                 
             }
@@ -201,7 +241,8 @@ if ($post_token !== $session_token) {
                 //  fetchALL() は、レコードが存在しない場合は空の配列を返します。
                 //  この仕組みを利用して、ID の存在チェックを行います。
                 $error = "学生 ID {$id} はすでに存在します";
-                header("Location: student_input.php?error={$error}");
+                $_SESSION['error'] = $error;
+                header("Location: student_input.php");
                 exit();
             }
 
@@ -212,7 +253,8 @@ if ($post_token !== $session_token) {
                 //  エラーメッセージを $error に代入し、
                 //  POST もとのページにリダイレクトします。
                 $error = "学生情報の登録に失敗しました";
-                header("Location: student_input.php?error={$error}");
+                $_SESSION['error'] = $error;
+                header("Location: student_input.php");
                 exit();
             }
             //  挿入処理が成功した場合は、
@@ -227,7 +269,8 @@ if ($post_token !== $session_token) {
                 //  入力データの検証に失敗した場合は、
                 //  エラーメッセージを $error に代入し、
                 //  POST もとのページにリダイレクトします。
-                header("Location: student_update.php?error={$error}&id={$old_id}");
+                $_SESSION['error'] = $error;
+                header("Location: student_update.php");
                 exit();
             }
             //  新しく更新する学生 ID がすでに存在するかを確認します。
@@ -236,7 +279,8 @@ if ($post_token !== $session_token) {
                 //  エラーメッセージを $error に代入し、
                 //  POST もとのページにリダイレクトします。
                 $error = "学生 ID {$id} はすでに存在します";
-                header("Location: student_update.php?error={$error}&id={$old_id}");
+                $_SESSION['error'] = $error;
+                header("Location: student_update.php");
                 exit();
             }
             $result = $dbm->update_student($id, $name, $grade, $old_id);
@@ -245,7 +289,8 @@ if ($post_token !== $session_token) {
                 //  エラーメッセージを $error に代入し、
                 //  POST もとのページにリダイレクトします。
                 $error = "学生情報の更新に失敗しました";
-                header("Location: student_update.php?error={$error}&id={$old_id}");
+                $_SESSION['error'] = $error;
+                header("Location: student_update.php");
                 exit();
             }
             //  更新処理が成功した場合は、
@@ -261,7 +306,10 @@ if ($post_token !== $session_token) {
                 //  エラーメッセージを $error に代入し、
                 //  POST もとのページにリダイレクトします。
                 $error = "学生 ID {$id} は存在しません";
-                header("Location: student_delete.php?error={$error}&id={$id}");
+                $_SESSION['error'] = $error;
+                $_SESSION['id'] = $id; //  削除確認ページで使用するため
+                $_SESSION['data'] = $data; //  削除確認ページで使用するため
+                header("Location: student_delete.php");
                 exit();
             }
             $result = $dbm->delete_student($id);
@@ -270,7 +318,8 @@ if ($post_token !== $session_token) {
                 //  エラーメッセージを $error に代入し、
                 //  POST もとのページにリダイレクトします。
                 $error = "学生情報の削除に失敗しました";
-                header("Location: student_delete.php?error={$error}&id={$id}");
+                $_SESSION['error'] = $error;
+                header("Location: student_delete.php");
                 exit();
             }
             //  削除処理が成功した場合は、
@@ -281,8 +330,10 @@ if ($post_token !== $session_token) {
             //  不正なデータが送信された場合は、
             //  エラーメッセージを $error に代入し、
             //  index.php にリダイレクトします。
-            $error = "不正なデータが送信されました";
-            header("Location: index.php?error={$error}");
+            $error = "data が update, delete, create のいずれでもありません";
+            $_SESSION['error'] = $error;
+            //  index.php にリダイレクトします。
+            header("Location: index.php");
             exit();
         }
 
