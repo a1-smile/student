@@ -24,7 +24,7 @@
     //  セッションをクリアして、プログラムを終了します。
     session_unset();
     session_destroy();
-    die('セッションタイムアウト');
+    die('10分以上経過したため、プログラムを停止しました。トップページに戻り、再読み込みをしてください。');
     }else {
     // セッションの有効期限が切れていない場合は
     // 最終アクティビティのタイムスタンプを更新します。
@@ -40,7 +40,7 @@
         // ユーザーエージェントが異なる場合はセッションを破棄
         session_unset();
         session_destroy();
-        die('不正なアクセス');
+        die('ユーザーエージェントが変更されたため、セッションを破棄しました。');
     }
 
         // IPアドレスの先頭部分をチェックする
@@ -63,7 +63,7 @@
         $parts = explode('.', $ip);
         $_SESSION['ip_prefix'] = implode('.', array_slice($parts, 0, 2));
         } else {
-            die('不正なIPアドレス');
+            die('IPv4,IPv6 のいずれでもない場合は停止します。');
         }
     } else {
     // すでに記録済み → 同じ接続元か確認
@@ -76,7 +76,7 @@
         $parts = explode('.', $ip);
         $current_prefix = implode('.', array_slice($parts, 0, 2));
     } else {
-        die('不正なIPアドレス');
+        die('IPv4,IPv6 のいずれでもない場合は停止します。');
     }
 
     if ($current_prefix !== $prefix) {
@@ -84,25 +84,19 @@
         // 
         session_unset();  //  id が残る。
         session_destroy();  //  destroy だけではデータが残る可能性がある。
-        die('セッションハイジャック防止のため再入力が必要です');
+        die('接続元のIPアドレスが変更されたため、セッションを破棄しました。');
         }
     }
 
-    //  共通ファイルを読み込みます。
-    //  common.php が存在しない場合はエラーを表示します。
-    if (file_exists(__DIR__."/common.php")) {
-        require_once (__DIR__."/common.php");
-    }else {
-        die('common.php が見つかりません');
-    }
+    
     //  SESSION から、 token を取得
     if (!isset($_SESSION['csrf_token'])) {
         session_unset();  //  id が残る。
         session_destroy();  //  destroy だけではデータが残る可能性がある。
-        die('安全対策のため、学生情報一覧画面から再操作を行ってください');
+        die('セッションからトークンが取得できません');
     }else{
         $token_s = $_SESSION['csrf_token'];
-        //  サニタイズ
+        //  エスケープします。
         $token_s = htmlspecialchars($token_s, ENT_QUOTES, 'UTF-8');
     }
 
@@ -115,7 +109,7 @@
     }elseif ($method === 'GET') {
         delete_get($token_s);
     } else {
-        die('不正なアクセス');
+        die('メソッドが不正です。POST または GET でアクセスしてください。');
     }
     
 
@@ -200,16 +194,17 @@
         }else {
             $token_re = $_SESSION['token_re'];
         }
-        //  サニタイズ
+        //  エスケープします。
         $token_re = htmlspecialchars($token_re, ENT_QUOTES, 'UTF-8');
         $id       = htmlspecialchars($id, ENT_QUOTES, 'UTF-8');
         $error    = htmlspecialchars($error, ENT_QUOTES, 'UTF-8');
-        //  トークンを比較します。
+        //  CSRF トークンが一致するかを確認します。
         if ($token_re !== $token_s) {
             session_unset();  //  id が残る。
             session_destroy();
             die('トークンが一致しません');
         }
+        global $dbm; // グローバル変数$dbmにアクセス
         $member = $dbm->get_student($id);
     show_top('学生情報の削除');
     //  show_delete() 関数を呼び出して

@@ -2,6 +2,9 @@
     function check_input($id, $name, $grade, &$error) {
         //  $error メモリリセット
         $error = '';
+        //  $id, $name, $grade の値を trim() で前後の空白を削除
+        $id = trim($id);
+        $name = trim($name);
         //  $id と $name が空欄でないかチェック
         if ($id === '' or $name === '') {
             $error = '入力されていない項目があります。';

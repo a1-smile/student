@@ -16,11 +16,13 @@
 
         //  フォームの上部を表示
         echo <<<INPUT_TOP
-        <form action="post_data.php" method="post">
+        <form action="post_data.php" method="post" id="commonForm">
         <p>学生番号</p>
-        <input type="text" name="id" value="{$id}">
+        <input type="number" name="id" value="{$id}" id="idInput" placeholder="Id">
+        <p id="idError" class="error-message"></p>
         <p>名前</p>
-        <input type="text" name="name" value="{$name}">
+        <input type="text" name="name" value="{$name}" id="nameInput" placeholder="Name">
+        <p id="nameError" class="error-message"></p>
         <p>学年</p>
         <select name="grade">
         INPUT_TOP;
@@ -68,8 +70,8 @@
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>学生リスト</title>
-                <link rel="stylesheet" href="../../style/sanitize.css">
-                <link rel="stylesheet" href="../../style/style.css">
+                <link rel="stylesheet" href="sanitize.css">
+                <link rel="stylesheet" href="style.css">
             </head>
             <body>
                 <h1>{$heading}</h1>
@@ -85,6 +87,8 @@
         RETURN_TOP;
         }
         echo <<<BOTTOM
+        <!--javascriptを読み込みます-->
+        <script src="script.js"></script>
         </body>
         </html>
         BOTTOM;
@@ -103,8 +107,8 @@
     function show_student($member) {
         //  XSS 対策として htmlspecialchars() を使用して
         //  特殊文字をエスケープします。
-        $id = htmlspecialchars($member['id'], ENT_QUOTES, 'UTF-8');
-        $name = htmlspecialchars($member['name'], ENT_QUOTES, 'UTF-8');
+        $id    = htmlspecialchars($member['id'], ENT_QUOTES, 'UTF-8');
+        $name  = htmlspecialchars($member['name'], ENT_QUOTES, 'UTF-8');
         $grade = htmlspecialchars($member['grade'], ENT_QUOTES, 'UTF-8');
         echo <<<STUDENT_INFO
         <table class="table">
@@ -152,7 +156,7 @@
         <input type="hidden" name="id" value="{$id}">
         <input type="hidden" name="data" value="delete">
         <input type="hidden" name="csrf_token" value="{$token}">
-        <input type="submit" value="削除">
+        <button type="submit">削除</button>
         </form>
         DELETE_FORM;
         }

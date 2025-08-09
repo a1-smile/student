@@ -1,0 +1,213 @@
+@charset "UTF-8";
+
+html {
+    font-size: 62.5%;
+}
+
+body {
+    font-size: 1.6rem;
+}
+
+body {
+    max-width: 1200px; /* 最大幅を設定 */
+    margin: 0 auto;    /* 左右自動で中央寄せ */
+    padding: 0 20px;   /* 左右に余白 */
+}
+
+/* テーブルのスタイリング
+【 重要 】テーブルのクラスを table にすることを忘れない！！
+    table タグのクラスは「table」
+    <table class="table">
+*/
+.table th,
+.table td {
+    border: 1px solid #000; /* セルの境界線 solidは実線 #000 は blackと書いても良い*/
+    padding: 1rem; /* セルの余白 (rem はルートを基準にした単位) */
+}
+
+.table {
+    /*border: 1px solid #000; */ /* セルの境界線 solidは実線 #000 は blackと書いても良い*/
+    border-collapse: collapse; /* 【 重要 】隣り合う境界線を結合 */
+    
+    width: 90%;
+    max-width: 1200px;
+    box-sizing: border-box;
+    
+    margin-left: 2rem;
+       
+    table-layout: fixed; /* 表の幅が自動調整されるのを解除 auto から */
+}
+
+/*列を大きく*/
+.table thead tr th:nth-child(1),
+.table thead tr th:nth-child(2)
+{
+    width: 30%;
+    box-sizing: border-box;
+}
+
+
+.table thead {
+    background-color: #2e7c9f; /* 見出しに背景色(濃いブルー) */
+    color: #fff; /* コントラストの関係で白に */
+}
+
+.table tbody tr:nth-child(odd) {
+    background-color: #fff; /* 奇数行の背景色 */
+}
+.table tbody tr:nth-child(even) {
+    background-color: #dbf6ff; /* 偶数行の背景色 (うすい水色)*/
+}
+
+.table tbody tr:hover {
+    background-color: #ffe593; /* ホバーした行をハイライト */
+    font-weight: bold;
+}
+
+.responsive-table {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+form.operation-form {
+    margin: 2rem 2rem;
+    display: inline-block; /* 必要に応じて */
+    padding: 0rem; /* フォーム内の余白 */
+}
+
+/* operation-form のボタンのスタイル */
+form.operation-form input[type="submit"]{
+    cursor: pointer; /* ポインターを手の形に */
+    font-size: 1.5rem; /* フォントサイズ */
+    border: 1px solid black; /* ボーダーあり */
+    border-radius: 3px; /* 角を丸く */
+     /* ボックスシャドウ */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+    padding: 0.5rem 1rem; /* パディング */
+    background-color: #8cbdd4; /* 背景色 */
+    color: #000000; /* 文字色 */
+}
+/* operation-form のボタンのホバー効果 */
+form.operation-form input[type="submit"]:hover {
+    background-color: #a9dff1; /* ホバー時の背景色 */
+    color: #000000; /* ホバー時の文字色 */
+}
+
+/*一般的なリンクのスタイル*/
+a {
+    color: #2e7c9f; /* リンクの色 */
+    text-decoration: none; /* 下線なし */
+
+    /*transition とは
+    要素の状態が変化する際に、
+    プロパティの値が変わる過程を
+    滑らかにするためのCSSの機能です。
+    */
+    transition: color 0.3s ease; /* 色の変化にアニメーションを追加 */
+    padding-left: 2rem;
+}
+/*
+
+    color: #0066cc;  オーソドックス
+    color: #0000ff; （青）
+    color: #1a73e8;  モダン
+    color: #007bff;  ビビッド
+
+*/
+/*訪問済みリンクの色*/
+a:visited {
+    color: #800080; /* 紫色 */
+}
+a:hover {
+    color: #1a5a73; /* ホバー時の色 */
+    text-decoration: underline; /* ホバー時に下線を表示 */
+}
+
+/*アニメーション 押した感覚*/
+form.operation-form input[type="submit"]:active {
+    transform: translateY(2px); /* 押したときに下に移動 */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); /* 押したときの影を小さく */
+}
+
+/*テーブル内の form の buttonで 属性が
+type="submit"である要素の幅を調整する*/
+
+/*画面幅によってボタンがテーブル枠からはみ出すため！！*/
+
+/* form 全体の幅を調整する */
+form.table-form {
+    width: 100%;
+    text-align: center; /* 中央寄せ */
+}
+/* form 内の button の幅を調整する */
+form.table-form button[type="submit"] {
+    width: 100%; /* ボタンの幅を100%に */
+    max-width: 15rem; /* 最大幅を15remに */
+    box-sizing: border-box; /* パディングとボーダーを含める */
+    cursor: pointer; /* ポインターを手の形に */
+}
+
+h1 {
+    border-left: 6px solid #2e7c9f; /* 左側に6pxの縦線（テーブルヘッダーと同じ色） */
+    padding-left: 1rem; /* 線とテキストの間に余白 */
+}
+
+h1, form.operation-form, a {
+    margin: 2rem 2rem; /* 上下2rem、左右2rem */
+}
+
+.error-message {
+    color: red; /* エラーメッセージの色を赤に */
+    font-size: 1.4rem; /* フォントサイズを少し小さく */
+    margin-top: 0.5rem; /* 上に少し余白 */
+}
+
+/* form の装飾 */
+form#commonForm {
+    width: 30%;
+    margin: 2rem 2rem; /* 上下2rem、左右2rem */
+    padding: 1rem; /* 内側の余白 */
+}
+/* form 内の input 要素のスタイル */
+form#commonForm input[type="text"],
+form#commonForm input[type="number"],
+form#commonForm select {
+    width: 100%; /* 幅を100%に */
+    padding: 15px 10px 10px; /* 上15px、左右10px、下10px */
+    border: 1px solid #cecece; /* 枠線 */
+    background: #d7d7d7;
+    border-radius: 5px; /* 角を丸く */
+    box-sizing: border-box; /* パディングとボーダーを含める */
+}
+form#commonForm select {
+    width: 20%; /* 幅を20%に */
+}
+form#commonForm input[type="submit"] {
+
+    font-size: 1.5rem; /* フォントサイズ */
+    padding: 0.5rem 1rem; /* 上下0.5rem、左右1rem */
+    border: 1px solid #000000; /* 枠線 */
+    border-radius: 3px; /* 角を丸く */
+    cursor: pointer; /* ポインターを手の形に */
+    background-color: #8cbdd4; /* 背景色 */
+    color: #000000; /* 文字色 */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5); /* ボックスシャドウ */
+}
+form#commonForm input[type="submit"]:hover {
+    background-color: #a9dff1; /* ホバー時の背景色 */
+    color: #000000; /* ホバー時の文字色 */
+}
+/*アクティブ時のスタイル*/
+form#commonForm input[type="submit"]:active {
+    transform: translateY(2px); /* 押したときに下に移動 */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); /* 押したときの影を小さく */
+}
+
+/*
+.marginsmoll {
+    margin-top: 2rem;
+    margin-right: 1rem;
+    margin-bottom: -1rem;
+    margin-left: 2rem;
+}
+*/
