@@ -188,7 +188,21 @@ if ($post_token !== $session_token) {
                 die('更新前の学生 ID が指定されていません');
             }
         }
+
+//  token を確認します。
+        if ($token !== $_SESSION['csrf_token']) {
+            //  トークンが一致しない場合は、セッションを破棄します。
+            session_unset();  //  id が残る。
+            session_destroy();  //  destroy だけではデータが残る可能性がある。
+            die('トークンが一致しません');
+        }
+//  token を使い捨てます。
         
+        unset($_SESSION['csrf_token']);
+//  token を再生成します。
+
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+
         //  session にデータを保存します。
         $_SESSION['id']       = $id;
         $_SESSION['token_re'] = $token;
@@ -305,7 +319,7 @@ if ($post_token !== $session_token) {
                 //  学生 ID が存在しない場合は、
                 //  エラーメッセージを $error に代入し、
                 //  POST もとのページにリダイレクトします。
-                $error = "学生 ID {$id} は存在しません";
+                $error = "学生 ID {$id} はデータベースで見つかりません";
                 $_SESSION['error'] = $error;
                 $_SESSION['id'] = $id; //  削除確認ページで使用するため
                 $_SESSION['data'] = $data; //  削除確認ページで使用するため

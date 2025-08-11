@@ -143,6 +143,8 @@
     function show_delete($member) {
         if ($member !== null) {
             show_student($member);
+        }else {
+            die('$member が null です。学生情報が存在しません。');
         }
         $error = "";
         $error = get_error();

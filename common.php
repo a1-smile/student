@@ -1,7 +1,19 @@
 <?php
-require_once ("common/html_functions.php");
-require_once ("common/DBManager.php");
-require_once ("common/data_check.php");
+if (file_exists(__DIR__."/common/html_functions.php")) {
+    require_once (__DIR__."/common/html_functions.php");
+}else {
+    die('html_functions.php が見つかりません');
+}
+if (file_exists(__DIR__."/common/dbmanager.php")) {
+    require_once (__DIR__."/common/dbmanager.php");
+} else {
+    die('dbmanager.php が見つかりません');
+}
+if (file_exists(__DIR__."/common/data_check.php")) {
+    require_once (__DIR__."/common/data_check.php");
+} else {
+    die('data_check.php が見つかりません');
+}
 
 //  function get_error() を定義します。
 //  $error は、
@@ -33,5 +45,30 @@ function get_error() {
 //
 //  DBManager クラスのインスタンスを作成します。
 //  $dbm に代入します。
-$dbm = new DBManager();
+
+//  デバッグ用コード
+echo "DBManagerクラスの存在確認: " . (class_exists('DBManager') ? 'あり' : 'なし') . "<br>";
+
+try {
+    echo "DBManagerのインスタンス作成を開始...<br>";
+    $dbm = new DBManager();
+    echo "DBManagerのインスタンス作成成功！<br>";
+    echo "\$dbm の型: " . gettype($dbm) . "<br>";
+    echo "\$dbm instanceof DBManager: " . ($dbm instanceof DBManager ? 'true' : 'false') . "<br>";
+} catch (Exception $e) {
+    echo "例外が発生しました: " . $e->getMessage() . "<br>";
+    echo "ファイル: " . $e->getFile() . "<br>";
+    echo "行: " . $e->getLine() . "<br>";
+    error_log('DBManager のインスタンス作成に失敗: ' . $e->getMessage());
+    die('DBManager のインスタンス作成に失敗しました');
+}
+echo "common.php の最後で \$dbm の状態: " . (isset($dbm) ? 'セット済み' : '未セット') . "<br>";
+//  デバッグ用コード終了
+
+try {
+    $dbm = new DBManager();
+} catch (Exception $e) {
+    error_log('DBManager のインスタンス作成に失敗: ' . $e->getMessage());
+    die('DBManager のインスタンス作成に失敗しました');
+}
 ?>
