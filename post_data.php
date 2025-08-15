@@ -8,7 +8,7 @@
 //  CSRF トークンは、KEY 'csrf_token' に対応するようにします。
 
 //  セキュアなクッキーを使用
-    // session_start() の前に設定する必要があります。
+// session_start() の前に設定する必要があります。
 // セキュアなクッキーを使用することで、
 // セッションIDがHTTPS接続でのみ送信されるようにします。
 
@@ -27,21 +27,24 @@ session_set_cookie_params([
 ]);                            // クッキーを送らない  (CSRF対策)
 
  // 以上は、セッション開始の前に設定を行う必要があります
+
+
 //  セッションを開始します。
 session_start();
-//  session timeout を設定します。
-//  ここでは、10 分に設定しています。
-$session_timeout = 600; // 10分（600秒）
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
-    // セッションの有効期限が切れた場合は
-    //  session_regenerate_id(true) を呼び出して
-    // セッションIDを再生成します。
-    session_regenerate_id(true);
-}else {
-    // セッションの有効期限が切れていない場合は
-    // 最終アクティビティのタイムスタンプを更新します。
-    $_SESSION['last_activity'] = time();
-}
+
+
+
+//  共通ファイルを読み込みます。
+//  common.php が存在しない場合はエラーを表示します。
+    if (file_exists(__DIR__."/common.php")) {
+        require_once (__DIR__."/common.php");
+    }else {
+        die('common.php が見つかりません');
+    } 
+
+//  session timeout 処理
+handle_session_timeout();
+
 
 //  ユーザーエージェントをチェックする
 if (!isset($_SESSION['user_agent'])) {
@@ -89,7 +92,7 @@ if (!isset($_SESSION['ip_prefix'])) {
         die('不正なIPアドレス');
     }
 
-    if ($current_prefix !== $prefix) {
+    if (!hash_equals($current_prefix, $prefix)) {
         // IPの接続元が変わった → セッションを破棄
         // 
         session_unset();  //  id が残る。
@@ -119,8 +122,8 @@ $post_token    = htmlspecialchars($_POST['csrf_token'], ENT_QUOTES, 'UTF-8');
 
 $session_token = htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8');
 
-if ($post_token !== $session_token) {
-    
+if (!hash_equals($post_token, $session_token)) {
+
     session_unset();
     session_destroy();
     die('トークンが一致しません。');
@@ -130,6 +133,11 @@ if ($post_token !== $session_token) {
     //  不正なアクセスとして処理を終了します。
     die('通信形式が一致しません。POST メソッドで送信してください。');
 }
+
+//  token を使い捨てます。
+        
+        unset($_SESSION['csrf_token']);
+//  
 //  POST データを処理するためのコードをここに記述します。
 
 
@@ -147,75 +155,54 @@ if ($post_token !== $session_token) {
 //  HTML 関数を定義する html_functions.php、
 //  入力チェックを行う data_check.php、
 //  エラーメッセージを取得するための get_error() 関数は、
-//  common.php に記述または読み込まれているため、
-//  common.php を読み込みます。
-    if (file_exists(__DIR__."/common.php")) {
-        require_once (__DIR__."/common.php");
-    }else {
-        die('common.php が見つかりません');
-    }
-    
+
     //  $_POST['data'] の値がセットされているかを確認します。
     // セットされていない場合は、不正なアクセスとして処理を終了します。
     if (!isset($_POST['data'])) {
         die('処理が指定されていません');
-    }else {$data = htmlspecialchars($_POST['data'], ENT_QUOTES, 'UTF-8');}
+    }else {
+        $data = $_POST['data'];
+    }
     //  $_POST の値を取得します。
-        if (isset($_POST["csrf_token"])) {
-        $token = htmlspecialchars($_POST["csrf_token"], ENT_QUOTES, 'UTF-8');
-        }else {
-            die('CSRF トークンが指定されていません');
-        }
-
         if (isset($_POST["id"])) {
-        $id = htmlspecialchars($_POST["id"], ENT_QUOTES, 'UTF-8');
+        $id = $_POST["id"];
+        } else {
+            die('学生 ID が指定されていません');
         }
 
         if ($data === 'update' or $data === 'create') {
             if (isset($_POST["name"])) {
-            $name = htmlspecialchars($_POST["name"], ENT_QUOTES, 'UTF-8');
+            $name = $_POST["name"];
             }else {
                 die('名前が指定されていません');
             }
             if (isset($_POST["grade"])) {
-            $grade = htmlspecialchars($_POST["grade"], ENT_QUOTES, 'UTF-8');
+            $grade = $_POST["grade"];
             }else {
                 die('学年が指定されていません');
             }
             if (isset($_POST["old_id"])) {
-            $old_id = htmlspecialchars($_POST["old_id"], ENT_QUOTES, 'UTF-8');
+            $old_id = $_POST["old_id"];
             }else {
                 die('更新前の学生 ID が指定されていません');
             }
         }
 
-//  token を確認します。
-        if ($token !== $_SESSION['csrf_token']) {
-            //  トークンが一致しない場合は、セッションを破棄します。
-            session_unset();  //  id が残る。
-            session_destroy();  //  destroy だけではデータが残る可能性がある。
-            die('トークンが一致しません');
-        }
-//  token を使い捨てます。
-        
-        unset($_SESSION['csrf_token']);
-//  token を再生成します。
 
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+//  
 
         //  session にデータを保存します。
-        $_SESSION['id']       = $id;
-        $_SESSION['token_re'] = $token;
-        $_SESSION['data']     = $data;
+        $_SESSION['id']       = htmlspecialchars($id, ENT_QUOTES, 'UTF-8');
+        $_SESSION['data']     = htmlspecialchars($data, ENT_QUOTES, 'UTF-8');
 
         if (isset($name)){
-            $_SESSION['name']   = $name;
+            $_SESSION['name']   = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
         }
         if (isset($grade)){
-            $_SESSION['grade']  = $grade;
+            $_SESSION['grade']  = htmlspecialchars($grade, ENT_QUOTES, 'UTF-8');
         }
         if (isset($old_id)){
-            $_SESSION['old_id'] = $old_id;
+            $_SESSION['old_id'] = htmlspecialchars($old_id, ENT_QUOTES, 'UTF-8');
         }
         
         
@@ -240,7 +227,7 @@ if ($post_token !== $session_token) {
             }
             //  $dbm インスタンスの if_id_exists() メソッドを使用して、
             //  学生 ID がすでに存在するかを確認します。
-            //  commoon.php で $dbm = new DBManager(); としているので、
+            //  common.php で $dbm = new DBManager(); としているので、
             //  $dbm インスタンスを使用します。
             if ($dbm->if_id_exists($id) === true) {
                 //  学生 ID がすでに存在する場合は、
@@ -320,9 +307,9 @@ if ($post_token !== $session_token) {
                 //  エラーメッセージを $error に代入し、
                 //  POST もとのページにリダイレクトします。
                 $error = "学生 ID {$id} はデータベースで見つかりません";
-                $_SESSION['error'] = $error;
+                $_SESSION['error'] = $error;// get_error() で取得
                 $_SESSION['id'] = $id; //  削除確認ページで使用するため
-                $_SESSION['data'] = $data; //  削除確認ページで使用するため
+                //  student_delete.php にリダイレクトします。
                 header("Location: student_delete.php");
                 exit();
             }

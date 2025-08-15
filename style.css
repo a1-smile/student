@@ -76,7 +76,7 @@ form.operation-form {
 }
 
 /* operation-form のボタンのスタイル */
-form.operation-form input[type="submit"]{
+form.operation-form button[type="submit"]{
     cursor: pointer; /* ポインターを手の形に */
     font-size: 1.5rem; /* フォントサイズ */
     border: 1px solid black; /* ボーダーあり */
@@ -88,7 +88,7 @@ form.operation-form input[type="submit"]{
     color: #000000; /* 文字色 */
 }
 /* operation-form のボタンのホバー効果 */
-form.operation-form input[type="submit"]:hover {
+form.operation-form button[type="submit"]:hover {
     background-color: #a9dff1; /* ホバー時の背景色 */
     color: #000000; /* ホバー時の文字色 */
 }

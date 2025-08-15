@@ -16,16 +16,17 @@
 
         //  フォームの上部を表示
         echo <<<INPUT_TOP
-        <form action="post_data.php" method="post" id="commonForm">
-        <p>学生番号</p>
-        <input type="number" name="id" value="{$id}" id="idInput" placeholder="Id">
-        <p id="idError" class="error-message"></p>
-        <p>名前</p>
-        <input type="text" name="name" value="{$name}" id="nameInput" placeholder="Name">
-        <p id="nameError" class="error-message"></p>
-        <p>学年</p>
-        <select name="grade">
-        INPUT_TOP;
+<!-- php での互換性を確保するために行頭から記述 -->
+<form action="post_data.php" method="post" id="commonForm">
+<p>学生番号</p>
+<input type="number" name="id" value="{$id}" id="idInput" placeholder="Id">
+<p id="idError" class="error-message"></p>
+<p>名前</p>
+<input type="text" name="name" value="{$name}" id="nameInput" placeholder="Name">
+<p id="nameError" class="error-message"></p>
+<p>学年</p>
+<select name="grade">
+INPUT_TOP;
         for ($i = 1; $i <= 3; $i++) {
             echo "<option value=\"{$i}\"";
             //  \" は、ダブルクォートをエスケープするために使用
@@ -43,14 +44,21 @@
         //  selectタグの閉じタグを表示
         //  $error が空でない場合は、エラーメッセージ
         echo <<<INPUT_BOTTOM
-        </select>
-        <p>{$error}</p>
-        <input type="hidden" name="old_id" value="{$old_id}">
-        <input type="hidden" name="data" value="{$data}">
-        <input type="submit" name="button" value="{$button}">
-        <input type="hidden" name="csrf_token" value="{$token}">
-        </form>
-        INPUT_BOTTOM;
+<!-- php での互換性を確保するために行頭から記述 -->
+</select>
+<p>{$error}</p>
+<input type="hidden" name="old_id" value="{$old_id}">
+<input type="hidden" name="data" value="{$data}">
+<!-- `<input type="submit" name="button" value="{$button}">`は、
+    `name`属性が`button`で、`value`属性にボタンのラベルが設定されます。
+    ただし、HTML5では、`<button>`タグを使用することが推奨されています。
+    そのため、以下のように書き換えます。
+<input type="submit" name="button" value="{$button}">
+-->
+<button type="submit" >{$button}</button>
+<input type="hidden" name="csrf_token" value="{$token}">
+</form>
+INPUT_BOTTOM;
     }
 
 //  <!-- `value`が空や未定義 → `placeholder`が表示される
@@ -64,18 +72,40 @@
 //  php で表示する関数を定義
     function show_top($heading = "学生一覧") {
         echo <<<STUDENT_LIST
-        <!DOCTYPE html>
-        <html lang="ja">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>学生リスト</title>
-                <link rel="stylesheet" href="sanitize.css">
-                <link rel="stylesheet" href="style.css">
-            </head>
-            <body>
-                <h1>{$heading}</h1>
-        STUDENT_LIST;
+<!-- php での互換性を確保するために行頭から記述 -->
+<!DOCTYPE html>
+<html lang="ja">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>学生リスト</title>
+        <link rel="stylesheet" href="sanitize.css">
+        <link rel="stylesheet" href="style.css">
+    </head>
+    <body>
+        <h1>{$heading}</h1>
+STUDENT_LIST;
+
+        $error = get_error();
+        if ($error !== '') {
+            //  エラーメッセージがある場合は、表示します。
+            //  htmlspecialchars() を使用して、XSS 対策を行います。
+            $error = htmlspecialchars($error, ENT_QUOTES, 'UTF-8');
+            echo "<p class='error-message'>エラー: {$error}</p>";
+        }   
+
+        if (isset($_SESSION['timeout_info'])) {
+    $timeout_info = $_SESSION['timeout_info'];
+    echo "<div class='timeout-message'>";
+    echo "<h2>セッション終了のお知らせ</h2>";
+    echo "<p>{$timeout_info['message']}</p>";
+    echo "<p>非アクティブ時間: {$timeout_info['inactive_minutes']}分</p>";
+    echo "<p>終了時刻: {$timeout_info['timestamp']}</p>";
+    echo "</div>";
+    
+    // メッセージを表示したら削除
+    unset($_SESSION['timeout_info']);
+}
     }
 
     //  show_top()関数は、HTMLのヘッダーとボディの開始部分を表示します。
@@ -83,15 +113,17 @@
     function show_bottom($return_top = false) {
         if ($return_top===true) {
             echo <<<RETURN_TOP
-            <p><a href="index.php">学生一覧に戻る</a></p>
-        RETURN_TOP;
+<!-- php での互換性を確保するために行頭から記述 -->
+<p><a href="index.php">学生一覧に戻る</a></p>
+RETURN_TOP;
         }
         echo <<<BOTTOM
-        <!--javascriptを読み込みます-->
-        <script src="script.js"></script>
-        </body>
-        </html>
-        BOTTOM;
+<!-- php での互換性を確保するために行頭から記述 -->
+<!--javascriptを読み込みます-->
+<script src="script.js"></script>
+</body>
+</html>
+BOTTOM;
     }
 
     //  show_input()は、新しい学生情報を入力するためのフォームを表示する関数です。
@@ -111,27 +143,29 @@
         $name  = htmlspecialchars($member['name'], ENT_QUOTES, 'UTF-8');
         $grade = htmlspecialchars($member['grade'], ENT_QUOTES, 'UTF-8');
         echo <<<STUDENT_INFO
-        <table class="table">
-        <thead>
-            <tr>
-                <th>学生番号</th>
-                <th>名前</th>
-                <th>学年</th>
-            </tr>
-        </thead>
+<!-- php での互換性を確保するために行頭から記述 -->
+<table class="table">
+    <thead>
+        <tr>
+            <th>学生番号</th>
+            <th>名前</th>
+            <th>学年</th>
+        </tr>
+    </thead>
 
-        <tbody>
-            <tr>
-                <td>{$id}</td>
-                <td>{$name}</td>
-                <td>{$grade}</td>
-            </tr>        
-        </tbody>
-        <tfoot>
-            <tr><td>合計</td><td colspan="2">1名</td></tr>   
-        </tfoot>
-     </table>
-    STUDENT_INFO;
+    <tbody>
+        <tr>
+            <td>{$id}</td>
+            <td>{$name}</td>
+            <td>{$grade}</td>
+        </tr>        
+    </tbody>
+
+    <tfoot>
+        <tr><td>合計</td><td colspan="2">1名</td></tr>   
+    </tfoot>
+</table>
+STUDENT_INFO;
     }
 
     //  show_delete($member) 関数は、
@@ -140,7 +174,7 @@
     //  学生情報を $member に連想配列で代入する。
     //  $id に対応する学生情報が存在しない場合は、
     //  $member に null が代入されて返ってきます。
-    function show_delete($member) {
+    function show_delete($member,$token) {
         if ($member !== null) {
             show_student($member);
         }else {
@@ -150,18 +184,19 @@
         $error = get_error();
         $error = htmlspecialchars($error, ENT_QUOTES, 'UTF-8');
         $id = htmlspecialchars($member['id'], ENT_QUOTES, 'UTF-8');
-        $token = htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8');
+        
         echo <<<DELETE_FORM
-        <form action="post_data.php" method="post">
-        <p>この情報を削除しますか？</p>
-        <p>{$error}</p>
-        <input type="hidden" name="id" value="{$id}">
-        <input type="hidden" name="data" value="delete">
-        <input type="hidden" name="csrf_token" value="{$token}">
-        <button type="submit">削除</button>
-        </form>
-        DELETE_FORM;
-        }
+<!-- php での互換性を確保するために行頭から記述 -->
+<form action="post_data.php" method="post" class="operation-form">
+<p>この情報を削除しますか？</p>
+<p>{$error}</p>
+<input type="hidden" name="id" value="{$id}">
+<input type="hidden" name="data" value="delete">
+<input type="hidden" name="csrf_token" value="{$token}">
+<button type="submit">削除</button>
+</form>
+DELETE_FORM;
+    }
 
     //  show_update($id, $name, $grade, $old_id) 関数は、
     //  学生情報を更新するためのフォームを表示します。
@@ -188,18 +223,19 @@
     //  テーブルに$member の値を表示する関数です。
     function show_student_list($members) {
         echo <<<TABLE_TOP
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>学生番号</th>
-                    <th>名前</th>
-                    <th>学年</th>
-                    <th>編集操作</th>
-                    <th>削除操作</th>
-                </tr>
-            </thead>
-            <tbody>
-    TABLE_TOP;
+<!-- php での互換性を確保するために行頭から記述 -->
+<table class="table">
+    <thead>
+        <tr>
+            <th>学生番号</th>
+            <th>名前</th>
+            <th>学年</th>
+            <th>編集操作</th>
+            <th>削除操作</th>
+        </tr>
+    </thead>
+    <tbody>
+TABLE_TOP;
         
         //  $member は2次元配列で、各学生の情報が格納されています。
         //  foreach文を使用して、$memberの各行を処理します。
@@ -211,7 +247,8 @@
             //  htmlspecialchars() 関数は、HTML特殊文字をエスケープします。
             //  ENT_QUOTES は、シングルクォートとダブルクォートの両方をエスケープします。
             //  'UTF-8' は、文字エンコーディングを指定します。
-echo <<<TR
+    echo <<<TR
+<!-- php での互換性を確保するために行頭から記述 -->
 <tr>
     <td>{$id}</td>
     <td>{$name}</td>
@@ -235,24 +272,25 @@ echo <<<TR
     </td>
 </tr>
 TR;
-}
+    }
         
         //  テーブルのフッターを表示
         //  合計行数を表示するために、count()関数を使用して
-        //  $memberの行数を取得し、1名と表示します。
+        //  $membersの行数を取得し、人数を表示します。
         $total = count($members);
         
         echo <<<TABLE_BOTTOM
-        </tbody>
-        <tfoot>
-            <tr>
-                <td>学籍情報</td>
-                <td colspan="4">合計{$total}名</td>
-            </tr>
-        </tfoot>
-        </table>
-        <br>
-    TABLE_BOTTOM;
+<!-- php での互換性を確保するために行頭から記述 -->
+</tbody>
+<tfoot>
+    <tr>
+        <td>学籍情報</td>
+        <td colspan="4">合計{$total}名</td>
+    </tr>
+</tfoot>
+</table>
+<br>
+TABLE_BOTTOM;
     }
     
     //  更新ボタンをクリックすると、
@@ -280,13 +318,14 @@ TR;
     //  
     function show_operations($id,$data,$operation, $post_file, $token) {
         echo <<<OPERATIONS
-        <form action="{$post_file}" method="post" class="operation-form">
-            <input type="hidden" name="id" value="{$id}">
-            <input type="hidden" name="data" value="{$data}">
-            <input type="hidden" name="csrf_token" value="{$token}">
-            <input type="submit" value="{$operation}">
-        </form>
-        OPERATIONS;
+<!-- php での互換性を確保するために行頭から記述 -->
+<form action="{$post_file}" method="post" class="operation-form">
+    <input type="hidden" name="id" value="{$id}">
+    <input type="hidden" name="data" value="{$data}">
+    <input type="hidden" name="csrf_token" value="{$token}">
+    <button type="submit">{$operation}</button>
+</form>
+OPERATIONS;
     }
 
 ?>

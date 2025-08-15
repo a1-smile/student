@@ -86,8 +86,10 @@
         die('セッションハイジャック防止のため再入力が必要です');
         }
     }
-//  CSRF対策のためのトークンを確認します。
-    
+    // ここまでで、セッションの安全性を確保しました。
+
+
+    //  リクエストメソッドを確認します。
     $method = $_SERVER['REQUEST_METHOD'];
 
  //  GET メソッドのみのアクセスを想定
@@ -95,28 +97,8 @@
         http_response_code(405); // 405 Method Not Allowed
         die('通信形式が一致しません。');
     }
-        //  $token_re に $_SESSION['token_re'] をセット
-        if (isset($_SESSION['token_re'])) {
-            $token_re = $_SESSION['token_re'];
-        }else {
-            unset($token_re);
-        }
-        //  $error に $_SESSION['error'] をセット
-        if (isset($_SESSION['error'])) {
-            $error = $_SESSION['error'];
-        }
         
-        $token_session = $_SESSION['csrf_token'];
-        //  トークンが一致しない場合はエラー
-        if (isset($token_re) ){
-            if ($token_re !== $token_session) {
-                session_unset();  //  id が残る。
-                session_destroy();  //  destroy だけではデータが残る可能性がある。
-                die('トークンが一致しません。');
-            }
-        }
-    
-
+    //  共通ファイルを読み込みます。        
     if (file_exists(__DIR__."/common.php")) {
         require_once (__DIR__."/common.php");
     }else {
@@ -124,11 +106,14 @@
     }
 
     show_top('学生情報の追加');
-    //  トークンを生成
+    //  POST メソッドで送信するため、ワンタイムトークンを生成します。
     $token = bin2hex(random_bytes(32));
-    //  トークンをセッションに保存
+    //  セッションにトークンを保存します。
     $_SESSION['csrf_token'] = $token;
-    show_input($token);
+    //  想定外のミスを避けるために、トークンを htmlspecialchars でエスケープします。
+    //  次の関数 show_input() でトークンが POST で送信されます。 
+    show_input(htmlspecialchars($token, ENT_QUOTES, 'UTF-8'));
+
     //  true なら、「学生情報の一覧に戻る」というリンクを表示します。
     show_bottom(true);
 
