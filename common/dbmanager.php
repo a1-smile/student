@@ -107,16 +107,36 @@ class DBManager {
     //  id カラムが $id の学生情報を取得するメソッド
     public function get_student($id) {
         try {
+            //  入力値検証
+            if (!is_numeric($id) || $id <= 0) {
+                throw new InvalidArgumentException('不正な学生IDです: ' . $id);
+            }
             //  データベースに接続
             $this->connect();
             //  エラーの場合は例外をなげる設定になっている。
             //  SQL 文を準備
             $sql = 'SELECT * FROM student WHERE id = :id';
             $stmt = $this->db->prepare($sql);
+            if ($stmt === false) {
+                throw new RuntimeException('SQL文の準備に失敗しました');
+            }
             //  プレースホルダーに値をバインド
-            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+             $bind_result = $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+            if ($bind_result === false) {
+                throw new RuntimeException('パラメーターのバインドに失敗しました');
+            }
+            
             //  SQL 文を実行
+            // SQL文を実行
             $res = $stmt->execute();
+            if ($res === false) {
+                $error_info = $stmt->errorInfo();
+                throw new PDOException(
+                    'SQL実行エラー: ' . $error_info[2], 
+                    $error_info[1]
+                );
+            }
+            
             //  execute() の戻り値は、
             //  成功した場合は true、失敗した場合は false です。
 
@@ -133,15 +153,44 @@ class DBManager {
             //  レコードが見つかった場合は、$member を連想配列の形でを返す
             return $member;
 
-        }catch (PDOException $e) {
+            }catch (PDOException $e) {
+            // 詳細なエラー情報をログに記録
+            $error_details = [
+                'method' => 'get_student',
+                'id' => $id,
+                'sqlstate' => $e->getCode(),
+                'driver_code' => $e->errorInfo[1] ?? null,
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ];
+            error_log('DBManager PDOException: ' . json_encode($error_details, JSON_UNESCAPED_UNICODE));
+            
+            // 接続を切断
+            $this->disconnect();
+            
+            // 例外を再スロー（カスタム例外でラッピングも可能）
+            throw new DatabaseException(
+                '学生情報の取得中にデータベースエラーが発生しました: ' . $e->getMessage(),
+                $e->getCode(),
+                ['original_error' => $error_details],
+                $e->getCode(),
+                $e->errorInfo[1] ?? null,
+                $e
+            );
+        
+            } catch (Exception $e) {
+                // その他の例外
+                error_log('DBManager Exception: ' . $e->getMessage());
+                $this->disconnect();
+                
+                // 元の例外を再スロー
+                throw $e;
+            }
             $this->disconnect();
             return null;
-        }
-        // 何らかの理由でエラーが起こっても
-        // 例外が発生しない場合は、
-        // ここで切断して false を返すようにします。
-        $this->disconnect();
-        return false; // 何らかの理由でエラーが起こった場合は false を返す
+            //  何らかの理由で Exception で
+            // とらえられないエラーが起こった場合は null を返す
     }
     //  if_id_exists メソッドは、
     // 指定された ID の学生が

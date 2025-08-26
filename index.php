@@ -133,6 +133,7 @@ if ($members === []) {
 //  トークンを生成します。
 $token = bin2hex(random_bytes(32)); // 32バイトのランダムなトークンを生成
 $_SESSION['csrf_token'] = $token;
+$_SESSION['csrf_token_time'] = time(); // トークンの生成時間を記録
 
 show_student_list($members);
 }
