@@ -17,7 +17,7 @@
         //  フォームの上部を表示
         echo <<<INPUT_TOP
 <!-- php での互換性を確保するために行頭から記述 -->
-<form action="post_data.php" method="post" id="commonForm">
+<form action="post_data.php" method="post" class="operation-form" id="commonForm">
 <p>学生番号</p>
 <input type="number" name="id" value="{$id}" id="idInput" placeholder="Id">
 <p id="idError" class="error-message"></p>

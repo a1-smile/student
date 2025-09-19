@@ -32,7 +32,7 @@
 //         OPERATIONS;
 //     }
 
-//  データベース操作は、
+//  データベース操作は、$id に対応する学生情報を取得します。
 
 // セッション開始前に安全なクッキー設定
 // ただし、開発環境ではHTTPSが使えない場合もあります。
@@ -50,117 +50,32 @@ session_set_cookie_params([
 
 //  以上は、セッション開始の前に設定を行う必要があります
 
-//  セッションを開始します。
-session_start();
 
 //  共通ファイルを読み込みます。
-
-try {
-    //  __DIR__ は、現在のスクリプトが存在するディレクトリのパスを取得します。
-    $common_file = __DIR__ . "/common.php";
-    
-    // セキュリティチェック：ディレクトリトラバーサル対策
-    //  realpath() は、指定されたパスの正規化を行い、
-    //  シンボリックリンクを解決し、相対パスを絶対パスに変換します。
-    $real_common_path = realpath($common_file);
-    $real_base_path = realpath(__DIR__);
-    
-    if ($real_common_path === false) {
-        throw new RuntimeException('common.phpのパスが無効です');
-    }
-    //  strpos() は、文字列内での位置を検索します。
-    //  real_common_path が real_base_path のサブパスであることを確認します。
-    //  これにより、ディレクトリトラバーサル攻撃を防ぎます。
-    if (strpos($real_common_path, $real_base_path) !== 0) {
-        throw new SecurityException('不正なファイルパスが指定されました');
-    }
-    
-    // ファイル存在・権限チェック
-    if (!file_exists($real_common_path)) {
-        throw new RuntimeException('common.phpが見つかりません: ' . $real_common_path);
-    }
-    
-    if (!is_readable($real_common_path)) {
-        throw new RuntimeException('common.phpの読み込み権限がありません: ' . $real_common_path);
-    }
-    
-    if (!is_file($real_common_path)) {
-        throw new RuntimeException('common.phpが通常ファイルではありません: ' . $real_common_path);
-    }
-    
-    // ファイルサイズチェック（異常に大きなファイルの検出）
-    $file_size = filesize($real_common_path);
-    if ($file_size === false) {
-        throw new RuntimeException('common.phpのファイルサイズを取得できません');
-    }
-    
-    if ($file_size > 1024 * 1024) { // 1MB以上
-        throw new RuntimeException('common.phpのファイルサイズが異常です: ' . $file_size . ' bytes');
-    }
-    
-    if ($file_size === 0) {
-        throw new RuntimeException('common.phpが空ファイルです');
-    }
-    
-    // ファイル読み込み
-    require_once $real_common_path;
-    
-    // 重要な定義の存在確認
-    $required_classes = ['DBManager', 'BusinessLogicException', 'SecurityException', 'CSRFException'];
-    $required_functions = ['handle_session_timeout', 'show_top', 'show_student', 'show_operations', 'show_bottom'];
-    
-    foreach ($required_classes as $class_name) {
-        if (!class_exists($class_name)) {
-            throw new RuntimeException("必要なクラスが定義されていません: {$class_name}");
+$file_name = 'common.php';
+try{
+        $file_path = __DIR__ .DIRECTORY_SEPARATOR.$file_name;
+        $real_path = realpath($file_path);
+        
+        if ($real_path === false) {
+            throw new RuntimeException("{$file_name}のパスが無効です");
         }
-    }
-    
-    foreach ($required_functions as $function_name) {
-        if (!function_exists($function_name)) {
-            throw new RuntimeException("必要な関数が定義されていません: {$function_name}");
+        
+        if (!file_exists($real_path)) {
+            throw new RuntimeException('ファイルが見つかりません: ' . $real_path);
         }
-    }
-    
-    // $dbmに DBManagerをインスタンス化して代入できたかを確認します。
-    if (!isset($dbm) || !($dbm instanceof DBManager)) {
-        throw new RuntimeException('データベースマネージャーが正しく初期化されていません');
-    }
-    
-} catch (SecurityException $e) {
-    // セキュリティ関連エラー
-    error_log("セキュリティエラー - common.php読み込み - IP: " . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . ", メッセージ: " . $e->getMessage());
-    die('セキュリティエラーが発生しました。管理者に通報されました。');
-    
-} catch (ParseError $e) {
-    // PHP構文エラー
-    error_log("構文エラー - common.php - ファイル: " . $e->getFile() . ", 行: " . $e->getLine() . ", メッセージ: " . $e->getMessage());
-    die('設定ファイルに構文エラーがあります。管理者にお問い合わせください。<br>
-         エラーID: ' . uniqid());
-         
-} catch (Error $e) {
-    // Fatal Error
-    error_log("致命的エラー - common.php - メッセージ: " . $e->getMessage() . ", ファイル: " . $e->getFile() . ", 行: " . $e->getLine());
-    die('システムの初期化でエラーが発生しました。管理者にお問い合わせください。<br>
-         エラーID: ' . uniqid());
-         
-} catch (RuntimeException $e) {
-    // ファイル関連・初期化エラー
-    error_log("初期化エラー - common.php - メッセージ: " . $e->getMessage() . ", 現在ディレクトリ: " . __DIR__);
-    die('システムファイルの読み込みまたは初期化に失敗しました。<br>
-         管理者にお問い合わせください。<br>
-         エラーID: ' . uniqid());
-         
-} catch (Exception $e) {
-    // その他の予期しないエラー
-    error_log("予期しないエラー - common.php読み込み - メッセージ: " . $e->getMessage() . ", トレース: " . $e->getTraceAsString());
-    die('システムの初期化で予期しないエラーが発生しました。管理者にお問い合わせください。<br>
-         エラーID: ' . uniqid());
-}
-
-
+        
+        require_once $real_path;
+        
+    } catch (RuntimeException $e) {
+        error_log("ファイル読み込みエラー: " . $e->getMessage());
+        die('システムファイルの読み込みに失敗しました。');
+    } 
+//  セッションを開始します。
+session_start();
 //  session timeout を設定します。
 handle_session_timeout();
-    
+
 
 //  ユーザーエージェントをチェックする
 if (!isset($_SESSION['user_agent'])) {
@@ -230,16 +145,28 @@ try {
         
         // プレフィックスの比較
         if (!hash_equals($current_prefix, $stored_prefix)) {
-            // セキュリティログの記録
-            error_log("IPプレフィックス不一致 - 保存済み: {$stored_prefix}, 現在: {$current_prefix}, セッションID: " . session_id());
-            
-            session_unset();
-            session_destroy();
-            die('新しい接続元からのアクセス、もしくは通信環境が変わったため、再入力が必要です<br>
-                 <a href="index.php">学生一覧に戻る</a>');
+            // IPアドレスの先頭部分が異なる場合はセッションを破棄
+            $context = [
+                'previous_ip_prefix' => $stored_prefix,
+                'current_ip_prefix' => $current_prefix,
+                'session_id' => session_id(),
+            ];
+            throw new SessionHijackingException('IPアドレスが変更されました', SecurityException::SEC_SESSION_HIJACK, $context);
         }
     }
+} catch (SessionHijackingException $e) {
+    $log_message = $e->getLogMessage();
+    error_log($log_message);
     
+    //  session 完全廃棄
+    session_unset();
+    session_destroy();
+    
+    die('セッションハイジャック攻撃検出<br>
+         セキュリティ上の理由により処理を中断します。<br>
+         この攻撃は記録され、管理者に通報されました。<br>
+         攻撃検出ID: ' . uniqid() . '<br>
+         正常な操作を行う場合は、<a href="index.php">学生一覧画面</a>から再開してください。');
 } catch (InvalidArgumentException $e) {
     // 不正なIPアドレス形式
     error_log("不正なIPアドレス - IP: {$ip}, エラー: " . $e->getMessage() . ", UA: " . ($_SERVER['HTTP_USER_AGENT'] ?? 'unknown'));
@@ -277,7 +204,22 @@ try {
     
     // 1. セッショントークンの存在・基本チェック
     if (!isset($_SESSION['csrf_token']) || !isset($_SESSION['csrf_token_time'])) {
-        throw new SecurityException('CSRFトークンまたはタイムスタンプがセッションに設定されていません');
+        $context['csrf_attack_indicators'] = [
+    'token_state' => [
+        'session_token_missing' => !isset($_SESSION['csrf_token']),
+        'session_time_missing' => !isset($_SESSION['csrf_token_time']),
+        'post_token_present' => isset($_POST['csrf_token']),
+        'token_mismatch' => isset($_SESSION['csrf_token']) && isset($_POST['csrf_token']) &&
+                           !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])
+    ],
+    'referer_analysis' => [
+        'referer_present' => !empty($_SERVER['HTTP_REFERER']),
+        'referer_matches_host' => !empty($_SERVER['HTTP_REFERER']) &&
+                                 strpos($_SERVER['HTTP_REFERER'], $_SERVER['HTTP_HOST']) !== false,
+        'referer_value' => $_SERVER['HTTP_REFERER'] ?? 'none'
+    ]
+];
+        throw new SecurityException('CSRFトークンまたはタイムスタンプがセッションに設定されていません', SecurityException::SEC_CSRF_ATTACK, $context, null);
     }
     
     $session_token = $_SESSION['csrf_token'];

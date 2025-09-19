@@ -26,8 +26,8 @@ class DBManager {
             $this->db = new PDO($this->access_info, $this->user, $this->password);
             $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         } catch (PDOException $e) {
-            echo 'Connection failed: ' . $e->getMessage();
-        }
+            throw $e;  //  再スロー
+    }
     }
     //  データベースに接続しているか確認するメソッド
     public function is_connected() {

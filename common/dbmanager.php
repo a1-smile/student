@@ -158,8 +158,8 @@ class DBManager {
             $error_details = [
                 'method' => 'get_student',
                 'id' => $id,
-                'sqlstate' => $e->getCode(),
-                'driver_code' => $e->errorInfo[1] ?? null,
+                'sqlstate' => $e->getCode(), // SQLSTATEエラーコードを取得(PDOのとき)
+                'driver_code' => $e->errorInfo[1] ?? null,  // ドライバーエラーコードを取得
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine()
@@ -172,11 +172,11 @@ class DBManager {
             // 例外を再スロー（カスタム例外でラッピングも可能）
             throw new DatabaseException(
                 '学生情報の取得中にデータベースエラーが発生しました: ' . $e->getMessage(),
-                $e->getCode(),
-                ['original_error' => $error_details],
-                $e->getCode(),
-                $e->errorInfo[1] ?? null,
-                $e
+                $e->getCode(),  //  エラーコード
+                ['original_error' => $error_details],  //  context 配列で詳細情報を渡す
+                $e->getCode(),  //  SQLSTATEコード
+                $e->errorInfo[1] ?? null,  //  ドライバーエラーコード
+                $e  // previous exception
             );
         
             } catch (Exception $e) {
@@ -231,8 +231,41 @@ class DBManager {
             //  データベースから切断
             $this->disconnect();
             return false; //  挿入に失敗した場合は false を返す
+            $error_details = [
+                'method' => 'insert_student',
+                'id' => $id,
+                'name' => $name,
+                'grade' => $grade,
+                'sqlstate' => $e->getCode(),  // SQLSTATEエラーコードを取得(PDOのとき)
+                'driver_code' => $e->errorInfo[1] ?? null,  // ドライバーエラーコードを取得
+                'message' => $e->getMessage(),  // エラーメッセージを取得(PDOでは自動的に付与される)
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ];
+            error_log('DBManager PDOException: ' . json_encode($error_details, JSON_UNESCAPED_UNICODE));
+            
+            // 例外を再スロー（カスタム例外でラッピングも可能）
+            throw new DatabaseException(
+                '学生情報の挿入中にデータベースエラーが発生しました: ' . $e->getMessage(),
+                $e->getCode(),  //  エラーコード
+                ['original_error' => $error_details],  //  context 配列で詳細情報を渡す
+                $e->getCode(),  //  SQLSTATEコード
+                $e->errorInfo[1] ?? null,  //  ドライバーエラーコード
+                $e  // previous exception
+            );
+            
     }
-    $this->connect();
+    //  何らかの理由で Exception でとらえられなかったエラーが起こった場合は
+    //  ここで処理します。
+    $error_details = [
+        'method' => 'insert_student',
+        'id' => $id,
+        'name' => $name,
+        'grade' => $grade,
+    ];
+    error_log('Unexpected Error: ' . json_encode($error_details, JSON_UNESCAPED_UNICODE));
+    // 接続を切断
+    $this->disconnect();
     return false; //  挿入に失敗した場合は false を返す
     }
 
