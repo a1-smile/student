@@ -41,7 +41,7 @@ function safe_file_path($file_name, $options = []) {
         'max_file_size' => 1024 * 1024,  // 1MB
         'allowed_extensions' => ['php', 'inc'],
         'check_syntax' => false,  // 事前構文チェック（重い処理）
-        'log_level' => 'info'    // ログレベル
+        'log_level' => 'error'    // ログレベル
     ];
     
     $options = array_merge($default_options, $options);
@@ -134,7 +134,7 @@ function safe_file_path($file_name, $options = []) {
             throw $e; // 呼び出し元で処理
     
     } catch (LogicException $e) {            
-        if ($options['log_level'] === 'info') {
+        if ($options['log_level'] === 'error') {
             error_log("情報: ファイルは既に読み込まれています: {$file_name}");
         }
         throw $e; // 呼び出し元で処理    
