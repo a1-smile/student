@@ -1,4 +1,5 @@
 <?php
+//  セッション タイムアウト処理
 function handle_session_timeout() {
     $session_timeout = 600; // 10分
     
@@ -32,6 +33,6 @@ function handle_session_timeout() {
         }
     }
     
-    // タイムアウトしていない場合
+    // last_activityが存在しない場合やタイムアウトしていない場合は、現在の時刻を更新
     $_SESSION['last_activity'] = time();
 }

@@ -84,12 +84,12 @@ form.operation-form button[type="submit"]{
      /* ボックスシャドウ */
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
     padding: 0.5rem 1rem; /* パディング */
-    background-color: #8cbdd4; /* 背景色 */
-    color: #000000; /* 文字色 */
+    background-color: #2e7c9f; /* 背景色 */
+    color: #ffffff; /* 文字色 */
 }
 /* operation-form のボタンのホバー効果 */
 form.operation-form button[type="submit"]:hover {
-    background-color: #a9dff1; /* ホバー時の背景色 */
+    background-color: #dbf6ff; /* ホバー時の背景色 */
     color: #000000; /* ホバー時の文字色 */
 }
 
@@ -124,7 +124,7 @@ a:hover {
 }
 
 /*アニメーション 押した感覚*/
-form.operation-form input[type="submit"]:active {
+form.operation-form button[type="submit"]:active {
     transform: translateY(2px); /* 押したときに下に移動 */
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); /* 押したときの影を小さく */
 }
@@ -185,16 +185,17 @@ form#commonForm select {
 form#commonForm input[type="submit"] {
 
     font-size: 1.5rem; /* フォントサイズ */
+    font-weight: bold;
     padding: 0.5rem 1rem; /* 上下0.5rem、左右1rem */
     border: 1px solid #000000; /* 枠線 */
     border-radius: 3px; /* 角を丸く */
     cursor: pointer; /* ポインターを手の形に */
-    background-color: #8cbdd4; /* 背景色 */
-    color: #000000; /* 文字色 */
+    background-color: #2e7c9f; /* 背景色 */
+    color: #ffffff; /* 文字色 */
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5); /* ボックスシャドウ */
 }
 form#commonForm input[type="submit"]:hover {
-    background-color: #a9dff1; /* ホバー時の背景色 */
+    background-color: #dbf6ff; /* ホバー時の背景色 */
     color: #000000; /* ホバー時の文字色 */
 }
 /*アクティブ時のスタイル*/

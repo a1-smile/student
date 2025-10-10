@@ -60,10 +60,12 @@ function get_ip_prefix_for_session(int $ipv4_blocks = 2, int $ipv6_blocks = 3): 
 // try {
 //     $prefix = get_ip_prefix_for_session(2, 3);
 //     echo "IP Prefix: " . $prefix . "\n";
-// } catch (RuntimeException $e) {
-//     // 環境の問題
-//     error_log("Runtime error: " . $e->getMessage());
 // } catch (InvalidArgumentException $e) {
 //     // データの問題
 //     error_log("Invalid data: " . $e->getMessage());
+// 
+// } catch (RuntimeException $e) {
+//     // 環境の問題
+//     error_log("Runtime error: " . $e->getMessage());
 // }
+

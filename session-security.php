@@ -1,23 +1,8 @@
 <?php
-    // セッション開始前に安全なクッキー設定
-    // ただし、開発環境ではHTTPSが使えない場合もあります。
-    // その場合は、'secure' => false に設定します。
-    // session_set_cookie_params([
-    //     'lifetime' => 0,           // ブラウザを閉じるとクッキー削除
-    //     'path'     => '/',         // サイト全体で有効
-    //     'domain'   => '',            // 現在のドメインで有効
-    //     'secure'   => true,          // HTTPSのみクッキーを送信
-    // //  'secure'   => false,       // 開発環境ではHTTPSが使えない場合はfalseに設定
-
-    //     'httponly' => true,        // JSアクセス禁止
-    //     'samesite' => 'Strict'     // 他サイトからのリクエストでは
-    // ]);                            // クッキーを送らない  (CSRF対策)
-    // 以上は、セッション開始の前に設定を行う必要があります
-                  
-
-    //  共通ファイルを読み込みます。
-        //  安全なファイルパスを取得する関数
-        /**
+//  必要なファイルを読み込むのに必要な関数を定義します。
+//  common.php にある safe_file_path1() と重複読み込みを防ぐために
+//  safe_file_path() としています。
+/**
  * safe_file_path - path validation and normalization
  * 
  * @param string $file_name 読み込むファイル名
@@ -191,9 +176,24 @@ try {
     die("予期しないエラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
 }
 
+
 //  セッションを開始します。
-//  すでにセッションが始まっている場合は何もしません。
 initializeSecureSession();
+// セッション開始前に安全なクッキー設定しています。
+// ただし、開発環境ではHTTPSが使えない場合もあります。
+// その場合は、'secure' => false に設定します。
+// session_set_cookie_params([
+//     'lifetime' => 0,           // ブラウザを閉じるとクッキー削除
+//     'path'     => '/',         // サイト全体で有効
+//     'domain'   => '',            // 現在のドメインで有効
+//     'secure'   => true,          // HTTPSのみクッキーを送信
+// //  'secure'   => false,       // 開発環境ではHTTPSが使えない場合はfalseに設定
+
+//     'httponly' => true,        // JSアクセス禁止
+//     'samesite' => 'Strict'     // 他サイトからのリクエストでは
+// ]);                            // クッキーを送らない  (CSRF対策)
+
+//  以上は、セッション開始の前に設定を行う必要があります
 
 //  session timeout を設定します。
 handle_session_timeout();
@@ -212,6 +212,9 @@ set_error_handler(function ($errno, $errstr, $errfile, $errline) {
     echo "想定されていない不具合が発生しました。";
     exit;
 });
+
+
+
 
 //  ユーザーエージェントをチェックする
 try{
@@ -242,7 +245,6 @@ try{
          エラーID: ' . uniqid() . '<br>
          <a href="index.php">学生一覧に戻る</a>');
 }
-
 
 // IPアドレスの先頭部分をチェックする
 // ここでは、IPv4とIPv6の両方に対応した方法を示します。
@@ -301,252 +303,12 @@ try {
          エラーID: ' . uniqid() . '<br>
          <a href="index.php">学生一覧に戻る</a>');
 }
-
 //  以上で
 //  共通ファイル読み込み
 //  セキュアなクッキー設定
-//  セッション開始確認
+//  セッション開始
 //  session timeout 設定
 //  想定外のエラーに備えたエラーハンドラ
 //  ユーザーエージェントチェック
 //  IPアドレスの先頭部分チェック
 //  が完了しました。
-
-
-    //  通信形式を取得します
-    $method = $_SERVER['REQUEST_METHOD'];
-    
-    
-    //  POST か GET のどちらかで処理を分岐します。
-    //  POST の場合は、student_edit.php からのPOSTでの遷移を想定しています。
-    //  GET の場合は、post_data.php からのGETでの遷移を想定しています。
-    
-    if ($method === 'POST'){
-        //  student_edit.php からのPOSTでの遷移を想定しています
-        update_post($dbm);
-    }elseif ($method === 'GET') {
-        //  post_data.php からのGETでの遷移を想定しています
-        update_get($dbm);
-    }else {
-        //  POST GET のどちらでもない場合は
-        //  不正なアクセスとして処理を終了します。
-        session_unset();  //  id が残る。
-        session_destroy();  //  destroy だけではデータが残る可能性がある。
-        die('POST でも GET でもない不正なアクセスです');
-    }  
-    
-
-    function update_post($dbm) {
-        //  POST メソッドで送信される場合は、
-        //  student_edit.php からの遷移を想定しています。
-        
-        //  POST データが送信されているかを確認します。
-        if (!isset($_POST['id']) || !isset($_POST['data']) || !isset($_POST['csrf_token'])) {
-            session_unset();  //  id が残る。
-            session_destroy();  //  destroy だけではデータが残る可能性がある。
-            die('POST データが送信されていません');
-        }
-        //  POST からデータを取得します。
-        $old_id  = $_POST['id'];
-        $data    = $_POST['data'];
-        $token_p = $_POST['csrf_token'];
-        //  $id, $data, $token の値をサニタイズします。
-        $old_id  = htmlspecialchars($old_id, ENT_QUOTES, 'UTF-8');
-        $data    = htmlspecialchars($data, ENT_QUOTES, 'UTF-8');
-        $token_p = htmlspecialchars($token_p, ENT_QUOTES, 'UTF-8');
-
-        //  SESSION からトークンを取得します。
-        if (!isset($_SESSION['csrf_token'])) {
-            session_unset();  //  id が残る。
-            session_destroy();  //  destroy だけではデータが残る可能性がある。
-            die('SESSION からトークンが取得できません');
-        }else {
-            $token_s = $_SESSION['csrf_token'];
-        }
-        //  トークンが一致するかを確認します。
-        if ($token_p !== $token_s) {
-            session_unset();  //  id が残る。
-            session_destroy();  //  destroy だけではデータが残る可能性がある。
-            die('トークンが一致しません');
-        }
-
-
-        //  $old_id に対応する学生情報をデータベースから取得します。
-        $member = $dbm->get_student($old_id);
-        //  学生情報が存在しない場合は、エラーメッセージを表示します。
-        if ($member === []) {
-            session_unset();  //  id が残る。
-            session_destroy();  //  destroy だけではデータが残る可能性がある。
-            die('指定された学生番号は存在しません');
-        }
-        //  $member から学生情報を取得します。
-        $id    = $member['id'];
-        $name  = $member['name'];
-        $grade = $member['grade'];
-        //  サニタイズ
-        $id    = htmlspecialchars($id, ENT_QUOTES, 'UTF-8');
-        $name  = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
-        $grade = htmlspecialchars($grade, ENT_QUOTES, 'UTF-8');
-
-        //  HTML で h1 タグを表示します。
-        show_top('学生情報の更新');
-        //  学生情報の更新フォームを表示します。
-        show_update($id, $name, $grade, $old_id, $token_p);
-        //  「学生情報一覧へ戻る」を表示します。
-        show_bottom(true);
-    }
-
-    function update_get() {
-        //  GET メソッドで送信される場合は、
-        //  post_data.php からの遷移を想定しています。
-        //  SESSION からデータを取得します。
-        if (isset($_SESSION['token_re'])) {
-            $token_re = $_SESSION['token_re'];
-        } else {
-            session_unset();  //  id が残る。
-            session_destroy();  //  destroy だけではデータが残る可能性がある。
-            die('SESSION から$token_reが取得できません');
-        }
-
-        if (isset($_SESSION['id'])) {
-            $id = $_SESSION['id'];
-        } else {
-            session_unset();  //  id が残る。
-            session_destroy();  //  destroy だけではデータが残る可能性がある。
-            die('SESSION から$idが取得できません');
-        }
-
-        if (isset($_SESSION['grade'])) {
-            $grade = $_SESSION['grade'];
-        } else {
-            session_unset();  //  id が残る。
-            session_destroy();  //  destroy だけではデータが残る可能性がある。
-            die('SESSION から$gradeが取得できません');
-        }
-
-        if (isset($_SESSION['name'])) {
-            $name = $_SESSION['name'];
-        } else {
-            session_unset();  //  id が残る。
-            session_destroy();  //  destroy だけではデータが残る可能性がある。
-            die('SESSION から$nameが取得できません');
-        }
-
-        if (isset($_SESSION['old_id'])) {
-            $old_id = $_SESSION['old_id'];
-        } else {
-            session_unset();  //  id が残る。
-            session_destroy();  //  destroy だけではデータが残る可能性がある。
-            die('SESSION から$old_idが取得できません');
-        }
-
-        if (isset($_SESSION['csrf_token'])) {
-            $token_s = $_SESSION['csrf_token'];
-        } else {
-            session_unset();  //  id が残る。
-            session_destroy();  //  destroy だけではデータが残る可能性がある。
-            die('SESSION から$token_sが取得できません');
-        }
-
-        //  XSS 対策
-        $token_re  = htmlspecialchars($token_re, ENT_QUOTES, 'UTF-8');
-        $id        = htmlspecialchars($id, ENT_QUOTES, 'UTF-8');
-        $name      = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
-        $grade     = htmlspecialchars($grade, ENT_QUOTES, 'UTF-8');
-        $old_id    = htmlspecialchars($old_id, ENT_QUOTES, 'UTF-8');
-        $token_s   = htmlspecialchars($token_s, ENT_QUOTES, 'UTF-8');
-
-        //  CSRF トークンのチェック
-        if ($token_re !== $token_s) {
-            session_unset();  //  id が残る。
-            session_destroy();  //  destroy だけではデータが残る可能性がある。
-            die('CSRF トークンが一致しません');
-        }
-        //  共通の関数を読み込みます。
-        if (file_exists(__DIR__."/common.php")) {
-            require_once (__DIR__."/common.php");
-        } else {
-            session_unset();  //  id が残る。
-            session_destroy();  //  destroy だけではデータが残る可能性がある。
-            die('common.php が見つかりません');
-        }
-        //  HTML で h1 タグを表示します。
-        show_top('更新情報を再入力してください。');
-        //  学生情報の更新フォームを表示します。
-        show_update($id, $name, $grade, $old_id, $token_re);
-        //  「学生情報一覧へ戻る」を表示します。
-        show_bottom(true);
-    }
-
-
-
-//         if (!isset($_SESSION['csrf_token'])) {
-//             session_unset();  //  id が残る。
-//             session_destroy();  //  destroy だけではデータが残る可能性がある。
-//             die('POST で、CSRF トークンが設定されていません');
-//         }
-//         if ($_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-//             session_unset();  //  id が残る。
-//             session_destroy();
-//             die('POST で、CSRF トークンが一致しません');
-//         } 
-    
-
-//     if ($method === 'GET') {
-//         //  GET メソッドで送信される場合は、
-//         //  post_data.php からの遷移を想定しています。
-//         //  post_data.php では、
-//         //  $_SESSION['re_token'] にトークンを保存しています。
-//         if (!isset($_SESSION['token_re'])) {
-//             session_unset();  //  id が残る。
-//             session_destroy();  //  destroy だけではデータが残る可能性がある。
-//             die('安全対策のため、学生情報一覧画面から再操作を行ってください');
-//         }
-//     }
-        
-    
-//     //  共通の関数を読み込みます。
-//     //  common.php が存在するかを確認します。
-//     //  存在しない場合は、エラーメッセージを表示します。
-//         if (file_exists(__DIR__."/common.php")) {
-//         require_once (__DIR__."/common.php");
-//     }else {
-//         die('common.php が見つかりません');
-//     }
-
-//     //  $old_id に $_POST['id'] の値をセットします。
-//     //  $_POST['id'] が設定されていない場合は、null をセットします。
-//     $old_id = $_POST['id'] ?? null;
-//     if ($old_id === null) {
-//         die('不正なアクセス');
-//     }
-//     //  POST で送信される値は、$id と トークン、update です。
-//     //  学生情報を取得します。
-//     $member = $dbm->get_student($old_id);
-//     //  $member は連想配列の形で学生情報が格納されます。
-//     // 学生情報が存在しない場合は、$member は [] となります。
-//     if (empty($member)) {
-//         die('指定された学生情報が存在しません');
-//     }
-//     $id    = $member['id'];
-//     $name  = $member['name'];
-//     $grade = $member['grade'];
-
-//     //  h1 タグで学生情報の更新を表示します。
-//     show_top('学生情報の更新');
-//     //  学生情報の更新フォームを表示します。
-//     show_update($id, $name, $grade, $old_id, $token);
-//     //  それぞれ、デフォルトの値を設定します。
-//     //  入力されなければ、デフォルトの値が送信されます。
-//     //  更新ボタンをクリックすると、post_data.php にデータが送信されます。
-//     //  post_data.php では、$_POST['data']の値に応じて
-//     //  データベースの更新や削除を行います。
-//     //  data => 'update' の場合は
-//     //  学生情報の更新を行い、
-//     //  data => 'delete' の場合は
-//     //  学生情報の削除を行います。
-//     //
-//     //  「学生情報一覧に戻る」リンクを表示します。
-//     show_bottom(true);
-// 
-?>

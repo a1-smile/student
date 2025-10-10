@@ -58,7 +58,7 @@ class DBManager {
         }
     }
 
-    //  id カラムが $id の学生情報を取得するメソッド
+    //  id が $id の学生情報を取得するメソッド
     public function get_student($id) {
         try {
             //  データベースに接続
@@ -121,19 +121,20 @@ class DBManager {
             $res = $stmt->execute();
             ///  切断
             $this->disconnect();
-            //  execute() の戻り値は、
-            //  成功した場合は true、失敗した場合は false です。
-            if ($res) {
-                return true; //  挿入に成功した場合は true を返す
-            }
-
         }catch (PDOException $e) {
             //  データベースから切断
             $this->disconnect();
             return false; //  挿入に失敗した場合は false を返す
     }
-    $this->connect();
-    return false; //  挿入に失敗した場合は false を返す
+            //  execute() の戻り値は、
+            //  成功した場合は true、失敗した場合は false です。
+            if ($res) {
+                return true; //  挿入に成功した場合は true を返す
+            }
+        
+            $this->disconnect();
+            return false; //  挿入に失敗した場合は false を返す
+            //  PDOException で捕捉されなかった場合の処理
     }
 
     //  delete_student メソッドは、$idで指定された学生情報を

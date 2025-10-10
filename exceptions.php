@@ -132,6 +132,7 @@ class SecurityException extends ApplicationException {
     const LEVEL_CRITICAL = 4;
 
     // セキュリティエラーコード定数
+    const SEC_INVALID_REQUEST_METHOD = 3000;
     const SEC_CSRF_ATTACK = 3001;
     const SEC_SESSION_HIJACK = 3002;
     const SEC_DIRECTORY_TRAVERSAL = 3003;
@@ -152,6 +153,7 @@ class SecurityException extends ApplicationException {
     
     public function isCritical() {
         return $this->securityLevel >= self::LEVEL_HIGH;
+        
 //  return 条件式の値を返す
 //         $this->securityLevel: インスタンスのセキュリティレベル（数値）
 //         >=: 以上（大なりイコール）
@@ -159,6 +161,102 @@ class SecurityException extends ApplicationException {
 //         結果: セキュリティレベルが「高」以上かを判定するboolean値を返す
     }
 }
+
+/**不正なリクエストメソッド例外
+ * HTTPリクエストメソッドが期待されたものと異なる場合にスローされる例外クラス
+ * @param string $message "不正なリクエストメソッドです"
+ * @param int $code SecurityException::SEC_INVALID_REQUEST_METHOD
+ * @param array $context 追加のコンテキスト情報
+ * @param int $securityLevel セキュリティレベル（デフォルトはLEVEL_MEDIUM）
+ * @param Throwable|null $previous 前の例外        
+ */
+
+class InvalidRequestMethodException extends SecurityException {
+    public function __construct(
+        $message = "不正なリクエストメソッドです", 
+        $code = SecurityException::SEC_INVALID_REQUEST_METHOD, 
+        $context = [], 
+        $securityLevel = self::LEVEL_MEDIUM,
+        ?Throwable $previous = null
+    ) {
+        parent::__construct($message, $code, $context, $securityLevel, $previous);
+    }
+    
+    // ヘルパーメソッド、配列として期待されるメソッドを返す
+    public function getExpectedMethods(): ?array {
+        return $this->context['expected_methods'] ?? null;
+    }
+    
+    public function getActualMethod(): ?string {
+        return $this->context['actual_method'] ?? null;
+    }
+
+
+    // 文字列として想定されるメソッドを返す
+    public function getExpectedMethod(): ?string {
+        $methods = $this->getExpectedMethods();
+        return $methods ? implode(', ', $methods) : null;
+    }
+    
+    // ファクトリーメソッド
+    // 戻り値が現在のクラスのインスタンスであることを示すため
+    // 型宣言で self を使用
+    /**
+     * 現在のリクエストに基づいて InvalidRequestMethodException を生成するファクトリーメソッド
+     * 
+     * @param array $expectedMethods 期待されるHTTPメソッドの配列（例: ['POST', 'GET']）
+     * @param string|null $customMessage カスタムメッセージ（省略
+     * @return self InvalidRequestMethodExceptionのインスタンス
+     */
+    public static function fromCurrentRequest(array $expectedMethods, string $customMessage = null): self {
+        $actualMethod = $_SERVER['REQUEST_METHOD'] ?? 'UNKNOWN';
+        
+        $message = $customMessage ?? sprintf(
+            "期待されたメソッド: %s, 実際のメソッド: %s",
+            implode(', ', $expectedMethods),
+            $actualMethod
+        );
+        
+        $context = [
+            'expected_methods' => $expectedMethods,// 配列として保存
+            'actual_method' => $actualMethod,
+            'request_uri' => $_SERVER['REQUEST_URI'] ?? 'unknown',
+            'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+            'referer' => $_SERVER['HTTP_REFERER'] ?? 'unknown',
+            // referer はどのページから移動してきたかを示す。
+            'request_time' => date('Y-m-d H:i:s', $_SERVER['REQUEST_TIME'] ?? time()),
+            'session_id' => session_id()
+        ];
+        
+        return new self(
+            $message,
+            SecurityException::SEC_INVALID_REQUEST_METHOD,
+            $context,
+            SecurityException::LEVEL_MEDIUM  
+        );
+    }
+}
+
+// // 使用例
+// try {
+//     $method = $_SERVER['REQUEST_METHOD'] ?? '';
+//     $allowedMethods = ['POST', 'GET'];
+    
+//     if (!in_array($method, $allowedMethods)) {
+//         // 配列で期待メソッドを指定
+//         throw InvalidRequestMethodException::fromCurrentRequest($allowedMethods);
+//     }
+// } catch (InvalidRequestMethodException $e) {
+//     // ログ記録
+//     error_log($e->getLogMessage());
+//     // ユーザーへの通知
+//     die('不正なリクエストメソッドです。管理者に通報されました。<br><br>');
+// }
+
+
+
+
 
 // CSRF攻撃専用例外
 //  context =[
@@ -293,7 +391,7 @@ class BusinessLogicException extends ApplicationException {
  * @param int $code エラーコード
  * @param array $context 追加のコンテキスト情報
  * @param Throwable|null $previous 前の例外
- * @return getlogMessage() 
+ * @return getLogMessage() 
  */
 class ValidationException extends ApplicationException {
     private ?string $field;

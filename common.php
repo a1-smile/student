@@ -36,7 +36,7 @@
 //     die("予期しないエラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
 // }
 
-function safe_file_path($file_name, $options = []) {
+function safe_file_path1($file_name, $options = []) {
     // デフォルト設定
     $default_options = [
         'max_file_size' => 1024 * 1024,  // 1MB
@@ -151,12 +151,23 @@ function safe_file_path($file_name, $options = []) {
         throw new RuntimeException("予期しないエラーが発生しました: {$file_name}", 0, $e);
     }
 }
-
 //  共通ファイルを読み込みます
-  //  common/html_functions.php
-$file_name = 'common/html_functions.php';
+$files_required = [
+    'common/html_functions.php',
+    'common/dbmanager.php',
+    'common/data_check.php',
+    'user-agent-check.php',
+    'ip-check.php',
+    'handle-timeout.php',
+    'validate-u-a.php',
+    'generate-token.php',
+    'get-value-from-post-or-get.php',
+    'session-set-cookie-params.php'
+];
+
+foreach ($files_required as $file_name) {
 try {
-    $real_path = safe_file_path($file_name);
+    $real_path = safe_file_path1($file_name);
     require_once $real_path;
 } catch (InvalidArgumentException $e) {
     die("引数エラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
@@ -173,89 +184,10 @@ try {
     
 } catch (Exception $e) {
     die("予期しないエラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
-}
-//  common/dbmanager.php
-$file_name = '/common/dbmanager.php';
-try {
-    $real_path = safe_file_path($file_name);
-    require_once $real_path;
-} catch (InvalidArgumentException $e) {
-    die("引数エラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
-} catch (LogicException $e) {
-    die("ℹ️ ファイルは既に読み込み済みです: " . $e->getMessage() . "<br>");    
-} catch (RuntimeException $e) {
-    die("ファイル読み込みエラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
-    
-} catch (ParseError $e) {
-    die("構文エラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
-    
-} catch (Error $e) {
-    die("致命的エラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
-    
-} catch (Exception $e) {
-    die("予期しないエラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
-}
-
-//  common/data_check.php
-$file_name = '/common/data_check.php';
-try {
-    $real_path = safe_file_path($file_name);
-    require_once $real_path;
-} catch (InvalidArgumentException $e) {
-    die("引数エラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
-} catch (LogicException $e) {
-    die("ℹ️ ファイルは既に読み込み済みです: " . $e->getMessage() . "<br>");    
-} catch (RuntimeException $e) {
-    die("ファイル読み込みエラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
-    
-} catch (ParseError $e) {
-    die("構文エラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
-    
-} catch (Error $e) {
-    die("致命的エラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
-    
-} catch (Exception $e) {
-    die("予期しないエラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
+}    
 }
 
 
-//  セッション タイムアウト処理
-function handle_session_timeout() {
-    $session_timeout = 600; // 10分
-    
-    if (isset($_SESSION['last_activity'])) {
-        $inactive_time = time() - $_SESSION['last_activity'];
-        
-        if ($inactive_time > $session_timeout) {
-            // タイムアウト処理
-            $user_name = $_SESSION['user_name'] ?? 'ゲスト'; // ユーザー名を保存（あれば）
-            
-            // セッションを完全にクリア
-            session_unset();
-            session_destroy();
-            
-            // 新しいセッションを開始
-            session_start();
-            
-            // タイムアウト情報を新しいセッションに保存
-            $_SESSION['timeout_info'] = [
-                'message' => "お疲れ様でした。セッションがタイムアウトしました。",
-                'inactive_minutes' => round($inactive_time / 60),
-                'timestamp' => date('Y-m-d H:i:s')
-            ];
-            
-            // ログを記録
-            error_log("セッションタイムアウト - ユーザー: {$user_name}, 非アクティブ時間: {$inactive_time}秒");
-            
-            // リダイレクト
-            header('Location: index.php');
-            exit();
-        }
-    }
-    
-    // last_activityが存在しない場合やタイムアウトしていない場合は、現在の時刻を更新
-    $_SESSION['last_activity'] = time();
-}
 
 //  function get_error() を定義します。
 //  $error は、
@@ -285,10 +217,10 @@ function get_error() {
 //  受け取り、エラーメッセージを設定します。
 //
 //
-//  DBManager クラスのインスタンスを作成します。
+//  DBManager クラスのインスタンスを作成し、
 //  $dbm に代入します。
 
-//  デバッグ用コード
+//  デバッグ用コード(コメントアウトしています、必要に応じてコメントを外して実行)
 //  DBManager クラスの存在確認とインスタンス作成のテストコードです。
 //  このコードは、コメントアウトされています。
 //  必要に応じてコメントを外して実行できます。
