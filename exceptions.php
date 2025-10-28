@@ -258,18 +258,118 @@ class InvalidRequestMethodException extends SecurityException {
 
 
 
-// CSRF攻撃専用例外
-//  context =[
-//            'previous_ip_prefix' => 'abc.123.45',
-//            'current_ip_prefix'  => 'xyz.789.01',
-//            'session_id'       => 'session_123456'
-//           ]
-//  message : "CSRFトークンが無効です" 
-//            "ipアドレスが変更されました"
+
+/**
+ * CSRF攻撃専用例外
+ * リクエストのCSRFトークン検証に失敗した場合にスローされる
+ * @param string $message "CSRF攻撃検知"(デフォルト)
+ * @param int $code SecurityException::SEC_CSRF_ATTACK (3001)
+ * @param array $context 追加のコンテキスト情報
+ * @param int $securityLevel セキュリティレベル（デフォルトはLEVEL_HIGH）
+ * @param Throwable|null $previous 前の例外
+ */          
 class CSRFException extends SecurityException {
-    public function __construct($message = "", $code = 0, $context = [], ?Throwable $previous = null) {
-        parent::__construct($message, $code, $context, self::LEVEL_HIGH, $previous);
+    public function __construct(
+        $message = "CSRF攻撃検知", 
+        $code = SecurityException::SEC_CSRF_ATTACK, 
+        $context = [],
+        $securityLevel = self::LEVEL_HIGH,
+        ?Throwable $previous = null
+    ) {
+        parent::__construct($message, $code, $context, $securityLevel, $previous);
     }
+    //  factory method
+    /**
+     * 現在のリクエストに基づいて CSRFException を生成するファクトリーメソッド
+     * @param string|null $customMessage カスタムメッセージ（省略可能）
+     * @return self CSRFExceptionのインスタンス
+     */
+    public static function fromCurrentRequest(
+        string $customMessage = null,
+        int $code = SecurityException::SEC_CSRF_ATTACK,
+        array $context = [],
+        int $securityLevel = SecurityException::LEVEL_HIGH,
+        ?Throwable $previous = null
+    ): self {
+        $message = $customMessage ?? "CSRF攻撃検知";
+        
+        $context[] = [
+            //  urlのドメイン以降がuri
+            //  つまり、どのページを要求されたか？
+            'request_uri' => $_SERVER['REQUEST_URI'] ?? 'unknown',
+            //  アクセス元IPアドレス
+            'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+            //  どのページから移動してきたか
+            'referer' => $_SERVER['HTTP_REFERER'] ?? 'unknown',
+            //  date() で日付フォーマットを指定して表示
+            //  $_SERVER['REQUEST_TIME'] は、リクエストがサーバーーに到達したタイムスタンプ
+            //  time() は、現在のタイムスタンプ
+            'request_time' => date('Y-m-d H:i:s', $_SERVER['REQUEST_TIME'] ?? time()),
+            'session_id' => session_id(),
+            //  array_keys() は、配列のキーを取得する関数
+            // $_SESSION ?? [] は、$_SESSIONが存在しない場合に空配列を返す
+            'session_keys' => array_keys($_SESSION ?? []),
+            'post_keys' => array_keys($_POST ?? []),
+            'post_count' => count($_POST ?? []),
+            'csrf_token_in_post' => isset($_POST['csrf_token']),
+            'csrf_token_in_session' => isset($_SESSION['csrf_token']),
+            'csrf_token_match' => (isset($_POST['csrf_token']) && isset($_SESSION['csrf_token']) &&
+                                  hash_equals($_POST['csrf_token'], $_SESSION['csrf_token'])),
+        ];
+        $context['csrf_attack_indicators'] = [
+    'token_state' => [
+        //  セッションにトークンが存在しない場合 true
+        'session_token_missing' => !isset($_SESSION['csrf_token']),
+        //  セッションにタイムスタンプが存在しない場合true
+        'session_time_missing' => !isset($_SESSION['csrf_token_time']),
+        'post_token_present' => isset($_POST['csrf_token']),
+        'token_mismatch' => isset($_SESSION['csrf_token']) && isset($_POST['csrf_token']) &&
+                           !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])
+    ],
+    'referer_analysis' => [
+        //  refererが存在しない場合 true
+        'referer_present' => !empty($_SERVER['HTTP_REFERER']),
+        'referer_matches_host' => self::isValidReferer(),                                
+        'referer_value' => $_SERVER['HTTP_REFERER'] ?? 'none'
+    ]
+];
+        
+        return new self(
+            $message,
+            SecurityException::SEC_CSRF_ATTACK,
+            $context,
+            $securityLevel,
+            $previous
+        );
+    }
+    private static function isValidReferer(): bool {
+        $referer = $_SERVER['HTTP_REFERER'] ?? '';
+        //  アクセス先のドメイン名、ポート番号を含むホスト名
+        $currentHost = $_SERVER['HTTP_HOST'] ?? '';
+        
+        if (empty($referer) || empty($currentHost)) {
+            return false;
+        }
+        //  parse_url() は、URLを解析してその構成要素を取得する関数
+        //  PHP_URL_HOST は、ホスト名を取得するための定数
+        $refererHost = parse_url($referer, PHP_URL_HOST);
+        return $refererHost === $currentHost;
+    }
+
+
+public function getLogMessage() {
+        return sprintf(
+            "%s - メッセージ: %s, コンテキスト: %s, IP: %s, 時刻: %s",
+            get_class($this),
+            $this->getMessage(),
+            json_encode($this->context, JSON_UNESCAPED_UNICODE),
+            $_SERVER['REMOTE_ADDR'] ?? 'unknown',  // アクセス元IPアドレス
+             // $_SERVER['REMOTE_ADDR'] は、クライアントのIPアドレスを取得するためのスーパーグローバル変数です。
+            date('Y-m-d H:i:s')
+        );
+    }
+
 }
 
 // データベース例外

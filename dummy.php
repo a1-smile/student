@@ -1,38 +1,71 @@
 <?php
-// ...existing code...
-
-// グローバルスコープでDBManagerを作成（1箇所のみ）
-try {
-    $dbm = new DBManager();
-} catch (Exception $e) {
-    error_log('DBManager のインスタンス作成に失敗: ' . $e->getMessage());
-    die('DBManager のインスタンス作成に失敗しました');
+function handleCSRFAttack(CSRFException $e, string $severity, string $ip): void {
+    switch ($severity) {
+        case 'critical':
+            // ✅ セッション破棄前の準備
+            $preserved_data = preserveSecurityData($ip);
+            
+            // セッション完全破棄
+            recordSessionReset($ip);
+            session_destroy();
+            session_start();
+            
+            // ✅ セキュリティデータを新セッションに復元
+            restoreSecurityData($ip, $preserved_data);
+            
+            error_log("重大CSRF攻撃検知 - IP: {$ip}, セッション破棄実行");
+            break;
+            
+        case 'high':
+            recordSessionReset($ip);
+            cleanupAfterFailure($_POST['csrf_token'] ?? '');
+            session_regenerate_id(true);
+            
+            error_log("高リスクCSRF攻撃 - IP: {$ip}, セッション再生成");
+            break;
+            
+        case 'low':
+        default:
+            cleanupAfterFailure($_POST['csrf_token'] ?? '');
+            error_log("CSRF攻撃検知 - IP: {$ip}, セッション再生成");
+            break;
+    }
 }
 
-// 関数呼び出し時に引数として渡す
-if ($method === 'POST'){
-    update_post($dbm);
-}elseif ($method === 'GET') {
-    update_get($dbm);
-}else {
-    // ...existing code...
+/**
+ * セッション破棄前にセキュリティデータを保存
+ */
+function preserveSecurityData(string $ip): array {
+    $rate_key = "csrf_attempts_{$ip}";
+    
+    $data = $_SESSION[$rate_key] ?? [
+        'failures' => [],
+        'successes' => [],
+        'blocked_until' => 0,
+        'session_resets' => 0,
+        'last_reset_time' => 0
+    ];
+    
+    // 重大攻撃の記録
+    $data['failures'][] = time();
+    $data['session_resets']++;
+    $data['last_reset_time'] = time();
+    $data['blocked_until'] = time() + 3600; // 1時間ブロック
+    
+    return $data;
 }
 
-function update_post($dbm) {
-    // ...existing code...
+/**
+ * 新しいセッションにセキュリティデータを復元
+ */
+function restoreSecurityData(string $ip, array $preserved_data): void {
+    $rate_key = "csrf_attempts_{$ip}";
+    $_SESSION[$rate_key] = $preserved_data;
     
-    // 関数内のDBManager作成部分を削除
-    // 不要なcommon.php再読み込み部分も削除
-    
-    $member = $dbm->get_student($old_id);
-    
-    // ...existing code...
-}
-
-function update_get($dbm) {
-    // ...existing code...
-    
-    // 不要なcommon.php再読み込み部分を削除
-    
-    // ...existing code...
+    // セッション破棄の記録も追加
+    $_SESSION['security_events'] = [
+        'last_session_destroy' => time(),
+        'destroy_reason' => 'critical_csrf_attack',
+        'destroy_ip' => $ip
+    ];
 }

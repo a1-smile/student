@@ -3,27 +3,30 @@
  * 失敗記録の追加
  * @param string $ip クライアントのIPアドレス
  * @param array $rate_data 現在のレート制限データ
- * @return array $rate_data 更新されたレート制限データ
+ * @return void
  * $rate_data['failures'] に現在時刻を追加
  * $_SESSION[$rate_key] に更新された $rate_data を保存
  */
 function recordFailure(string $ip,array $rate_data): array {
-//test:  echo "<h2>recordFailure 呼び出し</h2>";
+    echo '<h2>recordFailure が呼び出されました</h2>';
     $rate_key = "csrf_attempts_{$ip}";
     $rate_data['failures'][] = time();
-//test:  echo '\'failure\' 配列の件数: ' . count($rate_data['failures']) . '<br>';
 
 
-// ✅ 2. 件数制限（最大50件）
+    // ✅ 2. 件数制限（最大50件）
     $max_records = 50;
     
     if (count($rate_data['failures']) > $max_records) {
         // 古いものから削除（配列の先頭から削除）
         $rate_data['failures'] = array_slice($rate_data['failures'], -$max_records);
-//test:  echo "'failure' のかずが50個に制限されました<br>";
     }
-
-
+    echo 'failure の数を表示: 50件までに制限しました <br>';
+    if ($rate_data !== null) {
+        echo count($rate_data['failures']);
+    } else {
+        echo 'No data';
+    }
+    echo "<br>";
     $_SESSION[$rate_key] = $rate_data;
     return $rate_data;
 }
@@ -31,14 +34,13 @@ function recordFailure(string $ip,array $rate_data): array {
  * 成功記録の追加
  * @param string $ip クライアントのIPアドレス
  * @param array $rate_data 現在のレート制限データ
- * @return array $rate_data 更新されたレート制限データ
+ * @return void
  * $rate_data['successes'] に現在時刻を追加
  * $_SESSION[$rate_key] に更新された $rate_data を保存
  */
-function recordSuccess(string $ip,array $rate_data): array {
+function recordSuccess(string $ip,array $rate_data): void {
     $rate_key = "csrf_attempts_{$ip}";
     $rate_data['successes'][] = time();
-
 
     // ✅ 2. 件数制限（最大50件）
     $max_records = 50;
@@ -50,34 +52,32 @@ function recordSuccess(string $ip,array $rate_data): array {
 
 
     $_SESSION[$rate_key] = $rate_data;
-    return $rate_data;
 }
 
 /**
  * セッション破棄前にセキュリティデータを保存
  * @param string $ip クライアントのIPアドレス
- * @return array $rate_data 保存されたセキュリティデータ
+ * @return array $data 保存されたセキュリティデータ
  */
 function preserveSecurityData(string $ip): array {
     $rate_key = "csrf_attempts_{$ip}";
-
-    $rate_data = $_SESSION[$rate_key] ?? [
+    
+    $data = $_SESSION[$rate_key] ?? [
         'failures' => [],
         'successes' => [],
         'blocked_until' => 0,
         'session_resets' => 0,
         'last_reset_time' => 0
     ];    
-    return $rate_data;
+    return $data;
 }
 
 /**
  * 新しいセッションにセキュリティデータを復元
  * @param string $ip クライアントのIPアドレス
  * @param array $preserved_data 復元するセキュリティデータ
- * @return array $rate_data 更新されたレート制限データ
  */
-function restoreSecurityData(string $ip, array $preserved_data): array {
+function restoreSecurityData(string $ip, array $preserved_data): void {
     $rate_key = "csrf_attempts_{$ip}";
     $_SESSION[$rate_key] = $preserved_data;
     
@@ -87,29 +87,25 @@ function restoreSecurityData(string $ip, array $preserved_data): array {
         'destroy_reason' => 'critical_csrf_attack',
         'destroy_ip' => $ip
     ];
-    $rate_data = $_SESSION[$rate_key];
-    return $rate_data;
 }
 
 /**
  * セッションリセットの記録
  * token検証失敗数と時刻を記録
  * @param string $ip クライアントのIPアドレス
- * @return array $rate_data 更新されたレート制限データ
+ * @return void
  * $ip に対する $rate_key がなければ何もしない
  * $_SESSION[$rate_key]['session_resets'] をインクリメント
  * $_SESSION[$rate_key]['last_reset_time'] に現在時刻をセット
  */
-function recordSessionReset(string $ip): array {
+function recordSessionReset(string $ip): void {
     $rate_key = "csrf_attempts_{$ip}";
     if (!isset($_SESSION[$rate_key])) {
-        return [];
+        return;
     }
     
     $_SESSION[$rate_key]['session_resets']++;
     $_SESSION[$rate_key]['last_reset_time'] = time();
-    $rate_data = $_SESSION[$rate_key];;
-    return $rate_data;
 }
 
 /**
@@ -126,6 +122,7 @@ function recordSessionReset(string $ip): array {
  * を呼び出しセッションIDを再生成
  */
 function cleanupAfterFailure(string $failed_token): void {
+    echo '<h2>cleanupAfterFailureが呼び出されました</h2>';
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
     
     // 失敗したトークンも使用済みとして記録（再利用防止）
@@ -135,6 +132,7 @@ function cleanupAfterFailure(string $failed_token): void {
         }
 
         $_SESSION['used_csrf_tokens'][] = $failed_token;
+        echo '失敗したトークンの数10個まで記録: ' . count($_SESSION['used_csrf_tokens']) . ' <br>';
 
         if (count($_SESSION['used_csrf_tokens']) > 10) {
             array_shift($_SESSION['used_csrf_tokens']);
@@ -152,6 +150,13 @@ function cleanupAfterFailure(string $failed_token): void {
     if (isset($_POST['csrf_token'])) {
         unset($_POST['csrf_token']);
     }
+    echo 'トークンを削除しました<br>';
+    var_dump($_SESSION['csrf_token'] ?? 'csrf_tokenは存在しません');
+    echo "<br>";
+    var_dump($_SESSION['csrf_token_time'] ?? 'csrf_token_timeは存在しません');
+    echo "<br>";
+    var_dump($_POST['csrf_token'] ?? 'POSTのcsrf_tokenは存在しません');
+    echo "<br>";
 }
 /** 
  * 成功時のクリーンアップ
@@ -199,16 +204,18 @@ function cleanupAfterSuccess(string $used_token): void {
  * SecurityException::LEVEL_MEDIUM: 標準的なクリーンアップ
  */
 function handleCSRFAttack(CSRFException $e, int $severity, string $ip): void {
+    echo '<h2>handleCSRFAttackが呼び出されました</h2>';
+    echo 'セキュリティーレベル: ' . $severity . '<br>';
     switch ($severity) {
         case SecurityException::LEVEL_CRITICAL:  //  ブロック中にさらに攻撃検知
             cleanupAfterFailure($_POST['csrf_token'] ?? '');
-            $rate_data = recordSessionReset($ip);
+            recordSessionReset($ip);
             // ✅ セッション破棄前にデータを保存
             $preserved_data = preserveSecurityData($ip);
             // セッション破棄            
             reset_session();
             // ✅ セキュリティデータを新セッションに復元
-            $rate_data = restoreSecurityData($ip, $preserved_data);
+            restoreSecurityData($ip, $preserved_data);
 
             error_log("重大CSRF攻撃検知 - IP: {$ip}, セッション破棄実行");
             break;
@@ -230,6 +237,7 @@ function handleCSRFAttack(CSRFException $e, int $severity, string $ip): void {
         case SecurityException::LEVEL_MEDIUM:
         default:  
             // トークン無効化
+            echo 'セキュリティーレベル 2 処理を実行します<br>';
             cleanupAfterFailure($_POST['csrf_token'] ?? '');
             // セッションID再生成
             if (session_status() === PHP_SESSION_ACTIVE) {
@@ -256,8 +264,6 @@ function handleCSRFAttack(CSRFException $e, int $severity, string $ip): void {
  * 
  */
 function advancedRateLimit(string $ip) {
-
-//  echo "<h2>advancedRateLimit 呼び出し - IP: {$ip}</h2>";
     // $ip を受け取り 
     // 配列のキーをcsrf_attempts_{$ip}として定義
     $rate_key = "csrf_attempts_{$ip}";
@@ -274,23 +280,18 @@ function advancedRateLimit(string $ip) {
             'last_reset_time' => 0   // 最後のリセット時刻
         ];
     }
-
-    //  アクセス情報を$rate_dataにセット
-    $rate_data = $_SESSION[$rate_key];
+    
+    //  アクセス情報を$dataにセット
+    $data = $_SESSION[$rate_key];
 
     // セッションリセットの異常検知
-    if ($rate_data['session_resets'] > 5 && ($current_time - $rate_data['last_reset_time']) < 300) {
-        // 5分間隔でアクセスがあり、5回以上のセッションリセットは異常
-//test:        echo "<h2>6回以上のセッションリセット検知</h2>";
-        $rate_data['blocked_until'] = $current_time + 7200; // 2時間ブロック
-//test:        echo "<h2>2時間ブロック設定</h2>";
-        $rate_data = recordFailure($ip, $rate_data); // 異常記録として失敗を追加
-//test:  echo "$rate_data['blocked_until'] = {$rate_data['blocked_until']}<br>";
-//test:  echo "$rate_data['last_reset_time'] = {$rate_data['last_reset_time']}<br>";
+    if ($data['session_resets'] > 5 && ($current_time - $data['last_reset_time']) < 300) {
+        // 5分間で5回以上のセッションリセットは異常
+        $data['blocked_until'] = $current_time + 7200; // 2時間ブロック
+        $_SESSION[$rate_key] = $data;
+        recordFailure($ip, $data); // 異常記録として失敗を追加
         $attack_severity = SecurityException::LEVEL_CRITICAL;
-//test:    echo "<h2>セキュリティレベル: クリティカル{$attack_severity}</h2>";
         error_log("異常なセッションリセット検知 - IP: {$ip}, 2時間ブロック開始");
-//test:  echo 'レート制限で異常検知例外スローします。<br>';
         throw CSRFException::fromCurrentRequest(
             "異常な操作検知: 2時間ブロック",
             SecurityException::SEC_CSRF_ATTACK,
@@ -304,13 +305,10 @@ function advancedRateLimit(string $ip) {
 
     // ブロック期間中かチェック
     //  ブロック中なら残り時間を計算して例外をスロー
-    if ($rate_data['blocked_until'] > $current_time) {
-        //  ブロック中のアクセスはセキュリティーレベルHIGHとして扱う
-    //test:    echo "<h2>ブロック中のアクセス検知</h2>";
+    if ($data['blocked_until'] > $current_time) {
         $attack_severity = SecurityException::LEVEL_HIGH;
-        $remaining = $rate_data['blocked_until'] - $current_time;
-        $rate_data = recordFailure($ip, $rate_data); // ブロック中のアクセスも失敗として記録
-    //test:  echo 'レート制限でブロック中例外スローします。<br>';
+        $remaining = $data['blocked_until'] - $current_time;
+        recordFailure($ip, $data); // ブロック中のアクセスも失敗として記録
         throw CSRFException::fromCurrentRequest(
             "ブロック中: 残り{$remaining}秒",
             SecurityException::SEC_CSRF_ATTACK,
@@ -329,41 +327,41 @@ function advancedRateLimit(string $ip) {
     //  配列の各要素を$timeとして引数で受け取る
     //  use()は外部変数を無名関数内で使うための宣言
     //  つまり 5分以内の失敗記録だけを残す
-    $rate_data['failures'] = array_filter($rate_data['failures'], function($time) use ($current_time, $window) {
+    $data['failures'] = array_filter($data['failures'], function($time) use ($current_time, $window) {
         //  $time は配列の各要素に記録した時刻
         return ($current_time - $time) < $window;
     });
 
         // ✅ 成功記録のクリーンアップも追加
-    $rate_data['successes'] = array_filter($rate_data['successes'], function($time) use ($current_time, $window) {
+    $data['successes'] = array_filter($data['successes'], function($time) use ($current_time, $window) {
         return ($current_time - $time) < $window;
     });
 
 
     // ✅ 2. 件数制限（最大50件）
     $max_records = 50;
-        
-    if (count($rate_data['successes']) > $max_records) {
-    //test:  echo "'success' のかずが50個を超えました制限します。<br>";
-        $rate_data['successes'] = array_slice($rate_data['successes'], -$max_records);
-    //test:  echo "'success' のcount()は" . count($rate_data['successes']) . "です。<br>";
+    
+    if (count($data['failures']) > $max_records) {
+        // 古いものから削除（配列の先頭から削除）
+        $data['failures'] = array_slice($data['failures'], -$max_records);
+    }
+    
+    if (count($data['successes']) > $max_records) {
+        $data['successes'] = array_slice($data['successes'], -$max_records);
     }
     
     // 失敗回数のチェック
 
-    if (count($rate_data['failures']) >= 10) {
-    //test:    echo "<h2>レート制限: 5分以内に10回以上の失敗検知</h2>";
+    if (count($data['failures']) >= 10) {
         // 5分以内で10回以上失敗した場合は30分ブロック
-        $rate_data['blocked_until'] = $current_time + 1800;
-    //test:  echo "$rate_data['blocked_until'] = {$rate_data['blocked_until']}<br>";
-        $_SESSION[$rate_key] = $rate_data;
+        $data['blocked_until'] = $current_time + 1800;
+        $_SESSION[$rate_key] = $data;
 
                 // ✅ ログ記録を追加
-        error_log("レート制限ブロック開始 - IP: {$ip}, 失敗回数: " . count($rate_data['failures']) . 
-                  ", ブロック期限: " . date('Y-m-d H:i:s', $rate_data['blocked_until']));
-        $attack_severity = SecurityException::LEVEL_HIGH;
-        $rate_data = recordFailure($ip, $rate_data); // ブロック記録として失敗を追加
-    //test:  echo 'レート制限でブロック例外スローします。<br>';
+        error_log("レート制限ブロック開始 - IP: {$ip}, 失敗回数: " . count($data['failures']) . 
+                  ", ブロック期限: " . date('Y-m-d H:i:s', $data['blocked_until']));
+        $attack_severity = 'high';
+        recordFailure($ip, $data); // ブロック記録として失敗を追加
         throw CSRFException::fromCurrentRequest(
             "試行回数上限: 30分間ブロック",
             SecurityException::SEC_CSRF_ATTACK,
@@ -377,8 +375,8 @@ function advancedRateLimit(string $ip) {
     //  return する
     //  関数外で$_SESSION[$rate_key]は
     //  変更しないのでここで更新
-    $_SESSION[$rate_key] = $rate_data;
-    return $rate_data;
+    $_SESSION[$rate_key] = $data;
+    return $data;
 }
 
 /**
@@ -405,6 +403,49 @@ function csrfValidation() : void {
         'session_resets'  => 0,
         'last_reset_time' => 0
     ];
+    
+
+    echo 'failure の数を表示: ';
+if ($rate_data !== null) {
+    echo count($rate_data['failures']);
+} else {
+    echo 'No data';
+}
+echo "<br>";
+echo 'success の数を表示: ';
+if ($rate_data !== null) {
+    echo count($rate_data['successes']);
+} else {
+    echo 'No data';
+}
+echo "<br>";
+echo 'blocked_until の値を表示: ';
+if ($rate_data !== null) {
+    echo $rate_data['blocked_until'];
+} else {
+    echo 'No data';
+}
+echo "<br>";
+echo 'session_resets の数を表示: ';
+if ($rate_data !== null) {
+    echo $rate_data['session_resets'];
+} else {
+    echo 'No data';
+}   
+echo "<br>";
+echo 'last_reset_time の値を表示: ';
+if ($rate_data !== null) {
+    echo $rate_data['last_reset_time'];
+} else {
+    echo 'No data';
+}
+echo "<br>";
+echo 'used_csrf_tokens の数を表示: ';
+if (isset($_SESSION['used_csrf_tokens'])) {
+    echo count($_SESSION['used_csrf_tokens']);
+} else {
+    echo 'No data';
+}   
 
      $attack_severity = SecurityException::LEVEL_LOW;
 
@@ -412,8 +453,10 @@ function csrfValidation() : void {
     //  sessionにトークンがセットされていなければ
     //  throw CSRFException::fromCurrentRequest(
     //  'CSRFトークンが存在しません');
-    if (!isset($_SESSION['csrf_token'])) {
+    if (!isset($_SESSION['csrf_token'])) {  
+        echo 'セッションのcsrf_tokenが存在しない場合<br>';
         $attack_severity = SecurityException::LEVEL_MEDIUM;
+        echo '$attack_severity の値: 2のはず=>' . $attack_severity . "<br>";
         $rate_data = recordFailure($ip, $rate_data);
         throw CSRFException::fromCurrentRequest(
             'セッションにCSRFトークンが存在しません',
@@ -430,7 +473,7 @@ function csrfValidation() : void {
     if (!isset($_SESSION['csrf_token_time'])) {
         $attack_severity = SecurityException::LEVEL_MEDIUM;
         $attack_detected = true;
-        $rate_data = recordFailure($ip, $rate_data);
+        recordFailure($ip, $rate_data);
         throw CSRFException::fromCurrentRequest(
             'CSRFトークンタイムが存在しません',
             SecurityException::SEC_CSRF_ATTACK,
@@ -446,7 +489,7 @@ function csrfValidation() : void {
     if (time() - $token_time > 1800) {
         $attack_severity = SecurityException::LEVEL_MEDIUM;
         $attack_detected = true;
-        $rate_data = recordFailure($ip, $rate_data);
+        recordFailure($ip, $rate_data);
         throw CSRFException::fromCurrentRequest(
             'CSRFトークンの有効期限が切れています',
             SecurityException::SEC_CSRF_ATTACK,
@@ -460,7 +503,7 @@ function csrfValidation() : void {
     if (!isset($_POST['csrf_token'])) {
         $attack_severity = SecurityException::LEVEL_MEDIUM;
         $attack_detected = true;
-        $rate_data = recordFailure($ip, $rate_data);
+        recordFailure($ip, $rate_data);
         throw CSRFException::fromCurrentRequest(
             'POSTのCSRFトークンが存在しません',
             SecurityException::SEC_CSRF_ATTACK,
@@ -476,7 +519,8 @@ function csrfValidation() : void {
     //  bin2hex()で16進数文字列に変換される
     if (!is_string($post_token)) {
         $attack_severity = SecurityException::LEVEL_MEDIUM;
-        $rate_data = recordFailure($ip, $rate_data);
+        $attack_detected = true;
+        recordFailure($ip, $rate_data);
         throw CSRFException::fromCurrentRequest(
             'POSTされたCSRFトークンが文字列ではありません',
             SecurityException::SEC_CSRF_ATTACK,
@@ -488,7 +532,7 @@ function csrfValidation() : void {
     if (!is_string($session_token)) {
         $attack_severity = SecurityException::LEVEL_MEDIUM;
         $attack_detected = true;
-        $rate_data = recordFailure($ip, $rate_data);
+        recordFailure($ip, $rate_data);
         throw CSRFException::fromCurrentRequest(
             'セッションのCSRFトークンが文字列ではありません',
             SecurityException::SEC_CSRF_ATTACK,
@@ -507,7 +551,7 @@ function csrfValidation() : void {
     if (strlen($post_token) !== 64) {
         $attack_severity = SecurityException::LEVEL_MEDIUM;
         $attack_detected = true;
-        $rate_data = recordFailure($ip, $rate_data);
+        recordFailure($ip, $rate_data);
         throw CSRFException::fromCurrentRequest(
             'ポストCSRFトークンの長さが不正です',
             SecurityException::SEC_CSRF_ATTACK,
@@ -519,7 +563,7 @@ function csrfValidation() : void {
     if (strlen($session_token) !== 64) {
         $attack_severity = SecurityException::LEVEL_MEDIUM;
         $attack_detected = true;
-        $rate_data = recordFailure($ip, $rate_data);
+        recordFailure($ip, $rate_data);
         throw CSRFException::fromCurrentRequest(
             'セッションのCSRFトークンの長さが不正です',
             SecurityException::SEC_CSRF_ATTACK,
@@ -533,7 +577,7 @@ function csrfValidation() : void {
     if (!ctype_xdigit($post_token) ) {
         $attack_severity = SecurityException::LEVEL_MEDIUM;
         $attack_detected = true;
-        $rate_data = recordFailure($ip, $rate_data);
+        recordFailure($ip, $rate_data);
         throw CSRFException::fromCurrentRequest(
             'POSTされたCSRFトークンが16進数文字列ではありません',
             SecurityException::SEC_CSRF_ATTACK,
@@ -545,7 +589,7 @@ function csrfValidation() : void {
     if (!ctype_xdigit($session_token) ) {
         $attack_severity = SecurityException::LEVEL_MEDIUM;
         $attack_detected = true;
-        $rate_data = recordFailure($ip, $rate_data);
+        recordFailure($ip, $rate_data);
         throw CSRFException::fromCurrentRequest(
             'セッションのCSRFトークンが16進数文字列ではありません',
             SecurityException::SEC_CSRF_ATTACK,
@@ -554,6 +598,7 @@ function csrfValidation() : void {
             null
         );
     }
+    echo 'トークンの基本的な形式チェックを通過しました<br>';
 
     //  referer を監視します
     //  ここでは処理を中断しません。
@@ -591,10 +636,6 @@ function csrfValidation() : void {
     }
 
 
-//test:  echo "<h2>token の型式チェック終了</h2>";
-//test:  echo "<h2>レート制限チェック開始</h2>";
-
-
 
     //  レート制限チェック
     //  同一ipからの連続アクセスを監視
@@ -611,20 +652,20 @@ function csrfValidation() : void {
         $rate_data = advancedRateLimit($ip);
     } catch (CSRFException $e) {
         //  例外が発生した場合は攻撃を検知
-//test:      echo "<h2>レート制限で例外発生をキャッチ</h2>";
-//test:      echo 'レート制限での例外を再スローします。<br>';
-        //  ここでは再スローします
+        $attack_detected = true;
+        $attack_severity = $e->getSecurityLevel();
+        recordFailure($ip, $rate_data);
+        handleCSRFAttack($e, $attack_severity, $ip);
         throw $e;
     }
 
     // CSRF検証
     if (!hash_equals($post_token, $session_token)) {
-    //test:  echo "<h2>CSRFトークン不一致検知</h2>";
         // ✅ 失敗を記録  一回だけの失敗は低SecurityException::LEVEL_MEDIUMレベル
         $attack_severity = SecurityException::LEVEL_MEDIUM;
+        $attack_detected = true;
         //  失敗時間を配列に追加
-        $rate_data = recordFailure($ip, $rate_data);
-//test:  echo 'CSRFトークン不一致例外スローします。<br>';   
+        recordFailure($ip, $rate_data);      
         throw CSRFException::fromCurrentRequest(
             'トークン不一致',
             SecurityException::SEC_CSRF_ATTACK,
@@ -640,39 +681,100 @@ function csrfValidation() : void {
     $rate_data = recordSuccess($ip, $rate_data);
 
     } catch (CSRFException $e) {
-//test:  echo "</h2>関数内でCSRF例外キャッチ</h2>";  
+        echo '関数内で例外をキャッチしました。<br>';
     // ✅ 攻撃レベルに応じたクリーンアップ
     handleCSRFAttack($e, $attack_severity, $ip);
     // 例外を再スロー
-//test:  echo '関数内でキャッチした例外を再スローします。<br>';
+    echo '例外を再スローします<br>';
     throw $e;
     }
 }
 
-// //  使用例
-// try {
-//     csrfValidation();
-//     // CSRF検証成功後の処理をここに記述
-// } catch (CSRFException $e) {
-//     $security_level = $e->getSecurityLevel();
-//     switch ($security_level) {
-//         case SecurityException::LEVEL_CRITICAL:
-//             // 重大な攻撃の場合の処理
-//             header("Location: logout.php");
-//             exit;
-//         case SecurityException::LEVEL_HIGH:
-//             // 高リスクの攻撃の場合の処理
-//             header("Location: recapture.php");
-//             exit;
-//         case SecurityException::LEVEL_MEDIUM:
-//         default:
-//             // 中程度の攻撃の場合の処理
-//             header("Location: error.php");
-//             exit;
-//     }
-// }catch (Exception $e) {
-//     // その他の例外処理
-//     error_log("予期しないエラー: " . $e->getMessage());
-//     header("Location: error.php");
-//     exit;
-// }
+//  test
+require_once 'common.php';
+
+session_start();
+reset_session();
+for ($i = 0; $i < 12; $i++) {
+    echo "<h1>テスト開始{$i}</h1>";
+
+    generate_csrf_token();
+    echo 'CSRFトークンを生成しました。<br>';
+    //$_POST['csrf_token'] = 'invalid_token_for_test_purpose_only_1234567890abcdef';
+    $_POST['csrf_token'] = $_SESSION['csrf_token']; // 正しいトークンに変更してテストも可能
+    generate_csrf_token(); // トークンを再生成して古いトークンを無効化
+try {
+    csrfValidation();
+    // CSRF検証成功後の処理をここに記述
+} catch (CSRFException $e) {
+    echo '再スローキャッチしました<br>';
+    $security_level = $e->getSecurityLevel();
+    echo 'セキュリティーレベルを表示します: ' . $security_level . "<br>";
+    switch ($security_level) {
+        case SecurityException::LEVEL_CRITICAL:
+            // 重大な攻撃の場合の処理
+            die("LEVEL_CRITICAL:4 クリティカルな攻撃が検出されました。");
+           // exit;
+        case SecurityException::LEVEL_HIGH:
+            // 高リスクの攻撃の場合の処理
+            die("LEVEL_HIGH:3 高リスクの攻撃が検出されました。");
+            exit;
+        case SecurityException::LEVEL_MEDIUM:
+        default:
+            // 中程度の攻撃の場合の処理
+            echo "LEVEL_MEDIUM:2 中程度の攻撃が検出されました<br>";
+            //exit;
+    }
+}catch (Exception $e) {
+    // その他の例外処理
+    error_log("予期しないエラー: " . $e->getMessage());
+    header("Location: error.php");
+    exit;
+}
+$ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+$rate_key = "csrf_attempts_{$ip}";
+$rate_data = $_SESSION[$rate_key] ?? null;
+
+echo 'failure の数を表示: ';
+if ($rate_data !== null) {
+    echo count($rate_data['failures']);
+} else {
+    echo 'No data';
+}
+echo "<br>";
+echo 'success の数を表示: ';
+if ($rate_data !== null) {
+    echo count($rate_data['successes']);
+} else {
+    echo 'No data';
+}
+echo "<br>";
+echo 'blocked_until の値を表示: ';
+if ($rate_data !== null) {
+    echo $rate_data['blocked_until'];
+} else {
+    echo 'No data';
+}
+echo "<br>";
+echo 'session_resets の数を表示: ';
+if ($rate_data !== null) {
+    echo $rate_data['session_resets'];
+} else {
+    echo 'No data';
+}   
+echo "<br>";
+echo 'last_reset_time の値を表示: ';
+if ($rate_data !== null) {
+    echo $rate_data['last_reset_time'];
+} else {
+    echo 'No data';
+}
+echo "<br>";
+echo 'used_csrf_tokens の数を表示: ';
+if (isset($_SESSION['used_csrf_tokens'])) {
+    echo count($_SESSION['used_csrf_tokens']);
+} else {
+    echo 'No data';
+}   
+echo "<hr>";
+}

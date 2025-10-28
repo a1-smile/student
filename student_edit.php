@@ -361,7 +361,9 @@ try {
     if (!isset($_SESSION['csrf_token']) || !isset($_SESSION['csrf_token_time'])) {
         $context['csrf_attack_indicators'] = [
     'token_state' => [
+        //  セッションにトークンが存在しない場合 true
         'session_token_missing' => !isset($_SESSION['csrf_token']),
+        //  セッションにタイムスタンプが存在しない場合true
         'session_time_missing' => !isset($_SESSION['csrf_token_time']),
         'post_token_present' => isset($_POST['csrf_token']),
         'token_mismatch' => isset($_SESSION['csrf_token']) && isset($_POST['csrf_token']) &&
@@ -369,12 +371,21 @@ try {
     ],
     'referer_analysis' => [
         'referer_present' => !empty($_SERVER['HTTP_REFERER']),
+
+
+        //  サイト内からの遷移かどうかを確認
+        //  strpos(文字列,探したい文字列) は、部分文字列の位置を検索します。
+        //  $_SERVER['HTTP_HOST'] は、アクセス先のドメイン（などの値）
+        //  $_SERVER['HTTP_REFERER'] は、アクセス元のURL
+        //  外部からのアクセスの場合はfalseを返す
         'referer_matches_host' => !empty($_SERVER['HTTP_REFERER']) &&
                                  strpos($_SERVER['HTTP_REFERER'], $_SERVER['HTTP_HOST']) !== false,
+
+                                 
         'referer_value' => $_SERVER['HTTP_REFERER'] ?? 'none'
     ]
 ];
-        throw new SecurityException('CSRFトークンまたはタイムスタンプがセッションに設定されていません', SecurityException::SEC_CSRF_ATTACK, $context, null);
+        throw CSRFException::fromCurrentRequest('CSRFトークンまたはタイムスタンプがセッションに設定されていません', SecurityException::SEC_CSRF_ATTACK, $context, null);
     }
     
     $session_token = $_SESSION['csrf_token'];
@@ -382,27 +393,27 @@ try {
     
     // 2. トークンの有効期限チェック（30分）
     if ((time() - $token_time) > 1800) {
-        throw new SecurityException('CSRFトークンの有効期限が切れています');
+        throw CSRFException::fromCurrentRequest('CSRFトークンの有効期限が切れています');
     }
     
     // 3. POSTトークンの基本チェック
     if (!isset($_POST['csrf_token'])) {
-        throw new SecurityException('POSTデータにCSRFトークンが含まれていません');
+        throw CSRFException::fromCurrentRequest('POSTデータにCSRFトークンが含まれていません');
     }
     
     $post_token = $_POST['csrf_token'];
     
     // 4. トークンの形式・長さチェック
     if (!is_string($session_token) || !is_string($post_token)) {
-        throw new SecurityException('CSRFトークンが文字列ではありません');
+        throw CSRFException::fromCurrentRequest('CSRFトークンが文字列ではありません');
     }
     
     if (strlen($session_token) !== 64 || strlen($post_token) !== 64) {
-        throw new SecurityException('CSRFトークンの長さが異常です');
+        throw CSRFException::fromCurrentRequest('CSRFトークンの長さが異常です');
     }
-    
+    //  ctype_xdigit() は、文字列が16進数で構成されているかをチェックします。
     if (!ctype_xdigit($session_token) || !ctype_xdigit($post_token)) {
-        throw new SecurityException('CSRFトークンに無効な文字が含まれています');
+        throw CSRFException::fromCurrentRequest('CSRFトークンに無効な文字が含まれています');
     }
     
     // 5. リファラーチェック（追加のセキュリティ）
@@ -413,6 +424,8 @@ try {
     //  文字列の一致を探す関数。
     if (empty($referer) || strpos($referer, $host) === false) {
         // 警告レベル（ブロックはしない）
+        // 補助的な監視に留めるため、処理を止めない。
+
         error_log("警告: 不審なリファラー - リファラー: {$referer}, ホスト: {$host}, IP: " . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
     }
     
@@ -427,7 +440,7 @@ try {
     $rate_data = $_SESSION[$rate_key];
     $current_time = time();
     
-    // 1分間に5回以上の試行は異常
+    // 1分間隔以内に5回以上の連続試行は異常
     if (($current_time - $rate_data['last_time']) < 60 && $rate_data['count'] >= 5) {
         throw new SecurityException('CSRFトークン検証の試行回数が上限を超えました');
     }
@@ -469,32 +482,33 @@ try {
     unset($_POST['csrf_token']);
     $post_token = null;
     
-    // レート制限カウンターをリセット（成功時）
-    unset($_SESSION[$rate_key]);
+    // 成功ログ
     
-    // 成功ログ（デバッグ用）
-    // error_log("CSRF検証成功 - IP: {$ip}, セッションID: " . session_id());
+    error_log("CSRF検証成功 - IP: {$ip}, セッションID: " . session_id());
     
 } catch (CSRFException $e) {
     // CSRF攻撃の詳細ログ
-    $attack_details = [
-        'type' => 'CSRF_ATTACK',
-        'message' => $e->getMessage(),
-        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-        'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
-        'referer' => $_SERVER['HTTP_REFERER'] ?? 'unknown',
-        'session_id' => session_id(),
-        'post_token_length' => isset($_POST['csrf_token']) ? strlen($_POST['csrf_token']) : 0,
-        'session_token_exists' => isset($_SESSION['csrf_token']),
-        'timestamp' => date('Y-m-d H:i:s'),
-        'request_uri' => $_SERVER['REQUEST_URI'] ?? 'unknown'
-    ];
-    
-    error_log("CSRF攻撃検出: " . json_encode($attack_details, JSON_UNESCAPED_UNICODE));
-    
+    // $attack_details = [
+    //     'type' => 'CSRF_ATTACK',
+    //     'message' => $e->getMessage(),
+    //     'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+    //     'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+    //     'referer' => $_SERVER['HTTP_REFERER'] ?? 'unknown',
+    //     'session_id' => session_id(),
+    //     'post_token_length' => isset($_POST['csrf_token']) ? strlen($_POST['csrf_token']) : 0,
+    //     'session_token_exists' => isset($_SESSION['csrf_token']),
+    //     'timestamp' => date('Y-m-d H:i:s'),
+    //     'request_uri' => $_SERVER['REQUEST_URI'] ?? 'unknown'
+    // ];
+
+    $message = $e->getLogMessage();
+    error_log("CSRF攻撃検出: " . $message);
+
     // セッション完全破棄
     session_unset();
     session_destroy();
+    session_write_close();
+    http_response_code(403);  // Forbidden アクセス禁止
     
     die('CSRF攻撃が検出されました。<br>
          セキュリティ上の理由により処理を中断します。<br>
