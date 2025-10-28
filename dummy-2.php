@@ -126,19 +126,22 @@ function recordSessionReset(string $ip): array {
  * を呼び出しセッションIDを再生成
  */
 function cleanupAfterFailure(string $failed_token): void {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+//test:  echo "<h2>cleanupAfterFailure 呼び出し</h2>";
     
     // 失敗したトークンも使用済みとして記録（再利用防止）
     if (!empty($failed_token)) {
         if (!isset($_SESSION['used_csrf_tokens'])) {
             $_SESSION['used_csrf_tokens'] = [];
         }
+//test:  echo "追加する前の使用済みトークン数: " . count($_SESSION['used_csrf_tokens']) . "<br>";
 
         $_SESSION['used_csrf_tokens'][] = $failed_token;
+//test:  echo "追加した後の使用済みトークン数: " . count($_SESSION['used_csrf_tokens']) . "<br>";
 
         if (count($_SESSION['used_csrf_tokens']) > 10) {
             array_shift($_SESSION['used_csrf_tokens']);
         }
+//test:  echo "古い使用済みトークンを削除後の数: " . count($_SESSION['used_csrf_tokens']) . "<br>";
     }
  
     
@@ -152,6 +155,12 @@ function cleanupAfterFailure(string $failed_token): void {
     if (isset($_POST['csrf_token'])) {
         unset($_POST['csrf_token']);
     }
+//test:  echo "セッショントークン：".$_SESSION['csrf_token'] ?? 'が削除されました。<br>";
+//test:  echo "トークンタイム：".$_SESSION['csrf_token_time'] ?? 'が削除されました。<br>';
+//test:  echo "ポストトークン：".$_POST['csrf_token'] ?? 'が削除されました。<br>';
+    // セッションID再生成
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_regenerate_id(true);
 }
 /** 
  * 成功時のクリーンアップ
@@ -189,7 +198,6 @@ function cleanupAfterSuccess(string $used_token): void {
 
 /**
  * CSRF攻撃の例外処理を条件分岐で実装
- * @param CSRFException $e スローされた例外
  * @param int $severity 攻撃の重大度 (SecurityException::LEVEL_MEDIUM, 'high', 'critical')
  * @param string $ip クライアントのIPアドレス
  * @return void
@@ -198,9 +206,13 @@ function cleanupAfterSuccess(string $used_token): void {
  * 'high': トークン無効化とセッションID再生成
  * SecurityException::LEVEL_MEDIUM: 標準的なクリーンアップ
  */
-function handleCSRFAttack(CSRFException $e, int $severity, string $ip): void {
+function handleCSRFAttack(int $severity, string $ip): void {
+//test:  echo "<h2>handleCSRFAttack 呼び出し </h2>";
+//test:  echo "$attack_severity = {$severity} を認識しています。<br>";
+//test:  echo "IPアドレス: {$ip} を受け取りました。<br>";
     switch ($severity) {
         case SecurityException::LEVEL_CRITICAL:  //  ブロック中にさらに攻撃検知
+//test:  echo "クリティカルレベル(4)の攻撃処理を実行します。<br>";
             cleanupAfterFailure($_POST['csrf_token'] ?? '');
             $rate_data = recordSessionReset($ip);
             // ✅ セッション破棄前にデータを保存
@@ -229,12 +241,8 @@ function handleCSRFAttack(CSRFException $e, int $severity, string $ip): void {
 
         case SecurityException::LEVEL_MEDIUM:
         default:  
-            // トークン無効化
-            cleanupAfterFailure($_POST['csrf_token'] ?? '');
-            // セッションID再生成
-            if (session_status() === PHP_SESSION_ACTIVE) {
-            session_regenerate_id(true);
-            }
+            // トークン無効化、セッションID再生成
+            cleanupAfterFailure($_POST['csrf_token'] ?? '');          
             error_log("CSRF攻撃検知 - IP: {$ip}");
             break;
     }
@@ -611,6 +619,8 @@ function csrfValidation() : void {
         $rate_data = advancedRateLimit($ip);
     } catch (CSRFException $e) {
         //  例外が発生した場合は攻撃を検知
+        //  スコープの外にあるので$attack_severity を取得
+        $attack_severity = $e->getSecurityLevel();
 //test:      echo "<h2>レート制限で例外発生をキャッチ</h2>";
 //test:      echo 'レート制限での例外を再スローします。<br>';
         //  ここでは再スローします
@@ -640,9 +650,11 @@ function csrfValidation() : void {
     $rate_data = recordSuccess($ip, $rate_data);
 
     } catch (CSRFException $e) {
+        // スコープの外にある場合もあるので$attack_severity を取得
+        $attack_severity = $e->getSecurityLevel();
 //test:  echo "</h2>関数内でCSRF例外キャッチ</h2>";  
     // ✅ 攻撃レベルに応じたクリーンアップ
-    handleCSRFAttack($e, $attack_severity, $ip);
+    handleCSRFAttack($attack_severity, $ip);
     // 例外を再スロー
 //test:  echo '関数内でキャッチした例外を再スローします。<br>';
     throw $e;
