@@ -293,30 +293,25 @@ class CSRFException extends SecurityException {
     ): self {
         $message = $customMessage ?? "CSRF攻撃検知";
         
-        $context[] = [
-            //  urlのドメイン以降がuri
-            //  つまり、どのページを要求されたか？
+        // 配列への代入を修正: [] → array_merge()
+        $context = array_merge($context, [
             'request_uri' => $_SERVER['REQUEST_URI'] ?? 'unknown',
-            //  アクセス元IPアドレス
             'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
             'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
-            //  どのページから移動してきたか
             'referer' => $_SERVER['HTTP_REFERER'] ?? 'unknown',
-            //  date() で日付フォーマットを指定して表示
-            //  $_SERVER['REQUEST_TIME'] は、リクエストがサーバーーに到達したタイムスタンプ
-            //  time() は、現在のタイムスタンプ
             'request_time' => date('Y-m-d H:i:s', $_SERVER['REQUEST_TIME'] ?? time()),
             'session_id' => session_id(),
-            //  array_keys() は、配列のキーを取得する関数
-            // $_SESSION ?? [] は、$_SESSIONが存在しない場合に空配列を返す
             'session_keys' => array_keys($_SESSION ?? []),
             'post_keys' => array_keys($_POST ?? []),
             'post_count' => count($_POST ?? []),
             'csrf_token_in_post' => isset($_POST['csrf_token']),
             'csrf_token_in_session' => isset($_SESSION['csrf_token']),
+            // hash_equals()の戻り値はbooleanなので問題なし
             'csrf_token_match' => (isset($_POST['csrf_token']) && isset($_SESSION['csrf_token']) &&
+                                  is_string($_SESSION['csrf_token']) && is_string($_POST['csrf_token']) &&                                 
                                   hash_equals($_POST['csrf_token'], $_SESSION['csrf_token'])),
-        ];
+        ]);
+        
         $context['csrf_attack_indicators'] = [
     'token_state' => [
         //  セッションにトークンが存在しない場合 true
@@ -324,7 +319,9 @@ class CSRFException extends SecurityException {
         //  セッションにタイムスタンプが存在しない場合true
         'session_time_missing' => !isset($_SESSION['csrf_token_time']),
         'post_token_present' => isset($_POST['csrf_token']),
+        // 型チェックを追加してhash_equals()のエラーを防ぐ
         'token_mismatch' => isset($_SESSION['csrf_token']) && isset($_POST['csrf_token']) &&
+                           is_string($_SESSION['csrf_token']) && is_string($_POST['csrf_token']) &&
                            !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])
     ],
     'referer_analysis' => [
