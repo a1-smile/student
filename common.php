@@ -164,7 +164,8 @@ $files_required = [
     'get-value-from-post-or-get.php',
     'session-set-cookie-params.php',
     'exceptions.php',
-    'session-reset.php'
+    'session-reset.php',
+    'csrf.php'
 ];
 
 foreach ($files_required as $file_name) {

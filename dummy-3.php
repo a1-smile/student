@@ -68,7 +68,6 @@ function preserveSecurityData(string $ip): array {
     $preserved_data = [
         'rate_data' => $rate_data,
         'used_csrf_tokens' => $_SESSION['used_csrf_tokens'] ?? [],  
-        'last_reset_time' => $_SESSION['last_reset_time'] ?? 0
     ];
 
     return $preserved_data;
@@ -93,11 +92,6 @@ function restoreSecurityData(string $ip, array $preserved_data): array {
     // 使用済みトークンを復元
     if (isset($preserved_data['used_csrf_tokens'])) {
         $_SESSION['used_csrf_tokens'] = $preserved_data['used_csrf_tokens'];
-    }
-
-    // 最終リセット時間を復元
-    if (isset($preserved_data['last_reset_time'])) {
-        $_SESSION['last_reset_time'] = $preserved_data['last_reset_time'];
     }
 
     // セッション破棄の記録も追加

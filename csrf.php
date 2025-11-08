@@ -68,7 +68,6 @@ function preserveSecurityData(string $ip): array {
     $preserved_data = [
         'rate_data' => $rate_data,
         'used_csrf_tokens' => $_SESSION['used_csrf_tokens'] ?? [],  
-        'last_reset_time' => $_SESSION['last_reset_time'] ?? 0
     ];
 
     return $preserved_data;
@@ -95,10 +94,6 @@ function restoreSecurityData(string $ip, array $preserved_data): array {
         $_SESSION['used_csrf_tokens'] = $preserved_data['used_csrf_tokens'];
     }
 
-    // 最終リセット時間を復元
-    if (isset($preserved_data['last_reset_time'])) {
-        $_SESSION['last_reset_time'] = $preserved_data['last_reset_time'];
-    }
 
     // セッション破棄の記録も追加
     $_SESSION['security_events'] = [
@@ -120,7 +115,6 @@ function restoreSecurityData(string $ip, array $preserved_data): array {
  * $_SESSION[$rate_key]['last_reset_time'] に現在時刻をセット
  */
 function recordSessionReset(string $ip): array {
-  echo "<h2>recordSessionReset 呼び出し</h2>";
     $rate_key = "csrf_attempts_{$ip}";
     if (!isset($_SESSION[$rate_key])) {
         return [];
