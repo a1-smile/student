@@ -1,5 +1,5 @@
 <?php
-
+ob_start();
 /**
  * 失敗記録の追加
  * @param string $ip クライアントのIPアドレス
@@ -414,6 +414,12 @@ function csrfValidation() : void {
         'last_reset_time' => 0
     ];
 
+    echo '<h2>csrfValidation が呼び出されました</h2>';
+    echo 'last_reset_time の値を表示: ';
+    $reset_time = $rate_data['last_reset_time'];
+    echo " (" . date('Y-m-d H:i:s', $reset_time) . ")";
+    echo "<br>";
+
      $attack_severity = SecurityException::LEVEL_LOW;
 
     try {
@@ -603,6 +609,7 @@ function csrfValidation() : void {
         //  ハイレベル設定
 
         //  呼び出し元で例外処理を行うようにします。
+        echo '<h2>advancedRateLimit を呼び出します</h2>';
     try {
         $rate_data = advancedRateLimit($ip);
     } catch (CSRFException $e) {
@@ -669,4 +676,15 @@ function csrfValidation() : void {
 //     exit;
 // }
 
+require_once 'exceptions.php';
+require_once 'generate-token.php';
+require_once 'session-reset.php';
 
+session_start();
+reset_session();
+
+date_default_timezone_set('Asia/Tokyo');
+$reset_time = time();
+echo " (" . date('Y-m-d H:i:s', $reset_time) . ")";
+
+ob_end_flush();
