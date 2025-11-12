@@ -261,7 +261,6 @@ function handleCSRFAttack(int $severity, string $ip): void {
             error_log("中リスクCSRF攻撃 - IP: {$ip}");
             break;
         default:
-  echo "デフォルト処理を実行します。 想定外の処理です。<br>";  
             // 型安全な値を渡す
             $failed_token = isset($_POST['csrf_token']) && is_string($_POST['csrf_token']) 
                           ? $_POST['csrf_token'] 
@@ -371,7 +370,6 @@ function advancedRateLimit(string $ip) {
                   ", ブロック期限: " . date('Y-m-d H:i:s', $rate_data['blocked_until']));
         $attack_severity = SecurityException::LEVEL_HIGH;
         $rate_data = recordFailure($ip, $rate_data); // ブロック記録として失敗を追加
-      echo 'レート制限でブロック例外スローします。<br>';
         throw CSRFException::fromCurrentRequest(
             "試行回数上限: 30分間ブロック",
             SecurityException::SEC_CSRF_ATTACK,
