@@ -14,8 +14,7 @@ if (!isset($_SESSION[$rate_key])) {
     ];
 }
 
-$rate_data = $_SESSION[$rate_key
-];
+$rate_data = $_SESSION[$rate_key];
 
 //  閾値の設定
 $failure_threshold_high = 10; // 高頻度閾値
@@ -27,6 +26,10 @@ $current_time = time();
 
 //$security_level の初期値を設定
 $former_security_level = SecurityException::LEVEL_LOW; // 1
+
+
+
+try{
 
 //  $rate_data['failure_time_stamp'] から
 //  $time_window より古いタイムスタンプを削除
@@ -70,7 +73,7 @@ if ($failure_count >= $failure_threshold_high) {
     $rate_data['block_until'] = $current_time + $block_time;
     $current_security_level = SecurityException::LEVEL_HIGH;
 
-    //  高頻度閾値を超えた場合は失敗時刻を追加
+    //  失敗時刻を追加
     $rate_data['failure_time_stamp'][]= $current_time;
     //  失敗時刻の数が最大値を超えた場合は古いものを削除
     if (count($rate_data['failure_time_stamp']) > $max_failure_time_stamp) {
@@ -124,4 +127,18 @@ if ($security_level === SecurityException::LEVEL_MEDIUM) {
     );
 }
 
+} catch (CSRFException $e) {
+    //  security_level を取得
+    $security_level = $e->getSecurityLevel();
+    //  $_SESSION に保存されている rate_data を一時保管
+    $stored_rate_data = $_SESSION[$rate_key];
+
+    session_reset();
+
+    $_SESSION[$rate_key] = $stored_rate_data;
+
+    //  index.php にリダイレクト
+    header('Location: index.php?error=' . urlencode($e->getMessage()));
+    exit;
+}
 // rate_limiter ここまで
