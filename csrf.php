@@ -159,10 +159,6 @@ function cleanupAfterFailure(string $failed_token): void {
     if (isset($_POST['csrf_token'])) {
         unset($_POST['csrf_token']);
     }
-    // セッションID再生成
-    if (session_status() === PHP_SESSION_ACTIVE) {
-        session_regenerate_id(true);
-    }
 }
 
 /** 
@@ -258,6 +254,11 @@ function handleCSRFAttack(int $severity, string $ip): void {
                           ? $_POST['csrf_token'] 
                           : '';
             cleanupAfterFailure($failed_token);
+            // セッションID再生成
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_regenerate_id(true);
+    }
+
             error_log("中リスクCSRF攻撃 - IP: {$ip}");
             break;
         default:

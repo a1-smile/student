@@ -1,70 +1,113 @@
 <?php
-/**
- * セッション破棄前にセキュリティデータを保存
- * @param string $ip クライアントのIPアドレス
- * @return array $preserved_data 保存されたセキュリティデータ
- * レート制限データに加えて、使用済みトークンやセキュリティイベントも保存
- */
-function preserveSecurityData(string $ip): array {
-    $rate_key = "csrf_attempts_{$ip}";
+// ...existing code...
+function cleanupAfterFailure(string $failed_token): void {
+    
+    // 失敗したトークンも使用済みとして記録（再利用防止）
+    // 型チェックを追加して文字列の場合のみ処理
+    if (!empty($failed_token) && is_string($failed_token)) {
+        if (!isset($_SESSION['used_csrf_tokens']) || !is_array($_SESSION['used_csrf_tokens'])) {
+            $_SESSION['used_csrf_tokens'] = [];
+        }
 
-    // レート制限データを取得
-    $rate_data = $_SESSION[$rate_key] ?? [
-        'failures' => [],
-        'successes' => [],
-        'blocked_until' => 0,
-        'session_resets' => 0,
-        'last_reset_time' => 0
-    ];
+        $now = time();
 
-    // 追加のセキュリティデータも保存
-    $preserved_data = [
-        'rate_data' => $rate_data,
-        'used_csrf_tokens' => $_SESSION['used_csrf_tokens'] ?? [],
-        'security_events' => $_SESSION['security_events'] ?? [],
-        'preservation_timestamp' => time(),
-        'preserved_from_ip' => $ip
-    ];
+        // 連想配列: token => timestamp に統一
+        // 既存キーがある場合は一旦外して末尾に入れ直し（挿入順維持）
+        if (array_key_exists($failed_token, $_SESSION['used_csrf_tokens'])) {
+            unset($_SESSION['used_csrf_tokens'][$failed_token]);
+        }
+        $_SESSION['used_csrf_tokens'][$failed_token] = $now;
 
-    return $preserved_data;
+        // 履歴上限 10 件までに制限（古いものから削除）
+        while (count($_SESSION['used_csrf_tokens']) > 10) {
+            $oldest = function_exists('array_key_first')
+                ? array_key_first($_SESSION['used_csrf_tokens'])
+                : (count($_SESSION['used_csrf_tokens']) ? array_keys($_SESSION['used_csrf_tokens'])[0] : null);
+            if ($oldest !== null) {
+                unset($_SESSION['used_csrf_tokens'][$oldest]);
+            } else {
+                break;
+            }
+        }
+    } else {
+        error_log("無効なトークン形式のため、使用済みトークンリストに追加しませんでした。");
+    }
+     
+    // トークンを削除
+    if (isset($_SESSION['csrf_token'])) {
+        unset($_SESSION['csrf_token']);
+    }
+    if (isset($_SESSION['csrf_token_time'])) {
+        unset($_SESSION['csrf_token_time']);
+    }
+    if (isset($_POST['csrf_token'])) {
+        unset($_POST['csrf_token']);
+    }
 }
+// ...existing code...
 
-/**
- * 新しいセッションにセキュリティデータを復元
- * @param string $ip クライアントのIPアドレス
- * @param array $preserved_data 復元するセキュリティデータ
- * @return array $rate_data 更新されたレート制限データ
- */
-function restoreSecurityData(string $ip, array $preserved_data): array {
-    $rate_key = "csrf_attempts_{$ip}";
-    
-    // レート制限データを復元
-    if (isset($preserved_data['rate_data'])) {
-        $_SESSION[$rate_key] = $preserved_data['rate_data'];
+
+//  修正例3
+
+
+// ...existing code...
+    if (!isset($_SESSION['used_csrf_tokens'])) {
+        $_SESSION['used_csrf_tokens'] = [];
+    }
+    // 旧形式（配列の値がトークン）と新形式（token => timestamp）を両対応でチェック
+    $used = $_SESSION['used_csrf_tokens'];
+    $is_reused = (is_array($used) && (isset($used[$post_token]) || in_array($post_token, $used, true)));
+    if ($is_reused) {
+        $attack_severity = SecurityException::LEVEL_MEDIUM;
+        $rate_data = recordFailure($ip, $rate_data);
+        throw CSRFException::fromCurrentRequest(
+            '使用済みトークンの再利用',
+            SecurityException::SEC_CSRF_ATTACK,
+            [],
+            SecurityException::LEVEL_MEDIUM,
+            null
+        );
+    }
+// ...existing code...
+// 
+// 
+
+
+// 修正例２
+// ...existing code...
+function cleanupAfterSuccess(string $used_token): void {
+    // 使用済みトークンとして記録（token => timestamp）
+    if (!isset($_SESSION['used_csrf_tokens']) || !is_array($_SESSION['used_csrf_tokens'])) {
+        $_SESSION['used_csrf_tokens'] = [];
+    }
+
+    $now = time();
+    if (array_key_exists($used_token, $_SESSION['used_csrf_tokens'])) {
+        unset($_SESSION['used_csrf_tokens'][$used_token]);
+    }
+    $_SESSION['used_csrf_tokens'][$used_token] = $now;
+
+    while (count($_SESSION['used_csrf_tokens']) > 10) {
+        $oldest = function_exists('array_key_first')
+            ? array_key_first($_SESSION['used_csrf_tokens'])
+            : (count($_SESSION['used_csrf_tokens']) ? array_keys($_SESSION['used_csrf_tokens'])[0] : null);
+        if ($oldest !== null) {
+            unset($_SESSION['used_csrf_tokens'][$oldest]);
+        } else {
+            break;
+        }
     }
     
-    // 使用済みトークンを復元
-    if (isset($preserved_data['used_csrf_tokens'])) {
-        $_SESSION['used_csrf_tokens'] = $preserved_data['used_csrf_tokens'];
+    // トークンを削除
+    if (isset($_SESSION['csrf_token'])) {
+        unset($_SESSION['csrf_token']);
     }
     
-    // セキュリティイベントを復元（既存データがあれば統合）
-    if (isset($preserved_data['security_events'])) {
-        $_SESSION['security_events'] = $preserved_data['security_events'];
+    if (isset($_SESSION['csrf_token_time'])) {
+        unset($_SESSION['csrf_token_time']);
     }
-    
-    // セッション破棄の記録も追加
-    $_SESSION['security_events'] = array_merge(
-        $_SESSION['security_events'] ?? [],
-        [
-            'last_session_destroy' => time(),
-            'destroy_reason' => 'critical_csrf_attack',
-            'destroy_ip' => $ip,
-            'restoration_timestamp' => time(),
-            'preservation_timestamp' => $preserved_data['preservation_timestamp'] ?? 0
-        ]
-    );
-    
-    $rate_data = $_SESSION[$rate_key] ?? [];
-    return $rate_data;
+    if (isset($_POST['csrf_token'])) {
+        unset($_POST['csrf_token']);
+    }
 }
+// ...existing code...
