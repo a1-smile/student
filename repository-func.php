@@ -1,13 +1,13 @@
 <?php
 /**
- * 
  * rate_limit_pdo()
+ * データベースに接続する
  * CSRF rate limiter 用の PDO インスタンスを取得する
- * 
  * @return PDO PDOインスタンス
  */
 function rate_limit_pdo(): PDO {
     // 環境に合わせて修正（MAMPのデフォルト例）
+    //  pdo 接続
     $pdo = new PDO(
         'mysql:host=127.0.0.1;dbname=student;charset=utf8mb4',
         'root',
@@ -24,6 +24,19 @@ function rate_limit_pdo(): PDO {
     return $pdo;
 }
 
+
+/**
+ * rate_limit_get_or_init_state()
+ * 
+ * テーブル csrf_rate_limit_state から
+ * 指定された rate_key に対応するレコード
+ * block_until,rate_key を取得、
+ * 存在しなければ初期化する
+ * 
+ * @param PDO $pdo PDOインスタンス
+ * @param string $rate_key レートキー
+ * @return array $rowレコードデータ
+ */
 function rate_limit_get_or_init_state(PDO $pdo, string $rate_key): array {
     $st = $pdo->prepare('SELECT rate_key, block_until FROM csrf_rate_limit_state WHERE rate_key = ?');
     //  execute には値を必ず配列で渡す
@@ -38,6 +51,18 @@ function rate_limit_get_or_init_state(PDO $pdo, string $rate_key): array {
     return ['rate_key' => $rate_key, 'block_until' => 0];
 }
 
+
+
+/** * rate_limit_insert_failure()
+ * 
+ * テーブル csrf_rate_limit_failures に
+ * 指定された rate_key と発生時刻を挿入する
+ * 
+ * @param PDO $pdo PDOインスタンス
+ * @param string $rate_key レートキー
+ * @param int $now 発生時刻のタイムスタンプ
+ * @return void
+ */
 function rate_limit_insert_failure(PDO $pdo, string $rate_key, int $now): void {
     $st = $pdo->prepare('INSERT INTO csrf_rate_limit_failures (rate_key, occurred_at) VALUES (?, ?)');
     $st->execute([$rate_key, $now]);
