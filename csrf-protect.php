@@ -1,4 +1,7 @@
 <?php
+//  このファイルの主な内容は、
+//  function validate_csrf_token() として
+// CSRFトークンの型式チェックを行う関数を定義します。
 // filepath: c:\MAMP\htdocs\student\csrf-protect.php
 require_once __DIR__ . '/safe-path.php';
 require_once __DIR__ . '/common.php';

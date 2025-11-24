@@ -7,3 +7,13 @@ CREATE TABLE rate_limits (
 -- INDEX は検索を高速化するためのもの
 -- ENGINE=InnoDB はセキュリティー関連では推奨されるストレージエンジン
 -- COLLATE=utf8mb4_bin はバイナリ比較を行う照合順序
+
+
+CREATE TABLE rate_blocks (
+    key_name VARCHAR(100) NOT NULL,
+    blocked_until INT UNSIGNED NOT NULL,
+    PRIMARY KEY (key_name)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+-- INDEX は検索を高速化するためのもの
+-- ENGINE=InnoDB はセキュリティー関連では推奨されるストレージエンジン
+-- COLLATE=utf8mb4_bin はバイナリ比較を行う照合順序

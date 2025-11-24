@@ -1,0 +1,192 @@
+rate_limit_check()のsessionとdeviceのチェック時に、
+閾値'maxfailure'を超えたら30分ブロックという機能を追加したいので、
+データベースのテーブルを追加して
+CREATE TABLE rate_blocks (
+    key_name VARCHAR(100) NOT NULL,
+    blocded_until INT UNSINED NOT NULL,
+    PRIMARY KEY (key_name)
+);
+
+ブロック登録処理をする関数record_block()と
+ブロック確認処理をする関数is_blocked()を
+以下のように定義します。
+function record_block(PDO $pdo, string $key, int $block_duration): void
+{
+    $blocked_until = time() + $block_duration;
+    $stmt = $pdo->prepare("REPLACE INTO rate_blocks (key_name, blocded_until) VALUES (?, ?)");
+    $stmt->execute([$key, $blocked_until]);
+}
+function is_blocked(PDO $pdo, string $key): bool
+{
+    $stmt = $pdo->prepare("SELECT blocded_until FROM rate_blocks WHERE key_name = ?");
+    $stmt->execute([$key]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row && $row['blocded_until'] > time()) {
+        return true;
+    }
+    return false;
+}
+
+そして、rate_limit_check()関数内で
+ブロック確認をして、trueなら、
+CRITICAL LEVEL 例外を投げるようにします。
+sessionとdeviceのチェック時に
+閾値を超えていたらrecord_block()を呼び出して
+30分ブロックを登録します。
+
+以上の処理をcsrf-db.phpファイルに追加するには、
+どのように、コードを編集すればよいでしょうか。
+
+答え
+CREATE TABLE rate_blocks (
+    key_name VARCHAR(100) NOT NULL,
+    blocked_until INT UNSIGNED NOT NULL,
+    PRIMARY KEY (key_name)
+);
+
+<?php
+// ...existing code...
+
+/*------------------------------------
+  レート制限共通ロジック
+------------------------------------*/
+/**
+ * 失敗記録
+ */
+function record_failure(PDO $pdo, string $key): void
+{
+    $stmt = $pdo->prepare("INSERT INTO rate_limits (key_name, failed_at) VALUES (?, ?)");
+    $stmt->execute([$key, time()]);
+}
+
+/**
+ * ブロック記録（30分など）
+ */
+function record_block(PDO $pdo, string $key, int $block_duration): void
+{
+    $blocked_until = time() + $block_duration;
+    // REPLACE: 既存 key_name 行を置換
+    $stmt = $pdo->prepare("REPLACE INTO rate_blocks (key_name, blocked_until) VALUES (?, ?)");
+    $stmt->execute([$key, $blocked_until]);
+}
+
+/**
+ * ブロック確認
+ */
+function is_blocked(PDO $pdo, string $key): bool
+{
+    $stmt = $pdo->prepare("SELECT blocked_until FROM rate_blocks WHERE key_name = ?");
+    $stmt->execute([$key]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return ($row && (int)$row['blocked_until'] > time());
+}
+
+// ...existing code...
+
+/**
+ * 4層レート制限チェック
+ */
+const BLOCK_DURATION_SESSION = 1800; // 30分
+const BLOCK_DURATION_DEVICE  = 1800; // 30分
+
+function rate_limit_check(
+    PDO $pdo,
+    string $ip_key, 
+    string $session_key,
+    string $device_key,
+    string $ip_prefix_key): void {
+
+/*------------------------------------
+  事前ブロック確認（session / device）
+------------------------------------*/
+if (is_blocked($pdo, $session_key)) {
+    throw CSRFException::fromCurrentRequest(
+        'セッションが一時的にブロックされています',
+        SecurityException::SEC_CSRF_ATTACK,
+        [],
+        SecurityException::LEVEL_CRITICAL,
+        null
+    );
+}
+if (is_blocked($pdo, $device_key)) {
+    throw CSRFException::fromCurrentRequest(
+        'デバイスが一時的にブロックされています',
+        SecurityException::SEC_CSRF_ATTACK,
+        [],
+        SecurityException::LEVEL_CRITICAL,
+        null
+    );
+}
+
+/*------------------------------------
+  第1層：IP
+------------------------------------*/
+$failure_array = get_failures($pdo, $ip_key, RATE_LIMITS['ip']['window']);
+$failure_count = count($failure_array);
+if ($failure_count >= RATE_LIMITS['ip']['max_failures']) {
+    throw CSRFException::fromCurrentRequest('IPアドレスからのリクエストが多すぎます', SecurityException::SEC_CSRF_ATTACK, [], SecurityException::LEVEL_CRITICAL, null);
+} elseif ($failure_count >= RATE_LIMITS['ip']['soft_failure']) {
+    throw CSRFException::fromCurrentRequest('IPアドレスからのリクエストが多めです', SecurityException::SEC_CSRF_ATTACK, [], SecurityException::LEVEL_HIGH, null);
+}
+
+/*------------------------------------
+  第2層：セッション
+------------------------------------*/
+$failure_array = get_failures($pdo, $session_key, RATE_LIMITS['session']['window']);
+$failure_count = count($failure_array);
+if ($failure_count >= RATE_LIMITS['session']['max_failures']) {
+    // 閾値超え → ブロック登録
+    record_block($pdo, $session_key, BLOCK_DURATION_SESSION);
+    throw CSRFException::fromCurrentRequest('セッションからのリクエストが多すぎます', SecurityException::SEC_CSRF_ATTACK, [], SecurityException::LEVEL_CRITICAL, null);
+} elseif ($failure_count >= RATE_LIMITS['session']['soft_failure']) {
+    throw CSRFException::fromCurrentRequest('セッションからのリクエストが多めです', SecurityException::SEC_CSRF_ATTACK, [], SecurityException::LEVEL_HIGH, null);
+}
+
+/*------------------------------------
+  第3層：device_id
+------------------------------------*/
+$failure_array = get_failures($pdo, $device_key, RATE_LIMITS['device']['window']);
+$failure_count = count($failure_array);
+if ($failure_count >= RATE_LIMITS['device']['max_failures']) {
+    // 閾値超え → ブロック登録
+    record_block($pdo, $device_key, BLOCK_DURATION_DEVICE);
+    throw CSRFException::fromCurrentRequest('デバイスからのリクエストが多すぎます', SecurityException::SEC_CSRF_ATTACK, [], SecurityException::LEVEL_CRITICAL, null);
+} elseif ($failure_count >= RATE_LIMITS['device']['soft_failure']) {
+    throw CSRFException::fromCurrentRequest('デバイスからのリクエストが多めです', SecurityException::SEC_CSRF_ATTACK, [], SecurityException::LEVEL_HIGH, null);
+}
+
+/*------------------------------------
+  第4層：IPプレフィックス
+------------------------------------*/
+$failure_array = get_failures($pdo, $ip_prefix_key, RATE_LIMITS['ip_prefix']['window']);
+$failure_count = count($failure_array);
+if ($failure_count >= RATE_LIMITS['ip_prefix']['max_failures']) {
+    throw CSRFException::fromCurrentRequest('IPプレフィックスからのリクエストが多すぎます', SecurityException::SEC_CSRF_ATTACK, [], SecurityException::LEVEL_CRITICAL, null);
+} elseif ($failure_count >= RATE_LIMITS['ip_prefix']['soft_failure']) {
+    throw CSRFException::fromCurrentRequest('IPプレフィックスからのリクエストが多めです', SecurityException::SEC_CSRF_ATTACK, [], SecurityException::LEVEL_HIGH, null);
+}
+}
+
+// ...existing code...
+
+} catch (CSRFException $e) {
+    // 4つの層で失敗記録 (PDO 引数追加)
+    record_failure($pdo, $ip_key);
+    record_failure($pdo, $session_key);
+    record_failure($pdo, $device_key);
+    record_failure($pdo, $ip_prefix_key);
+    // ...existing code...
+}
+
+// ...existing code...
+
+} catch (CSRFException $e) {
+    // 失敗記録 (PDO 引数追加)
+    record_failure($pdo, $ip_key);
+    record_failure($pdo, $session_key);
+    record_failure($pdo, $device_key);
+    record_failure($pdo, $ip_prefix_key);
+    // ...existing code...
+}
+
+// ...existing code...

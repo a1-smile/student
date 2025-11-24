@@ -165,7 +165,8 @@ $files_required = [
     'session-set-cookie-params.php',
     'exceptions.php',
     'session-reset.php',
-    'csrf.php'
+    'csrf.php',
+    'unset-token.php',
 ];
 
 foreach ($files_required as $file_name) {

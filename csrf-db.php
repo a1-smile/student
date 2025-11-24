@@ -38,8 +38,8 @@ if (empty($_COOKIE['device_id'])) {
         'device_id', // 名前
         $id, // 値
         time() + 86400 * 365, // 有効期限（1年後）
-        "/", // パス サイト内全域で有効
-        "", // ドメイン 指定なしで現在のドメイン
+        "/", // パス :サイト内全域で有効
+        "", // ドメイン :指定なしで現在のドメイン
         false, // HTTPS限定か？==> false
         true //  JavaScriptからアクセス不可==> true
     );
@@ -53,12 +53,16 @@ $ipv4_blocks = $_ENV['IP_CHECK_IPV4_BLOCKS'] ?? 2;
 $ipv6_blocks = $_ENV['IP_CHECK_IPV6_BLOCKS'] ?? 3;
 
 $ip_prefix = get_ip_prefix_for_session($ipv4_blocks, $ipv6_blocks);
-
+/*------------------------------------
+  session_id hash化
+------------------------------------*/
+    $session_id = session_id();
+    $session_id_hash = hash('sha256', $session_id);
 /*------------------------------------
   レート制限用キー生成（4層）
 ------------------------------------*/
 $ip_key        = "ip:"        . $_SERVER['REMOTE_ADDR'];
-$session_key   = "sess:"      . session_id();
+$session_key   = "sess:"      . $session_id_hash;
 $device_key    = "dev:"       . $_COOKIE['device_id'];
 $ip_prefix_key = "ip_prefix:" . $ip_prefix;
 
@@ -66,11 +70,14 @@ $ip_prefix_key = "ip_prefix:" . $ip_prefix;
   閾値設定
  */
 const RATE_LIMITS = [
-    'ip' => [ 'window' => 300, 'max_failures' => 1000 ], // 5分で1000回
-    'session' => [ 'window' => 300, 'max_failures' => 10 ], // 5分で10回
-    'device' => [ 'window' => 300, 'max_failures' => 30 ], // 5分で30回
-    'ip_prefix' => [ 'window' => 300, 'max_failures' => 1000 ], // 5分で1000回
+    'ip' => [ 'window' => 300, 'max_failures' => 1000, 'soft_failure' => 300], // 5分で1000回
+    'session' => [ 'window' => 300, 'max_failures' => 10, 'soft_failure' => 3], // 5分で10回
+    'device' => [ 'window' => 300, 'max_failures' => 30, 'soft_failure' => 10], // 5分で30回
+    'ip_prefix' => [ 'window' => 300, 'max_failures' => 5000, 'soft_failure' => 1500], // 5分で5000回
 ];
+
+const BLOCK_DURATION_SESSION = 1800; // 30分
+const BLOCK_DURATION_DEVICE  = 1800; // 30分
 
 /*------------------------------------
   レート制限共通ロジック
@@ -81,7 +88,8 @@ const RATE_LIMITS = [
  * @param PDO $pdo
  * 
  */
-$pdo = $dbm->get_db();
+// $pdo = $dbm->get_db(); として、
+// PDO オブジェクトを取得してから呼び出します。
 function record_failure(PDO $pdo, string $key): void
 {
     $stmt = $pdo->prepare("INSERT INTO rate_limits (key_name, failed_at) VALUES (?, ?)");
@@ -89,7 +97,8 @@ function record_failure(PDO $pdo, string $key): void
 }
 
 
-$pdo = $dbm->get_db();
+// $pdo = $dbm->get_db(); として、
+// PDO オブジェクトを取得してから呼び出します。
 
 function get_failures(PDO $pdo, string $key, int $window): array
 {
@@ -108,7 +117,8 @@ function get_failures(PDO $pdo, string $key, int $window): array
 }
 
 
-$pdo = $dbm->get_db();
+//$pdo = $dbm->get_db(); として、
+// PDO オブジェクトを取得してから呼び出します。
 
 function clean_old_logs(PDO $pdo): void
 {
@@ -125,6 +135,33 @@ function clean_old_logs(PDO $pdo): void
 ------------------------------------*/
 clean_old_logs($pdo);
 
+
+
+/**
+ * ブロック記録（30分など）
+*/
+function record_block(PDO $pdo, string $key, int $block_duration): void
+{
+    $blocked_until = time() + $block_duration;
+    // REPLACE: 既存 key_name 行を置換
+    $stmt = $pdo->prepare("REPLACE INTO rate_blocks (key_name, blocked_until) VALUES (?, ?)");
+    $stmt->execute([$key, $blocked_until]);
+}
+
+/**
+ * ブロック確認
+*/
+function is_blocked(PDO $pdo, string $key): bool
+{
+    $stmt = $pdo->prepare("SELECT blocked_until FROM rate_blocks WHERE key_name = ?");
+    $stmt->execute([$key]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return ($row && (int)$row['blocked_until'] > time());
+}
+
+
+
+
 /**
  * 4層レート制限チェック
  * @param string $ip_key
@@ -134,12 +171,35 @@ clean_old_logs($pdo);
  * @param PDO $pdo
  * @throws CSRFException レート制限超過時
  */
+
 function rate_limit_check(
     PDO $pdo,
     string $ip_key, 
     string $session_key,
     string $device_key,
     string $ip_prefix_key): void {
+/*------------------------------------
+  事前ブロック確認（session / device）
+------------------------------------*/
+if (is_blocked($pdo, $session_key)) {
+    throw CSRFException::fromCurrentRequest(
+        'セッションが一時的にブロックされています',
+        SecurityException::SEC_CSRF_ATTACK,
+        [],
+        SecurityException::LEVEL_CRITICAL,
+        null
+    );
+}
+if (is_blocked($pdo, $device_key)) {
+    throw CSRFException::fromCurrentRequest(
+        'デバイスが一時的にブロックされています',
+        SecurityException::SEC_CSRF_ATTACK,
+        [],
+        SecurityException::LEVEL_CRITICAL,
+        null
+    );
+}
+
 /*------------------------------------
   4層レート制限の実施
 ------------------------------------*/
@@ -159,7 +219,17 @@ if ($failure_count
         SecurityException::LEVEL_CRITICAL,
         null
     );
-}
+}elseif ($failure_count 
+    >=
+    RATE_LIMITS['ip']['soft_failure']) {
+    throw CSRFException::fromCurrentRequest(
+        'IPアドレスからのリクエストが多めです',
+        SecurityException::SEC_CSRF_ATTACK,
+        [],
+        SecurityException::LEVEL_HIGH,
+        null
+    );
+    }
 
 // 第2層：セッションID（5分で10回） ← 本命
 //  5分間の失敗タイムスタンプを配列で取得
@@ -169,6 +239,8 @@ $failure_count = count($failure_array);
 if ($failure_count 
     >=
     RATE_LIMITS['session']['max_failures']) {
+           // 閾値超え → ブロック登録
+    record_block($pdo, $session_key, BLOCK_DURATION_SESSION);
     throw CSRFException::fromCurrentRequest(
         'セッションからのリクエストが多すぎます',
         SecurityException::SEC_CSRF_ATTACK,
@@ -176,7 +248,17 @@ if ($failure_count
         SecurityException::LEVEL_CRITICAL,
         null
     );
-}
+}elseif ($failure_count 
+        >=
+        RATE_LIMITS['session']['soft_failure']) {
+    throw CSRFException::fromCurrentRequest(
+        'セッションからのリクエストが多めです',
+        SecurityException::SEC_CSRF_ATTACK,
+        [],
+        SecurityException::LEVEL_HIGH,
+        null
+    );
+    }
 
 // 第3層：device_id（5分で30回）
 //  5分間の失敗タイムスタンプを配列で取得
@@ -186,11 +268,23 @@ $failure_count = count($failure_array);
 if ($failure_count 
     >=
     RATE_LIMITS['device']['max_failures']) {
+            // 閾値超え → ブロック登録
+    record_block($pdo, $device_key, BLOCK_DURATION_DEVICE);
         throw CSRFException::fromCurrentRequest(
             'デバイスからのリクエストが多すぎます',
             SecurityException::SEC_CSRF_ATTACK,
             [],
             SecurityException::LEVEL_CRITICAL,
+            null
+        );
+    }elseif ($failure_count 
+    >=
+    RATE_LIMITS['device']['soft_failure']) {
+        throw CSRFException::fromCurrentRequest(
+            'デバイスからのリクエストが多めです',
+            SecurityException::SEC_CSRF_ATTACK,
+            [],
+            SecurityException::LEVEL_HIGH,
             null
         );
     }
@@ -210,6 +304,16 @@ if ($failure_count
             SecurityException::LEVEL_CRITICAL,
             null
         );
+    }elseif ($failure_count 
+    >=
+    RATE_LIMITS['ip_prefix']['soft_failure']) {
+        throw CSRFException::fromCurrentRequest(
+            'IPプレフィックスからのリクエストが多めです',
+            SecurityException::SEC_CSRF_ATTACK,
+            [],
+            SecurityException::LEVEL_HIGH,
+            null
+        );
     }
 }
 
@@ -226,20 +330,23 @@ try {
     record_failure($pdo, $ip_prefix_key);
 
     //  unset token
-    if (isset($_SESSION['csrf_token'])){
-        unset($_SESSION['csrf_token']);
-    }
-    if (isset($_SESSION['csrf_token_time'])){
-        unset($_SESSION['csrf_token_time']);
-    }
-    if (isset($_SESSION['csrf_token'])){
-        unset($_SESSION['csrf_token']);
+    unset_token();
+    //  security_level を $e から取得
+    $security_level = $e->getSecurityLevel();
+    if ($security_level === SecurityException::LEVEL_CRITICAL) {
+
+        //ログアウトページへリダイレクト
+        http_response_code(403);
+        header('Location: blocked.php');
+        exit;
+    }elseif ($security_level === SecurityException::LEVEL_HIGH) {
+
+        // recaptchaページへリダイレクト
+        http_response_code(403);
+        header('Location: recaptcha.php');
+        exit;
     }
     
-    //ログアウトページへリダイレクト
-    http_response_code(403);
-    header('Location: index.php');
-    exit;
 }
 /*------------------------------------
   CSRF チェック
@@ -255,36 +362,30 @@ try{
 
     if (!$token_valid) {
         
-        // 失敗として4層に記録
-        record_failure($ip_key);
-        record_failure($session_key);
-        record_failure($device_key);
-        record_failure($ip_prefix_key);
-
-        //  unset token
-        if (isset($_SESSION['csrf_token'])){
-            unset($_SESSION['csrf_token']);
-        }
-        if (isset($_SESSION['csrf_token_time'])){
-            unset($_SESSION['csrf_token_time']);
-        }
-        if (isset($_POST['csrf_token'])){
-            unset($_POST['csrf_token']);
-        }
+        
         
         throw CSRFException::fromCurrentRequest(
             'CSRFトークン不一致です',
             SecurityException::SEC_CSRF_ATTACK,
             [],
-            SecurityException::LEVEL_HIGH,
+            SecurityException::LEVEL_MEDIUM,
             null
         );
     }
 } catch (CSRFException $e) {
     
-    //recaptchaページへリダイレクト
+    //  unset token
+    unset_token();
+
+    // 失敗として4層に記録
+    record_failure($pdo, $ip_key);
+    record_failure($pdo, $session_key);
+    record_failure($pdo, $device_key);
+    record_failure($pdo, $ip_prefix_key);
+
+    //エラーページへリダイレクト
     http_response_code(403);
-    header('Location: index.php');
+    header('Location: error_page.php');
     exit;
 }
 
@@ -294,13 +395,5 @@ try{
 session_regenerate_id(true);
 
 //  unset token
-if (isset($_SESSION['csrf_token'])){
-    unset($_SESSION['csrf_token']);
-}
-if (isset($_SESSION['csrf_token_time'])){
-    unset($_SESSION['csrf_token_time']);
-}
-if (isset($_SESSION['csrf_token'])){
-    unset($_SESSION['csrf_token']);
-}
+unset_token();
 
