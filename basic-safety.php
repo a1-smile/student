@@ -1,41 +1,7 @@
 <?php
-//  student_edit.php は学生情報を編集または削除するかを確認するページです。
-//  画面遷移は、
-//  遷移元は index.php からの POST のみです。
-// <form action="student_edit.php" method="post" class="table-form">
-//     <input type="hidden" name="id" value="{$id}">
-//     <input type="hidden" name="data" value="delete">
-//     <input type="hidden" name="csrf_token" value="{$token}">
-//     <button type="submit">削除確認へ...</button>
-// </form>
-    
-// <form action="student_edit.php" method="post" class="table-form">
-//     <input type="hidden" name="id" value="{$id}">
-//     <input type="hidden" name="data" value="update">
-//     <input type="hidden" name="csrf_token" value="{$token}">
-//     <button type="submit">編集確認へ...</button>
-// </form>
-//  POST で受け取る値は、id, data, csrf_token です。
-
-//  遷移先は条件分岐して、
-//  student_update.php または student_delete.php です。
-//  メソッドは post です。
-//  送信する値は、id, data, csrf_token です。
-// function show_operations($id,$data,$operation, $post_file, $token) {
-//         echo <<<OPERATIONS
-//         <form action="{$post_file}" method="post" class="operation-form">
-//             <input type="hidden" name="id" value="{$id}">
-//             <input type="hidden" name="data" value="{$data}">
-//             <input type="hidden" name="csrf_token" value="{$token}">
-//             <input type="submit" value="{$operation}">
-//         </form>
-//         OPERATIONS;
-//     }
-
-//  データベース操作は、$id に対応する学生情報を取得します。
 
 
-//  ファイルを安全に読み込むための関数を読み込みます。
+//  ファイルを安全に読み込むための関数を定義しているファイルを読み込みます。
 //  安全なファイルパスを取得する safe_file_path() 関数が定義されています。
 require_once __DIR__ . '/safe-path.php';
 //  共通ファイルを読み込みます。
@@ -201,70 +167,80 @@ try {
 
 
 
-// CSRF対策
-try {
-    // タイムスタンプベースのトークン検証も追加
-    
-    // 1. セッショントークンの存在・基本チェック
-    if (!isset($_SESSION['csrf_token']) || !isset($_SESSION['csrf_token_time'])) {
-        $context['csrf_attack_indicators'] = [
-    'token_state' => [
-        //  セッションにトークンが存在しない場合 true
-        'session_token_missing' => !isset($_SESSION['csrf_token']),
-        //  セッションにタイムスタンプが存在しない場合true
-        'session_time_missing' => !isset($_SESSION['csrf_token_time']),
-        'post_token_present' => isset($_POST['csrf_token']),
-        'token_mismatch' => isset($_SESSION['csrf_token']) && isset($_POST['csrf_token']) &&
-                           !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])
-    ],
-    'referer_analysis' => [
-        'referer_present' => !empty($_SERVER['HTTP_REFERER']),
+//  CSRF対策
+//  4種のrate_key を定義します。
 
+/*------------------------------------
+  device_id クッキー準備（1年有効）
+------------------------------------*/
+if (empty($_COOKIE['device_id'])) {
+    $id = bin2hex(random_bytes(16));
+    setcookie(
+        'device_id', // 名前
+        $id, // 値
+        time() + 86400 * 365, // 有効期限（1年後）
+        "/", // パス :サイト内全域で有効
+        "", // ドメイン :指定なしで現在のドメイン
+        false, // HTTPS限定か？==> false
+        true //  JavaScriptからアクセス不可==> true
+    );
+    $_COOKIE['device_id'] = $id;
+}
+/*------------------------------------
+  IPプレフィックス取得
+------------------------------------*/
+// IPプレフィックス取得
+$ipv4_blocks = $_ENV['IP_CHECK_IPV4_BLOCKS'] ?? 2;
+$ipv6_blocks = $_ENV['IP_CHECK_IPV6_BLOCKS'] ?? 3;
 
-        //  サイト内からの遷移かどうかを確認
-        //  strpos(文字列,探したい文字列) は、部分文字列の位置を検索します。
-        //  $_SERVER['HTTP_HOST'] は、アクセス先のドメイン（などの値）
-        //  $_SERVER['HTTP_REFERER'] は、アクセス元のURL
-        //  外部からのアクセスの場合はfalseを返す
-        'referer_matches_host' => !empty($_SERVER['HTTP_REFERER']) &&
-                                 strpos($_SERVER['HTTP_REFERER'], $_SERVER['HTTP_HOST']) !== false,
+$ip_prefix = get_ip_prefix_for_session($ipv4_blocks, $ipv6_blocks);
+/*------------------------------------
+  session_id hash化
+------------------------------------*/
+    $session_id = session_id();
+    $session_id_hash = hash('sha256', $session_id);
+/*------------------------------------
+  レート制限用キー生成（4層）
+------------------------------------*/
+$ip_key        = "ip:" . $_SERVER['REMOTE_ADDR'];
+$session_key   = "sess:" . $session_id_hash;
+$device_key    = "dev:" . $_COOKIE['device_id'];
+$ip_prefix_key = "ip_prefix:" . $ip_prefix;
 
-                                 
-        'referer_value' => $_SERVER['HTTP_REFERER'] ?? 'none'
-    ]
+/*------------------------------------
+  閾値設定
+ */
+const RATE_LIMITS = [
+    'ip' => [ 'window' => 300, 'max_failures' => 1000, 'soft_failure' => 300], // 5分で1000回
+    'session' => [ 'window' => 300, 'max_failures' => 10, 'soft_failure' => 3], // 5分で10回
+    'device' => [ 'window' => 300, 'max_failures' => 30, 'soft_failure' => 10], // 5分で30回
+    'ip_prefix' => [ 'window' => 300, 'max_failures' => 5000, 'soft_failure' => 1500], // 5分で5000回
 ];
-        throw CSRFException::fromCurrentRequest('CSRFトークンまたはタイムスタンプがセッションに設定されていません', SecurityException::SEC_CSRF_ATTACK, $context, null);
-    }
-    
-    $session_token = $_SESSION['csrf_token'];
-    $token_time = $_SESSION['csrf_token_time'];
-    
-    // 2. トークンの有効期限チェック（30分）
-    if ((time() - $token_time) > 1800) {
-        throw CSRFException::fromCurrentRequest('CSRFトークンの有効期限が切れています');
-    }
-    
-    // 3. POSTトークンの基本チェック
-    if (!isset($_POST['csrf_token'])) {
-        throw CSRFException::fromCurrentRequest('POSTデータにCSRFトークンが含まれていません');
-    }
-    
-    $post_token = $_POST['csrf_token'];
-    
-    // 4. トークンの形式・長さチェック
-    if (!is_string($session_token) || !is_string($post_token)) {
-        throw CSRFException::fromCurrentRequest('CSRFトークンが文字列ではありません');
-    }
-    
-    if (strlen($session_token) !== 64 || strlen($post_token) !== 64) {
-        throw CSRFException::fromCurrentRequest('CSRFトークンの長さが異常です');
-    }
-    //  ctype_xdigit() は、文字列が16進数で構成されているかをチェックします。
-    if (!ctype_xdigit($session_token) || !ctype_xdigit($post_token)) {
-        throw CSRFException::fromCurrentRequest('CSRFトークンに無効な文字が含まれています');
-    }
-    
-    // 5. リファラーチェック（追加のセキュリティ）
+
+const BLOCK_DURATION_SESSION = 1800; // 30分
+const BLOCK_DURATION_DEVICE  = 1800; // 30分
+
+
+try {
+    // token の型式チェック
+    validate_csrf_token();
+} catch (CSRFException $e) {
+    //  失敗として記録
+    record_failure($pdo, $ip_key);
+    record_failure($pdo, $session_key);
+    record_failure($pdo, $device_key);
+    record_failure($pdo, $ip_prefix_key);
+
+    //  unset トークン
+    unset_csrf_token();
+
+    //  httpレスポンスコード403を設定
+    http_response_code(403);
+    //  error page にリダイレクト
+    header('Location: error_page.php');
+
+}  
+    // リファラーチェック（追加のセキュリティ）
     $referer = $_SERVER['HTTP_REFERER'] ?? ''; //  アクセス元のURL
     $host = $_SERVER['HTTP_HOST'] ?? '';       //  アクセス先のドメイン
     
@@ -277,114 +253,65 @@ try {
         error_log("警告: 不審なリファラー - リファラー: {$referer}, ホスト: {$host}, IP: " . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
     }
     
-    // 6. レート制限チェック（同一IPからの連続アクセス）
-    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    $rate_key = "csrf_attempt_{$ip}";
-    
-    if (!isset($_SESSION[$rate_key])) {
-        $_SESSION[$rate_key] = ['count' => 0, 'last_time' => time()];
-    }
-    
-    $rate_data = $_SESSION[$rate_key];
-    $current_time = time();
-    
-    // 1分間隔以内に5回以上の連続試行は異常
-    if (($current_time - $rate_data['last_time']) < 60 && $rate_data['count'] >= 5) {
-        throw new SecurityException('CSRFトークン検証の試行回数が上限を超えました');
-    }
-    
-    // レート制限カウンターを更新
-    if (($current_time - $rate_data['last_time']) >= 60) {
-        $_SESSION[$rate_key] = ['count' => 1, 'last_time' => $current_time];
-    } else {
-        $_SESSION[$rate_key]['count']++;
-        //  時間をリセットすることにより、連続攻撃を防止
-        //  攻撃者が1分間隔で攻撃を仕掛けるのを防ぐ
-        $_SESSION[$rate_key]['last_time'] = $current_time;
-    }
-    
-    // 7. トークンの一致確認
-    if (!hash_equals($post_token, $session_token)) {
-        throw new CSRFException('CSRFトークンが一致しません - 攻撃の可能性');
-    }
-    
-    // 8. 使用済みトークンの記録（リプレイ攻撃防止）
-    if (!isset($_SESSION['used_tokens'])) {
-        $_SESSION['used_tokens'] = [];
-    }
-    
-    if (in_array($post_token, $_SESSION['used_tokens'])) {
-        throw new CSRFException('既に使用済みのCSRFトークンです - リプレイ攻撃の可能性');
-    }
-    
-    // 使用済みトークンリストに追加（最大10個まで保持）
-    $_SESSION['used_tokens'][] = $post_token;
-    if (count($_SESSION['used_tokens']) > 10) {
-        array_shift($_SESSION['used_tokens']);
-    }
-    
-    // 9. トークンを使い捨て
-    unset($_SESSION['csrf_token']);
-    unset($_SESSION['csrf_token_time']);
-    $session_token = null;
-    unset($_POST['csrf_token']);
-    $post_token = null;
-    
-    // 成功ログ
-    
-    error_log("CSRF検証成功 - IP: {$ip}, セッションID: " . session_id());
-    
+    // レート制限チェック
+try {
+    rate_limit_check($pdo, $ip_key, $session_key, $device_key, $ip_prefix_key);
 } catch (CSRFException $e) {
-    // CSRF攻撃の詳細ログ
-    // $attack_details = [
-    //     'type' => 'CSRF_ATTACK',
-    //     'message' => $e->getMessage(),
-    //     'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-    //     'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
-    //     'referer' => $_SERVER['HTTP_REFERER'] ?? 'unknown',
-    //     'session_id' => session_id(),
-    //     'post_token_length' => isset($_POST['csrf_token']) ? strlen($_POST['csrf_token']) : 0,
-    //     'session_token_exists' => isset($_SESSION['csrf_token']),
-    //     'timestamp' => date('Y-m-d H:i:s'),
-    //     'request_uri' => $_SERVER['REQUEST_URI'] ?? 'unknown'
-    // ];
+    //  失敗として記録
+    record_failure($pdo, $ip_key);
+    record_failure($pdo, $session_key);
+    record_failure($pdo, $device_key);
+    record_failure($pdo, $ip_prefix_key);
 
-    $message = $e->getLogMessage();
-    error_log("CSRF攻撃検出: " . $message);
+    //  unset トークン
+    unset_csrf_token();
 
-    // セッション完全破棄
-    session_unset();
-    session_destroy();
-    session_write_close();
-    http_response_code(403);  // Forbidden アクセス禁止
-    
-    die('CSRF攻撃が検出されました。<br>
-         セキュリティ上の理由により処理を中断します。<br>
-         この攻撃は記録され、管理者に通報されました。<br>
-         攻撃検出ID: ' . uniqid() . '<br>
-         正常な操作を行う場合は、<a href="index.php">学生一覧画面</a>から再開してください。');
+    //  security level を取得
+    $security_level = $e->getSecurityLevel();
 
-} catch (SecurityException $e) {
-    // その他のセキュリティエラー
-    $security_details = [
-        'type' => 'SECURITY_ERROR',
-        'message' => $e->getMessage(),
-        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-        'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
-        'session_id' => session_id(),
-        'timestamp' => date('Y-m-d H:i:s')
-    ];
-    
-    error_log("セキュリティエラー: " . json_encode($security_details, JSON_UNESCAPED_UNICODE));
-    
-    session_unset();
-    session_destroy();
-    
-    die('セキュリティエラーが検出されました。<br>
-         不正なアクセスまたはセッション異常の可能性があります。<br>
-         エラーID: ' . uniqid() . '<br>
-         <a href="index.php">学生一覧画面</a>から正常に操作してください。');
+    if ($security_level === SecurityException::LEVEL_CRITICAL) {
+        // 致命的レベルの場合は、block_page.php にリダイレクト
+        // httpレスポンスコード403を設定
+        http_response_code(403);
+        header('Location: block_page.php');
+    }elseif ($security_level === SecurityException::LEVEL_HIGH) {
+    //  httpレスポンスコード403を設定
+    http_response_code(403);
+    //  recaptcha にリダイレクト
+    header('Location: recaptcha.php');
+    exit;
+    }   
 }
+    // トークンの一致確認
+    try {
+    $post_token = $_POST['csrf_token'];
+    $session_token = $_SESSION['csrf_token'];
+    if (!hash_equals($post_token, $session_token)) {
+        throw CSRFException::fromCurrentRequest(
+            'CSRFトークンが一致しません - 攻撃の可能性',
+            SecurityException::SEC_CSRF_ATTACK,
+            [], 
+            SecurityException::LEVEL_MEDIUM,
+            null);
+    }
+    } catch (CSRFException $e) {
+        //  失敗として記録
+        record_failure($pdo, $ip_key);
+        record_failure($pdo, $session_key);
+        record_failure($pdo, $device_key);
+        record_failure($pdo, $ip_prefix_key);
+        //  unset トークン
+        unset_csrf_token();
+
+        //  httpレスポンスコード403を設定
+        http_response_code(403);
+        //  error page にリダイレクト
+        header('Location: error_page.php');
+    }
+    
+    
+    
+    
     
 
         //  POST メソッドで送信されたかを確認し、
