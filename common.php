@@ -11,18 +11,19 @@ $files_required = [
     'validate-u-a.php',
     'generate-token.php',
     'get-value-from-post-or-get.php',
-    'session-set-cookie-params.php',
+    'initializeSecureSession.php',
     'exceptions.php',
     'session-reset.php',
-    'csrf.php',
     'unset-token.php',
     'validate-csrf-token.php',
     'record-failure.php',
     'get-failure.php',
     'clean-old-logs.php',
     'record-block.php',
-    'is_blocked.php',
-    'rate-limit-check.php'
+    'is-blocked.php',
+    'rate-limit-check.php',
+    'set-device-id-cookie.php',
+    'get-ip-prefix.php'
 ];
 
 foreach ($files_required as $file_name) {

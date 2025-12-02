@@ -1,6 +1,6 @@
 <?php
 
-
+echo "\n<!-- basic-safety-test.php started -->\n";
 //  ファイルを安全に読み込むための関数を定義しているファイルを読み込みます。
 //  安全なファイルパスを取得する safe_file_path() 関数が定義されています。
 require_once __DIR__ . '/safe-path.php';
@@ -25,10 +25,11 @@ try {
 } catch (Exception $e) {
     die("予期しないエラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
 }
-
+echo "<!-- common.php loaded successfully -->\n";
 
 //  セッションを開始します。
 initializeSecureSession();
+echo "<!-- Secure session initialized successfully -->\n";
 // セッション開始前に安全なクッキー設定しています。
 // ただし、開発環境ではHTTPSが使えない場合もあります。
 // その場合は、'secure' => false に設定します。
@@ -47,22 +48,26 @@ initializeSecureSession();
 
 //  session timeout を設定します。
 handle_session_timeout();
+echo "<!-- Session timeout handled successfully -->\n";
 
 // 想定外のエラーに備えて、エラーハンドラと例外ハンドラを設定します。
-set_exception_handler(function ($e) {
-    error_log("未処理の例外: " . $e->getMessage());
-    http_response_code(500);
-    die("想定していない例外が発生しました。");
-    exit;
-});
+// set_exception_handler(function ($e) {
+//     error_log("未処理の例外: " . $e->getMessage());
+//     http_response_code(500);
+//     die("想定していない例外が発生しました。");
+//     exit;
+// });
 
-set_error_handler(function ($errno, $errstr, $errfile, $errline) {
-    error_log("PHPエラー [$errno]: $errstr in $errfile:$errline");
-    http_response_code(500);
-    die("想定されていない不具合が発生しました、エラーハンドラー。");
-    exit;
-});
+// echo "<!-- Exception handler set successfully -->\n";
 
+// set_error_handler(function ($errno, $errstr, $errfile, $errline) {
+//     error_log("PHPエラー [$errno]: $errstr in $errfile:$errline");
+//     http_response_code(500);
+//     echo "想定されていない不具合が発生しました。";
+//     exit;
+// });
+
+// echo "<!-- Error handler set successfully -->\n";
 
 
 
@@ -95,6 +100,7 @@ try{
          エラーID: ' . uniqid() . '<br>
          <a href="index.php">学生一覧に戻る</a>');
 }
+echo "<!-- User agent check completed successfully -->\n";
 
 // IPアドレスの先頭部分をチェックする
 // ここでは、IPv4とIPv6の両方に対応した方法を示します。
@@ -153,6 +159,7 @@ try {
          エラーID: ' . uniqid() . '<br>
          <a href="index.php">学生一覧に戻る</a>');
 }
+echo "<!-- IP address prefix check completed successfully -->\n";
 //  以上で
 //  共通ファイル読み込み
 //  セキュアなクッキー設定
@@ -162,7 +169,6 @@ try {
 //  ユーザーエージェントチェック
 //  IPアドレスの先頭部分チェック
 //  が完了しました。
-
 
 try {
     // データベース接続状態の確認
@@ -282,6 +288,7 @@ try {
          エラーID: ' . uniqid() . '<br>
          <a href="index.php">学生一覧に戻る</a>');
 }   
+echo "<!-- Database connection check completed successfully -->\n";
     
 
 // } catch (PDOException $e) {
@@ -363,8 +370,6 @@ $dbm->connect();
 $pdo = $dbm->get_db();
 
 
-
-
 //  CSRF対策
 //  4種のrate_key を定義します。
 
@@ -385,6 +390,9 @@ $pdo = $dbm->get_db();
     //     $_COOKIE['device_id'] = $id;
     // }
 set_device_id_cookie();
+
+echo "<!-- Device ID cookie set successfully -->\n";
+
 /*------------------------------------
   IPプレフィックス取得
 ------------------------------------*/
@@ -431,7 +439,7 @@ try {
     record_failure($pdo, $ip_prefix_key);
 
     //  unset トークン
-    unset_csrf_token();
+    unset_token();
 
     //  httpレスポンスコード403を設定
     http_response_code(403);  // Forbidden アクセス禁止
@@ -439,6 +447,7 @@ try {
     header('Location: error_page.php');
 
 }  
+echo "<!-- CSRF token format validation completed successfully -->\n";
     // リファラーチェック（追加のセキュリティ）
     $referer = $_SERVER['HTTP_REFERER'] ?? ''; //  アクセス元のURL
     $host = $_SERVER['HTTP_HOST'] ?? '';       //  アクセス先のドメイン
@@ -451,9 +460,11 @@ try {
 
         error_log("警告: 不審なリファラー - リファラー: {$referer}, ホスト: {$host}, IP: " . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
     }
+echo "<!-- Referrer check completed successfully -->\n";
     
     // レート制限チェック
 try {
+    $pdo = $dbm->get_db();
     rate_limit_check($pdo, $ip_key, $session_key, $device_key, $ip_prefix_key);
 } catch (CSRFException $e) {
     //  失敗として記録
@@ -463,7 +474,7 @@ try {
     record_failure($pdo, $ip_prefix_key);
 
     //  unset トークン
-    unset_csrf_token();
+    unset_token();
 
     //  security level を取得
     $security_level = $e->getSecurityLevel();
@@ -481,9 +492,13 @@ try {
     exit;
     }   
 }
+echo "<!-- Rate limit check completed successfully -->\n";
     // トークンの一致確認
     try {
-    $post_token = $_POST['csrf_token']??'';
+        if (!isset($_POST['csrf_token'])) {
+            $_POST['csrf_token'] = '';
+        }
+    $post_token = $_POST['csrf_token'];
     $session_token = $_SESSION['csrf_token']??'';
     if (!hash_equals($post_token, $session_token)) {
         throw CSRFException::fromCurrentRequest(
@@ -508,9 +523,9 @@ try {
         header('Location: error_page.php');
         exit;
     }
-
     //  トークンの使用後破棄
     unset_token();
+
 
     //  以上で CSRF対策 が完了しました。
 
@@ -532,45 +547,74 @@ try {
 
         //  POST メソッドで送信されたかを確認し、
     //  そうでない場合は、不正なアクセスとして処理を終了します。
-try {
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        throw new SecurityException('POSTメソッド以外のアクセスです');
-    }
-} catch (SecurityException $e) {
-    // HTTPステータスコード405を設定
-    http_response_code(405);  // Method Not Allowed
-    
-    // Allowヘッダーでサポートするメソッドを明示
-    header('Allow: POST');
-    
-    // Cache-Controlヘッダーでキャッシュを無効化
-    header('Cache-Control: no-cache, no-store, must-revalidate');
-    header('Pragma: no-cache');
-    header('Expires: 0');
-    
-    // セキュリティ関連エラー（不正な形式）
-    $log_message = sprintf(
-        "セキュリティエラー - メソッド検証 - エラー: %s, メソッド: %s, IP: %s, UA: %s, リファラー: %s, セッションID: %s, 時刻: %s",
-        $e->getMessage(),
-        $_SERVER['REQUEST_METHOD'] ?? 'unknown',
-        $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-        $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
-        $_SERVER['HTTP_REFERER'] ?? 'unknown',
-        session_id(),
-        date('Y-m-d H:i:s')
-    );
-    error_log($log_message);
-    
-    session_unset();
-    session_destroy();
-    
-    die('405 Method Not Allowed<br>
-         このリソースではPOSTメソッドのみサポートされています。<br>
-         不正なアクセス方法が検出されました。<br>
-         エラーID: ' . uniqid() . '<br>
-         <a href="index.php">学生一覧画面</a>から正しい手順で操作してください。');
-}
 
+    //  テストのためにコメントアウトします。
+// try {
+//     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+//         throw new SecurityException('POSTメソッド以外のアクセスです');
+//     }
+// } catch (SecurityException $e) {
+//     // HTTPステータスコード405を設定
+//     http_response_code(405);  // Method Not Allowed
+    
+//     // Allowヘッダーでサポートするメソッドを明示
+//     header('Allow: POST');
+    
+//     // Cache-Controlヘッダーでキャッシュを無効化
+//     header('Cache-Control: no-cache, no-store, must-revalidate');
+//     header('Pragma: no-cache');
+//     header('Expires: 0');
+    
+//     // セキュリティ関連エラー（不正な形式）
+//     $log_message = sprintf(
+//         "セキュリティエラー - メソッド検証 - エラー: %s, メソッド: %s, IP: %s, UA: %s, リファラー: %s, セッションID: %s, 時刻: %s",
+//         $e->getMessage(),
+//         $_SERVER['REQUEST_METHOD'] ?? 'unknown',
+//         $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+//         $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+//         $_SERVER['HTTP_REFERER'] ?? 'unknown',
+//         session_id(),
+//         date('Y-m-d H:i:s')
+//     );
+//     error_log($log_message);
+    
+//     session_unset();
+//     session_destroy();
+    
+//     die('405 Method Not Allowed<br>
+//          このリソースではPOSTメソッドのみサポートされています。<br>
+//          不正なアクセス方法が検出されました。<br>
+//          エラーID: ' . uniqid() . '<br>
+//          <a href="index.php">学生一覧画面</a>から正しい手順で操作してください。');
+// }
 
+?>
+
+<!-- basic-safety-test.phpのテストフォームをつくります。 -->
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basic Safety Test Form</title>
+</head>
+<body>
+    <h1>Basic Safety Test Form</h1>
+    <?php
+    //  不正なトークンを$invalid_token にセットします。
+    //  token生成関数を使って、意図的に不正なトークンを生成します。
+    generate_csrf_token();
+    $invalid_token = $_SESSION['csrf_token'];
+    //  変更して不正にします。
+    generate_csrf_token();
+
+    ?>
+    <form action="basic-safety-test.php" method="POST">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($invalid_token, ENT_QUOTES, 'UTF-8'); ?>">
+        <button type="submit">Submit</button>
+    </form>
  
 
+</body>
+</html>
