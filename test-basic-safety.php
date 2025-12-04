@@ -421,8 +421,19 @@ const BLOCK_DURATION_DEVICE  = 1800; // 30分
 
 
 try {
+    
+    if (!isset($_SESSION['csrf_token_time'])) {
+        error_log('[CSRF VALIDATE] token_time missing; backfill now (DEV ONLY)');
+        $_SESSION['csrf_token_time'] = time(); // 開発中のみ。原因が判明したら必ず削除
+    }
+    error_log(sprintf(
+        "[CSRF VALIDATE] SID=%s token_time=%s now=%s",
+        session_id(),
+        $_SESSION['csrf_token_time'],
+        time()
+    ));
     // token の型式チェック
-    validate_csrf_token();
+    validate_csrf_token1();
 } catch (CSRFException $e) {
     //  失敗として記録
     record_failure($pdo, $ip_key);
@@ -485,6 +496,21 @@ try {
     try {
     $post_token = $_POST['csrf_token']??'';
     $session_token = $_SESSION['csrf_token']??'';
+
+        // 追加: デバッグログ
+        error_log(sprintf(
+            "[CSRF DEBUG] SID=%s POST=%s SESSION=%s COOKIES=%s",
+            session_id(),
+            $post_token,
+            $session_token,
+            json_encode($_COOKIE, JSON_UNESCAPED_UNICODE)
+        ));
+
+
+
+
+
+
     if (!hash_equals($post_token, $session_token)) {
         throw CSRFException::fromCurrentRequest(
             'CSRFトークンが一致しません - 攻撃の可能性',
@@ -570,6 +596,168 @@ try {
          エラーID: ' . uniqid() . '<br>
          <a href="index.php">学生一覧画面</a>から正しい手順で操作してください。');
 }
+
+
+//  このファイルの主な内容は、
+//  function validate_csrf_token() として
+// CSRFトークンの型式チェックを行う関数を定義します。
+
+// 設定値を定数化
+
+/**
+ * function validate_csrf_token()
+ * CSRF token の型式チェック
+ * @throws CSRFException if invalid token
+ */
+function validate_csrf_token1(): void {
+    //  通信メソッドを確認
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        return;
+    }
+
+    if (!isset($_SESSION['csrf_token_time'])) {
+        error_log('[CSRF VALIDATE] token_time missing; backfill now (DEV ONLY)');
+        $_SESSION['csrf_token_time'] = time(); // 開発中のみ。原因が判明したら必ず削除
+    }
+    error_log(sprintf(
+        "[CSRF VALIDATE] SID=%s token_time=%s now=%s",
+        session_id(),
+        $_SESSION['csrf_token_time'],
+        time()
+    ));
+    //  sessionにトークンがセットされていなければ
+    //  throw CSRFException::fromCurrentRequest(
+    //  'CSRFトークンが存在しません');
+    if (!isset($_SESSION['csrf_token'])) {
+        throw CSRFException::fromCurrentRequest(
+            'セッションにCSRFトークンが存在しません',
+            SecurityException::SEC_CSRF_ATTACK,
+            [],
+            SecurityException::LEVEL_MEDIUM,
+            null
+        );
+    }
+    $session_token = $_SESSION['csrf_token'];
+
+    //  sessionにトークンタイムがセットされていなければ
+    //  throw CSRFException::fromCurrentRequest(
+    //  'CSRFトークンタイムが存在しません');
+    if (!isset($_SESSION['csrf_token_time'])) {
+        $attack_severity = SecurityException::LEVEL_MEDIUM;
+        throw CSRFException::fromCurrentRequest(
+            'CSRFトークンタイムが存在しません',
+            SecurityException::SEC_CSRF_ATTACK,
+            [],
+            SecurityException::LEVEL_MEDIUM,
+            null
+        );
+    }
+    $token_time = $_SESSION['csrf_token_time'];
+    //  トークンタイムが30分以上前なら
+    //  throw CSRFException::fromCurrentRequest(
+    //  'CSRFトークンの有効期限が切れています');
+    if (time() - $token_time > CSRF_TOKEN_TTL) {
+        throw CSRFException::fromCurrentRequest(
+            'CSRFトークンの有効期限が切れています',
+            SecurityException::SEC_CSRF_ATTACK,
+            [],
+            SecurityException::LEVEL_MEDIUM,
+            null
+        );
+    }
+
+    //  POSTされたトークンがあるか確認
+    if (!isset($_POST['csrf_token'])) {
+        throw CSRFException::fromCurrentRequest(
+            'POSTのCSRFトークンが存在しません',
+            SecurityException::SEC_CSRF_ATTACK,
+            [],
+            SecurityException::LEVEL_MEDIUM,
+            null
+        );
+    }
+    $post_token = $_POST['csrf_token'];
+    // 追加: 受信値とセッション値をログ
+    error_log(sprintf(
+        "[CSRF VALIDATE] SID=%s POST=%s SESSION=%s",
+        session_id(),
+        $post_token,
+        $_SESSION['csrf_token'] ?? ''
+    ));
+
+
+
+    //  token が文字列か確認
+    //  random_bytes()はバイナリデータで
+    //  bin2hex()で16進数文字列に変換される
+    if (!is_string($post_token)) {
+        $message = 'POSTされたCSRFトークンが文字列ではありません';
+        throw CSRFException::fromCurrentRequest(
+            $message,
+            SecurityException::SEC_CSRF_ATTACK,
+            [],
+            SecurityException::LEVEL_MEDIUM,
+            null
+        );
+    }
+
+    if (!is_string($session_token)) {
+        throw CSRFException::fromCurrentRequest(
+            'セッションのCSRFトークンが文字列ではありません',
+            SecurityException::SEC_CSRF_ATTACK,
+            [],
+            SecurityException::LEVEL_MEDIUM,
+            null
+        );
+    }
+
+    //  token の長さを確認
+    //  bin2hex(random_bytes(32)) は64文字の16進数文字列
+    //  bin2hex()で64文字になるのは
+    //  32バイトのバイナリデータを16進数に変換するため
+    //  64文字でなければ不正
+    //  strlen()はバイト数を返す
+    if (strlen($post_token) !== CSRF_TOKEN_LENGTH) {
+        throw CSRFException::fromCurrentRequest(
+            'ポストCSRFトークンの長さが不正です',
+            SecurityException::SEC_CSRF_ATTACK,
+            [],
+            SecurityException::LEVEL_MEDIUM,
+            null
+        );
+    }
+    if (strlen($session_token) !== CSRF_TOKEN_LENGTH) {
+        throw CSRFException::fromCurrentRequest(
+            'セッションのCSRFトークンの長さが不正です',
+            SecurityException::SEC_CSRF_ATTACK,
+            [],
+            SecurityException::LEVEL_MEDIUM,
+            null
+        );
+    }
+
+    //  ctype_xdigit()で16進数文字列か確認
+    if (!ctype_xdigit($post_token) ) {
+        throw CSRFException::fromCurrentRequest(
+            'POSTされたCSRFトークンが16進数文字列ではありません',
+            SecurityException::SEC_CSRF_ATTACK,
+            [],
+            SecurityException::LEVEL_MEDIUM,
+            null
+        );
+    }
+    if (!ctype_xdigit($session_token) ) {
+        throw CSRFException::fromCurrentRequest(
+            'セッションのCSRFトークンが16進数文字列ではありません',
+            SecurityException::SEC_CSRF_ATTACK,
+            [],
+            SecurityException::LEVEL_MEDIUM,
+            null
+        );
+    }
+
+}
+
 
 
  

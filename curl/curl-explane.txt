@@ -1,0 +1,13 @@
+index.php に対して curl を実行する手順
+
+ターミナルを表示
+(Ctrl+J)
+ターミナルで git bash を選択
+
+ファイルがあるフォルダまで移動
+（以下のコマンド）
+
+cd /c/MAMP/htdocs/student
+
+curl コマンドを打ち込む
+

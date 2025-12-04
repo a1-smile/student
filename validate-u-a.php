@@ -18,7 +18,6 @@ function validate_user_agent(): void {
         ];
         
         error_log("[SECURITY] User-Agentなしアクセス: " . json_encode($context));
-        throw new InvalidArgumentException('User-Agentが設定されていません');
     }
     
     // 2. 長さチェック
