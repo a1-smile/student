@@ -1,0 +1,37 @@
+HTTP/1.1 200 OK
+Date: Thu, 04 Dec 2025 19:05:56 GMT
+Server: Apache/2.4.33 (Win64) OpenSSL/1.0.2u mod_fcgid/2.3.9 PHP/8.3.1
+X-Powered-By: PHP/8.3.1
+Set-Cookie: PHPSESSID=907789e1364c9992a75dfa909400050f; path=/; HttpOnly; SameSite=Strict
+Expires: Thu, 19 Nov 1981 08:52:00 GMT
+Cache-Control: no-store, no-cache, must-revalidate
+Pragma: no-cache
+Content-Length: 795
+Content-Type: text/html; charset=UTF-8
+
+
+
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>CSRFテストフォーム</title>
+</head>
+<body>
+    <h2>CSRFテスト送信フォーム</h2>
+
+    <form action="test-basic-safety.php" method="post">
+        <!-- トークンを送信する hidden -->
+        <input type="hidden" name="csrf_token" value="0cb50237b55f88a8f5e0a15cea9a4cc9d73c8921f7f75ca67ec28cacbb65a152">
+
+        <!-- テスト用の任意データ -->
+        <input type="text" name="dummy" placeholder="テスト用テキスト">
+
+        <button type="submit">送信</button>
+    </form>
+
+    <p>生成されたCSRFトークン：0cb50237b55f88a8f5e0a15cea9a4cc9d73c8921f7f75ca67ec28cacbb65a152</p>
+    <p>生成時間（time()）：1764875156</p>
+</body>
+</html>

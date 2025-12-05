@@ -32,8 +32,8 @@
 set -euo pipefail
 
 BASE_URL="http://localhost/student"
-FORM_PAGE="$BASE_URL/index.php"  # トークンが埋め込まれているフォームページ
-POST_TARGET="$BASE_URL/basic-safety.php"
+FORM_PAGE="$BASE_URL/test-post.php"  # トークンが埋め込まれているフォームページ
+POST_TARGET="$BASE_URL/test-basic-safety.php"
 
 COOKIES_FILE="cookies.txt" # あとで、curl が自動作成します。
 FORM_FILE="form.html"     # あとで、curl が自動作成します。

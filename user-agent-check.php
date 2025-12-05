@@ -23,15 +23,17 @@
  */
 function userAgentCheck() {
     if (!isset($_SESSION['user_agent'])) {
-        $_SESSION['user_agent'] = $_SERVER['HTTP_USER_AGENT'];
+        $_SESSION['user_agent'] = $_SERVER['HTTP_USER_AGENT'] ?? '';
         return ;
     }
     
     $stored_user_agent = $_SESSION['user_agent'];
     $current_user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
     
-     // User-Agentが空の場合もセッションハイジャックの可能性があるとして例外を投げる
-
+     //  User-Agentが空の場合もセッションハイジャックの可能性があるとして例外を投げる
+     //  空のUser-Agentは通常ありえないため,
+     //  User-Agentが空の場合にアクセスを拒否しても、
+     //  正常なユーザーに影響を与えることはほとんどないと考えられます。
 
     if (empty($current_user_agent)) {
         $context = [
