@@ -433,11 +433,8 @@ try {
     //  unset トークン
     unset_token();
 
-    //  httpレスポンスコード403を設定
-    http_response_code(403);  // Forbidden アクセス禁止
-    //  error page にリダイレクト
-    header('Location: error_page.php');
-
+    //  リダイレクト先で httpレスポンスコード403を設定
+    header('Location: error_page.php', true, 302); exit;
 }  
     // リファラーチェック（追加のセキュリティ）
     $referer = $_SERVER['HTTP_REFERER'] ?? ''; //  アクセス元のURL
@@ -463,22 +460,18 @@ try {
     record_failure($pdo, $ip_prefix_key);
 
     //  unset トークン
-    unset_csrf_token();
+    unset_token();
 
     //  security level を取得
     $security_level = $e->getSecurityLevel();
 
     if ($security_level === SecurityException::LEVEL_CRITICAL) {
         // 致命的レベルの場合は、block_page.php にリダイレクト
-        // httpレスポンスコード429を設定
-        http_response_code(429);  // Too Many Requests
-        header('Location: block_page.php');
+        // リダイレクト先でhttpレスポンスコード429を設定
+        header('Location: block_page.php', true, 302); exit;
     }elseif ($security_level === SecurityException::LEVEL_HIGH) {
-    //  httpレスポンスコード403を設定
-    http_response_code(403);  // Forbidden アクセス禁止
     //  recaptcha にリダイレクト
-    header('Location: recaptcha.php');
-    exit;
+    header('Location: recaptcha.php', true, 302); exit;
     }   
 }
     // トークンの一致確認
@@ -502,11 +495,8 @@ try {
         //  unset トークン
         unset_token();
 
-        //  httpレスポンスコード403を設定
-        http_response_code(403);  // Forbidden アクセス禁止
-        //  error page にリダイレクト
-        header('Location: error_page.php');
-        exit;
+        //  リダイレクト先で httpレスポンスコード403を設定
+        header('Location: error_page.php', true, 302); exit;
     }
 
     //  トークンの使用後破棄

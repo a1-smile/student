@@ -1,3 +1,7 @@
+<?php
+http_response_code(429); // Too Many Requests
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>

@@ -365,6 +365,9 @@ $dbm->connect();
 $pdo = $dbm->get_db();
 
 
+// $_SESSION['csrf_token'] と
+// $_SESSION['csrf_token_time'] を
+// error_log() でログ出力します。
 
 
 //  CSRF対策
@@ -421,12 +424,15 @@ const RATE_LIMITS = [
 const BLOCK_DURATION_SESSION = 1800; // 30分
 const BLOCK_DURATION_DEVICE  = 1800; // 30分
 
-
+error_log("テストを開始します。");
+error_log("テストを開始します。");
+error_log("テストを開始します。");
+error_log("テストを開始します。");
 try {
     error_log("csrf_token_time を確認します。");
     if (!isset($_SESSION['csrf_token_time'])) {
-        error_log('[CSRF VALIDATE] token_time missing; backfill now (DEV ONLY)');
-        $_SESSION['csrf_token_time'] = time(); // 開発中のみ。原因が判明したら必ず削除
+        error_log('csrf_token_time がありません。');
+        
     }
     error_log("csrf_token_time があります。");
     error_log(sprintf(
@@ -438,21 +444,30 @@ try {
     // token の型式チェック
     error_log("validate_csrf_token1() をよびだします。");
     validate_csrf_token1();
+    error_log("validate_csrf_token1() が正常に完了しました。");
 } catch (CSRFException $e) {
     //  失敗として記録
     error_log("CSRF例外をキャッチしました。失敗をデータベースに記録します。");
     record_failure($pdo, $ip_key);
     record_failure($pdo, $session_key);
+    error_log("record_failure() をデバイスで呼び出します。");
+    $failure_array = get_failures($pdo, $device_key, RATE_LIMITS['device']['window']);
+//  失敗回数をカウント
+$failure_count = count($failure_array);
+error_log("デバイスベースの失敗回数記録前: {$failure_count}");
     record_failure($pdo, $device_key);
+    $failure_array = get_failures($pdo, $device_key, RATE_LIMITS['device']['window']);
+//  失敗回数をカウント
+$failure_count = count($failure_array);
+error_log("デバイスベースの失敗回数記録後: {$failure_count}");
     record_failure($pdo, $ip_prefix_key);
 
     //  unset トークン
     unset_token();
 
-    //  httpレスポンスコード403を設定
-    http_response_code(403);  // Forbidden アクセス禁止
-    //  error page にリダイレクト
-    header('Location: error_page.php');
+    // アクセス先で httpレスポンスコード403を設定
+        //  error page にリダイレクト
+    header('Location: error_page.php', true, 302); exit;
 
 }  
     // リファラーチェック（追加のセキュリティ）
@@ -474,28 +489,47 @@ try {
     rate_limit_check1($pdo, $ip_key, $session_key, $device_key, $ip_prefix_key);
 } catch (CSRFException $e) {
     //  失敗として記録
+    error_log("レート制限チェックで例外が発生しました。失敗を記録します。");
     record_failure($pdo, $ip_key);
     record_failure($pdo, $session_key);
+
+
+    error_log("record_failure() をデバイスで呼び出します。");
+    $failure_array = get_failures($pdo, $device_key, RATE_LIMITS['device']['window']);
+//  失敗回数をカウント
+$failure_count = count($failure_array);
+error_log("デバイスベースの失敗回数記録前: {$failure_count}");
     record_failure($pdo, $device_key);
+    $failure_array = get_failures($pdo, $device_key, RATE_LIMITS['device']['window']);
+//  失敗回数をカウント
+$failure_count = count($failure_array);
+error_log("デバイスベースの失敗回数記録後: {$failure_count}");
+
+
     record_failure($pdo, $ip_prefix_key);
 
     //  unset トークン
-    unset_csrf_token();
+    error_log("CSRFトークンをunsetします。");
+    unset_token();
 
     //  security level を取得
     $security_level = $e->getSecurityLevel();
+    error_log("セキュリティレベル: {$security_level}");
 
     if ($security_level === SecurityException::LEVEL_CRITICAL) {
         // 致命的レベルの場合は、block_page.php にリダイレクト
-        // httpレスポンスコード429を設定
-        http_response_code(429);  // Too Many Requests
-        header('Location: block_page.php');
+        // リダイレクト先で httpレスポンスコード429を設定
+        error_log("レベル：{$security_level} を検出しました。");
+        error_log("HTTPレスポンスコード302を設定します。");
+        error_log("block_page.php にリダイレクトします。");
+        header('Location: block_page.php', true, 302); exit;
     }elseif ($security_level === SecurityException::LEVEL_HIGH) {
-    //  httpレスポンスコード403を設定
-    http_response_code(403);  // Forbidden アクセス禁止
-    //  recaptcha にリダイレクト
-    header('Location: recaptcha.php');
-    exit;
+        error_log("レベル：{$security_level} を検出しました。");
+        error_log("HTTPレスポンスコード302を設定します。");
+        error_log("recaptcha.php にリダイレクトします。");
+
+    // リダイレクト先で httpレスポンスコード403を設定
+    header('Location: recaptcha.php', true, 302); exit;
     }   
 }
     // トークンの一致確認
@@ -516,8 +550,9 @@ try {
 
 
 
-
+        error_log("CSRFトークンの一致を確認します。");
     if (!hash_equals($post_token, $session_token)) {
+        error_log("CSRFトークンが一致しません。例外をスローします。");
         throw CSRFException::fromCurrentRequest(
             'CSRFトークンが一致しません - 攻撃の可能性',
             SecurityException::SEC_CSRF_ATTACK,
@@ -526,22 +561,34 @@ try {
             null);
     }
     } catch (CSRFException $e) {
+        error_log("CSRF例外をキャッチしました。失敗を記録します。");
         //  失敗として記録
         record_failure($pdo, $ip_key);
         record_failure($pdo, $session_key);
+        error_log("record_failure() をデバイスで呼び出します。");
+        $failure_array = get_failures($pdo, $device_key, RATE_LIMITS['device']['window']);
+//  失敗回数をカウント
+$failure_count = count($failure_array);
+error_log("デバイスベースの失敗回数記録前: {$failure_count}");
         record_failure($pdo, $device_key);
+        $failure_array = get_failures($pdo, $device_key, RATE_LIMITS['device']['window']);
+//  失敗回数をカウント
+$failure_count = count($failure_array);
+error_log("デバイスベースの失敗回数記録後: {$failure_count}");
         record_failure($pdo, $ip_prefix_key);
         //  unset トークン
+        error_log("CSRFトークンをunsetします。");
         unset_token();
 
         //  httpレスポンスコード403を設定
-        http_response_code(403);  // Forbidden アクセス禁止
-        //  error page にリダイレクト
-        header('Location: error_page.php');
-        exit;
+        error_log("HTTPレスポンスコード403を設定します。");
+        error_log("error_page.php にリダイレクトします。");
+        header('Location: error_page.php', true, 302); exit;
     }
 
     //  トークンの使用後破棄
+    error_log("CSRFトークンチェック成功しました。");
+    error_log("CSRFトークンの使用後破棄を行います。");
     unset_token();
 
     //  以上で CSRF対策 が完了しました。
@@ -814,7 +861,7 @@ error_log("rate_limit_check1() を開始します。");
 /*------------------------------------
   事前ブロック確認（session / device）
 ------------------------------------*/
-error_log("ブロックされているか確認します。");
+error_log("セッションがブロックされているか確認します。");
 if (is_blocked($pdo, $session_key)) {
     error_log("セッションが一時的にブロックされています。例外をスローします。");
     throw CSRFException::fromCurrentRequest(
@@ -825,6 +872,8 @@ if (is_blocked($pdo, $session_key)) {
         null
     );
 }
+error_log("ブロックされていません。");
+error_log("デバイスがブロックされているか確認します。");
 if (is_blocked($pdo, $device_key)) {
     error_log("デバイスが一時的にブロックされています。例外をスローします。");
     throw CSRFException::fromCurrentRequest(
@@ -847,9 +896,11 @@ error_log("4層レート制限を実施します。");
 $failure_array = get_failures($pdo, $ip_key, RATE_LIMITS['ip']['window']);
 //  失敗回数をカウント
 $failure_count = count($failure_array);
+error_log("IPアドレスベースの失敗回数: {$failure_count}");
 if ($failure_count 
     >=
     RATE_LIMITS['ip']['max_failures']) {
+        error_log("IPアドレスベースの失敗回数がmax_failuresを超えました。例外をスローします。");
     throw CSRFException::fromCurrentRequest(
         'IPアドレスからのリクエストが多すぎます',
         SecurityException::SEC_CSRF_ATTACK,
@@ -860,6 +911,7 @@ if ($failure_count
 }elseif ($failure_count 
     >=
     RATE_LIMITS['ip']['soft_failure']) {
+    error_log("IPアドレスベースの失敗回数がsoft_failureを超えました。例外をスローします。");
     throw CSRFException::fromCurrentRequest(
         'IPアドレスからのリクエストが多めです',
         SecurityException::SEC_CSRF_ATTACK,
@@ -874,11 +926,14 @@ if ($failure_count
 $failure_array = get_failures($pdo, $session_key, RATE_LIMITS['session']['window']);
 //  失敗回数をカウント
 $failure_count = count($failure_array);
+error_log("セッションベースの失敗回数: {$failure_count}");
 if ($failure_count 
     >=
     RATE_LIMITS['session']['max_failures']) {
+        error_log("セッションベースの失敗回数がmax_failuresを超えました。block登録します。");
            // 閾値超え → ブロック登録
     record_block($pdo, $session_key, BLOCK_DURATION_SESSION);
+    error_log("block登録完了。critical で例外をスローします。");
     throw CSRFException::fromCurrentRequest(
         'セッションからのリクエストが多すぎます',
         SecurityException::SEC_CSRF_ATTACK,
@@ -889,6 +944,7 @@ if ($failure_count
 }elseif ($failure_count 
         >=
         RATE_LIMITS['session']['soft_failure']) {
+    error_log("セッションベースの失敗回数がsoft_failureを超えました。high で例外をスローします。");
     throw CSRFException::fromCurrentRequest(
         'セッションからのリクエストが多めです',
         SecurityException::SEC_CSRF_ATTACK,
@@ -903,11 +959,14 @@ if ($failure_count
 $failure_array = get_failures($pdo, $device_key, RATE_LIMITS['device']['window']);
 //  失敗回数をカウント
 $failure_count = count($failure_array);
+error_log("デバイスベースの失敗回数: {$failure_count}");
 if ($failure_count 
     >=
     RATE_LIMITS['device']['max_failures']) {
             // 閾値超え → ブロック登録
+            error_log("デバイスベースの失敗回数がmax_failuresを超えました。block登録します。");
     record_block($pdo, $device_key, BLOCK_DURATION_DEVICE);
+    error_log("block登録完了。critical で例外をスローします。");
         throw CSRFException::fromCurrentRequest(
             'デバイスからのリクエストが多すぎます',
             SecurityException::SEC_CSRF_ATTACK,
@@ -918,6 +977,7 @@ if ($failure_count
     }elseif ($failure_count 
     >=
     RATE_LIMITS['device']['soft_failure']) {
+        error_log("デバイスベースの失敗回数がsoft_failureを超えました。high で例外をスローします。");
         throw CSRFException::fromCurrentRequest(
             'デバイスからのリクエストが多めです',
             SecurityException::SEC_CSRF_ATTACK,
@@ -932,6 +992,7 @@ if ($failure_count
     $failure_array = get_failures($pdo, $ip_prefix_key, RATE_LIMITS['ip_prefix']['window']);
     //  失敗回数をカウント
     $failure_count = count($failure_array);
+    error_log("IPプレフィックスベースの失敗回数: {$failure_count}");
     if ($failure_count 
     >=
     RATE_LIMITS['ip_prefix']['max_failures']) {

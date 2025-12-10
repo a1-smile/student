@@ -1,3 +1,7 @@
+<?php
+http_response_code(403); // Forbidden アクセス禁止
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
