@@ -446,27 +446,17 @@ try {
     validate_csrf_token1();
     error_log("validate_csrf_token1() が正常に完了しました。");
 } catch (CSRFException $e) {
-    //  失敗として記録
+    //  失敗として記録（このイベントにつき各キー1回）
     error_log("CSRF例外をキャッチしました。失敗をデータベースに記録します。");
     record_failure($pdo, $ip_key);
     record_failure($pdo, $session_key);
-    error_log("record_failure() をデバイスで呼び出します。");
-    $failure_array = get_failures($pdo, $device_key, RATE_LIMITS['device']['window']);
-//  失敗回数をカウント
-$failure_count = count($failure_array);
-error_log("デバイスベースの失敗回数記録前: {$failure_count}");
     record_failure($pdo, $device_key);
-    $failure_array = get_failures($pdo, $device_key, RATE_LIMITS['device']['window']);
-//  失敗回数をカウント
-$failure_count = count($failure_array);
-error_log("デバイスベースの失敗回数記録後: {$failure_count}");
     record_failure($pdo, $ip_prefix_key);
 
     //  unset トークン
     unset_token();
 
-    // アクセス先で httpレスポンスコード403を設定
-        //  error page にリダイレクト
+    // 302で遷移。最終ステータスは遷移先（error_page.php）で設定する設計。
     header('Location: error_page.php', true, 302); exit;
 
 }  
@@ -488,24 +478,11 @@ try {
     error_log("レート制限チェックを開始します。");
     rate_limit_check1($pdo, $ip_key, $session_key, $device_key, $ip_prefix_key);
 } catch (CSRFException $e) {
-    //  失敗として記録
+    //  失敗として記録（このイベントにつき各キー1回）
     error_log("レート制限チェックで例外が発生しました。失敗を記録します。");
     record_failure($pdo, $ip_key);
     record_failure($pdo, $session_key);
-
-
-    error_log("record_failure() をデバイスで呼び出します。");
-    $failure_array = get_failures($pdo, $device_key, RATE_LIMITS['device']['window']);
-//  失敗回数をカウント
-$failure_count = count($failure_array);
-error_log("デバイスベースの失敗回数記録前: {$failure_count}");
     record_failure($pdo, $device_key);
-    $failure_array = get_failures($pdo, $device_key, RATE_LIMITS['device']['window']);
-//  失敗回数をカウント
-$failure_count = count($failure_array);
-error_log("デバイスベースの失敗回数記録後: {$failure_count}");
-
-
     record_failure($pdo, $ip_prefix_key);
 
     //  unset トークン
@@ -518,7 +495,7 @@ error_log("デバイスベースの失敗回数記録後: {$failure_count}");
 
     if ($security_level === SecurityException::LEVEL_CRITICAL) {
         // 致命的レベルの場合は、block_page.php にリダイレクト
-        // リダイレクト先で httpレスポンスコード429を設定
+        // 302で遷移。最終ステータス（例:429）は遷移先で設定。
         error_log("レベル：{$security_level} を検出しました。");
         error_log("HTTPレスポンスコード302を設定します。");
         error_log("block_page.php にリダイレクトします。");
@@ -528,7 +505,7 @@ error_log("デバイスベースの失敗回数記録後: {$failure_count}");
         error_log("HTTPレスポンスコード302を設定します。");
         error_log("recaptcha.php にリダイレクトします。");
 
-    // リダイレクト先で httpレスポンスコード403を設定
+    // 302で遷移。最終ステータス（例:403）は遷移先で設定。
     header('Location: recaptcha.php', true, 302); exit;
     }   
 }
@@ -562,26 +539,16 @@ error_log("デバイスベースの失敗回数記録後: {$failure_count}");
     }
     } catch (CSRFException $e) {
         error_log("CSRF例外をキャッチしました。失敗を記録します。");
-        //  失敗として記録
+        //  失敗として記録（このイベントにつき各キー1回）
         record_failure($pdo, $ip_key);
         record_failure($pdo, $session_key);
-        error_log("record_failure() をデバイスで呼び出します。");
-        $failure_array = get_failures($pdo, $device_key, RATE_LIMITS['device']['window']);
-//  失敗回数をカウント
-$failure_count = count($failure_array);
-error_log("デバイスベースの失敗回数記録前: {$failure_count}");
         record_failure($pdo, $device_key);
-        $failure_array = get_failures($pdo, $device_key, RATE_LIMITS['device']['window']);
-//  失敗回数をカウント
-$failure_count = count($failure_array);
-error_log("デバイスベースの失敗回数記録後: {$failure_count}");
         record_failure($pdo, $ip_prefix_key);
         //  unset トークン
         error_log("CSRFトークンをunsetします。");
         unset_token();
 
-        //  httpレスポンスコード403を設定
-        error_log("HTTPレスポンスコード403を設定します。");
+        // 302で遷移。最終ステータス（例:403）は遷移先（error_page.php）で設定。
         error_log("error_page.php にリダイレクトします。");
         header('Location: error_page.php', true, 302); exit;
     }

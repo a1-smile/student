@@ -51,14 +51,14 @@ handle_session_timeout();
 // 想定外のエラーに備えて、エラーハンドラと例外ハンドラを設定します。
 set_exception_handler(function ($e) {
     error_log("未処理の例外: " . $e->getMessage());
-    http_response_code(500);
+    http_response_code(500); // Internal Server Error 内部サーバーエラー
     die("想定していない例外が発生しました。");
     exit;
 });
 
 set_error_handler(function ($errno, $errstr, $errfile, $errline) {
     error_log("PHPエラー [$errno]: $errstr in $errfile:$errline");
-    http_response_code(500);
+    http_response_code(500); // Internal Server Error 内部サーバーエラー
     die("想定されていない不具合が発生しました、エラーハンドラー。");
     exit;
 });
@@ -357,7 +357,9 @@ try {
 //          <a href="index.php">学生一覧に戻る</a>');
 
 
-//  以下のCSRFたいさくにデータベースを使用するので、
+
+
+//  以下のCSRF対策にデータベースを使用するので、
 //  PDOオブジェクトを取得します。
 $dbm->connect();
 $pdo = $dbm->get_db();
@@ -369,24 +371,11 @@ $pdo = $dbm->get_db();
 //  4種のrate_key を定義します。
 
 /*------------------------------------
-  device_id クッキー準備（1年有効）
+device_id クッキー準備（1年有効）
 ------------------------------------*/
-    // if (empty($_COOKIE['device_id'])) {
-    //     $id = bin2hex(random_bytes(16));
-    //     setcookie(
-    //         'device_id', // 名前
-    //         $id, // 値
-    //         time() + 86400 * 365, // 有効期限（1年後）
-    //         "/", // パス :サイト内全域で有効
-    //         "", // ドメイン :指定なしで現在のドメイン
-    //         false, // HTTPS限定か？==> false
-    //         true //  JavaScriptからアクセス不可==> true
-    //     );
-    //     $_COOKIE['device_id'] = $id;
-    // }
 set_device_id_cookie();
 /*------------------------------------
-  IPプレフィックス取得
+IPプレフィックス取得
 ------------------------------------*/
 // IPプレフィックス取得
 $ipv4_blocks = $_ENV['IP_CHECK_IPV4_BLOCKS'] ?? 2;
@@ -394,21 +383,21 @@ $ipv6_blocks = $_ENV['IP_CHECK_IPV6_BLOCKS'] ?? 3;
 
 $ip_prefix = get_ip_prefix_for_session($ipv4_blocks, $ipv6_blocks);
 /*------------------------------------
-  session_id hash化
+session_id hash化
 ------------------------------------*/
-    $session_id = session_id();
-    $session_id_hash = hash('sha256', $session_id);
+$session_id = session_id();
+$session_id_hash = hash('sha256', $session_id);
 /*------------------------------------
-  レート制限用キー生成（4層）
+レート制限用キー生成（4層）
 ------------------------------------*/
 $ip_key        = "ip:" . $_SERVER['REMOTE_ADDR'];
 $session_key   = "session:" . $session_id_hash;
-$device_key    = "device:" . $_COOKIE['device_id'];
+$device_key    = "device:" . ($_COOKIE['device_id'] ?? '');
 $ip_prefix_key = "ip_prefix:" . $ip_prefix;
 
 /*------------------------------------
-  閾値設定
- */
+閾値設定
+*/
 const RATE_LIMITS = [
     'ip' => [ 'window' => 300, 'max_failures' => 1000, 'soft_failure' => 300], // 5分で1000回
     'session' => [ 'window' => 300, 'max_failures' => 10, 'soft_failure' => 3], // 5分で10回
@@ -418,6 +407,66 @@ const RATE_LIMITS = [
 
 const BLOCK_DURATION_SESSION = 1800; // 30分
 const BLOCK_DURATION_DEVICE  = 1800; // 30分
+
+
+// メソッド検証は最初に実施（GET等を早期排除）
+try {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        throw new SecurityException('POSTメソッド以外のアクセスです');
+    }
+} catch (SecurityException $e) {
+    http_response_code(405);
+    header('Allow: POST');
+    header('Cache-Control: no-cache, no-store, must-revalidate');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    error_log(sprintf(
+        "セキュリティエラー - メソッド検証 - エラー: %s, メソッド: %s, IP: %s, UA: %s, リファラー: %s, セッションID: %s, 時刻: %s",
+        $e->getMessage(),
+        $_SERVER['REQUEST_METHOD'] ?? 'unknown',
+        $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+        $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+        $_SERVER['HTTP_REFERER'] ?? 'unknown',
+        session_id(),
+        date('Y-m-d H:i:s')
+    ));
+    session_unset();
+    session_destroy();
+    die('405 Method Not Allowed<br>このリソースではPOSTメソッドのみサポートされています。<br>不正なアクセス方法が検出されました。<br>エラーID: ' . uniqid() . '<br><a href="index.php">学生一覧画面</a>から正しい手順で操作してください。');
+}
+
+// ----- Content-Type のチェック -----
+    try{
+    content_type_check();
+    } catch (CSRFException $e) {
+        record_failure($pdo, $ip_key);
+        record_failure($pdo, $session_key);
+        record_failure($pdo, $device_key);
+        record_failure($pdo, $ip_prefix_key);
+        //  unset トークン
+        unset_token();
+        //遷移先でステータスを設定する設計
+        header('Location: error_page.php', true, 302); exit;
+    }
+
+// ここから先は「正規のフォーム POST」だけ通過
+
+//  Origin/Hostの整合性確認
+    try{
+    origin_host_check();
+    } catch (CSRFException $e) {
+        record_failure($pdo, $ip_key);
+        record_failure($pdo, $session_key);
+        record_failure($pdo, $device_key);
+        record_failure($pdo, $ip_prefix_key);
+        //  unset トークン
+        unset_token();
+        //遷移先でステータスを設定する設計
+        header('Location: error_page.php', true, 302); exit;
+    }
+
+
+
 
 
 try {
@@ -433,19 +482,16 @@ try {
     //  unset トークン
     unset_token();
 
-    //  リダイレクト先で httpレスポンスコード403を設定
+    //  遷移先でステータスを設定する設計
     header('Location: error_page.php', true, 302); exit;
 }  
     // リファラーチェック（追加のセキュリティ）
-    $referer = $_SERVER['HTTP_REFERER'] ?? ''; //  アクセス元のURL
-    $host = $_SERVER['HTTP_HOST'] ?? '';       //  アクセス先のドメイン
-    
-    //  strpos() は、部分文字列の位置を検索します。
-    //  文字列の一致を探す関数。
-    if (empty($referer) || strpos($referer, $host) === false) {
+    $result = referer_check();
+    if (!$result) {
         // 警告レベル（ブロックはしない）
         // 補助的な監視に留めるため、処理を止めない。
-
+        $referer = $_SERVER['HTTP_REFERER'] ?? 'unknown';
+        $host = $_SERVER['HTTP_HOST'] ?? 'unknown';
         error_log("警告: 不審なリファラー - リファラー: {$referer}, ホスト: {$host}, IP: " . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
     }
     
@@ -466,18 +512,19 @@ try {
     $security_level = $e->getSecurityLevel();
 
     if ($security_level === SecurityException::LEVEL_CRITICAL) {
-        // 致命的レベルの場合は、block_page.php にリダイレクト
-        // リダイレクト先でhttpレスポンスコード429を設定
+        //  致命的レベルの場合は、block_page.php にリダイレクト
+        //  遷移先でステータスを設定する設計
         header('Location: block_page.php', true, 302); exit;
     }elseif ($security_level === SecurityException::LEVEL_HIGH) {
-    //  recaptcha にリダイレクト
-    header('Location: recaptcha.php', true, 302); exit;
+        //  recaptcha にリダイレクト
+        //  遷移先でステータスを設定する設計
+        header('Location: recaptcha.php', true, 302); exit;
     }   
 }
     // トークンの一致確認
     try {
-    $post_token = $_POST['csrf_token']??'';
-    $session_token = $_SESSION['csrf_token']??'';
+    $post_token = $_POST['csrf_token'];
+    $session_token = $_SESSION['csrf_token'];
     if (!hash_equals($post_token, $session_token)) {
         throw CSRFException::fromCurrentRequest(
             'CSRFトークンが一致しません - 攻撃の可能性',
@@ -495,7 +542,7 @@ try {
         //  unset トークン
         unset_token();
 
-        //  リダイレクト先で httpレスポンスコード403を設定
+        // 302で遷移。最終ステータスは遷移先で設定する設計
         header('Location: error_page.php', true, 302); exit;
     }
 
@@ -520,46 +567,7 @@ try {
     
     
 
-        //  POST メソッドで送信されたかを確認し、
-    //  そうでない場合は、不正なアクセスとして処理を終了します。
-try {
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        throw new SecurityException('POSTメソッド以外のアクセスです');
-    }
-} catch (SecurityException $e) {
-    // HTTPステータスコード405を設定
-    http_response_code(405);  // Method Not Allowed
-    
-    // Allowヘッダーでサポートするメソッドを明示
-    header('Allow: POST');
-    
-    // Cache-Controlヘッダーでキャッシュを無効化
-    header('Cache-Control: no-cache, no-store, must-revalidate');
-    header('Pragma: no-cache');
-    header('Expires: 0');
-    
-    // セキュリティ関連エラー（不正な形式）
-    $log_message = sprintf(
-        "セキュリティエラー - メソッド検証 - エラー: %s, メソッド: %s, IP: %s, UA: %s, リファラー: %s, セッションID: %s, 時刻: %s",
-        $e->getMessage(),
-        $_SERVER['REQUEST_METHOD'] ?? 'unknown',
-        $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-        $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
-        $_SERVER['HTTP_REFERER'] ?? 'unknown',
-        session_id(),
-        date('Y-m-d H:i:s')
-    );
-    error_log($log_message);
-    
-    session_unset();
-    session_destroy();
-    
-    die('405 Method Not Allowed<br>
-         このリソースではPOSTメソッドのみサポートされています。<br>
-         不正なアクセス方法が検出されました。<br>
-         エラーID: ' . uniqid() . '<br>
-         <a href="index.php">学生一覧画面</a>から正しい手順で操作してください。');
-}
+  
 
 
  

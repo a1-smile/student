@@ -11,12 +11,14 @@ if (empty($_COOKIE['device_id'])) {
     setcookie(
         'device_id', // 名前
         $id, // 値
-        time() + 86400 * 365, // 有効期限（1年後）
-        "/", // パス :サイト内全域で有効
-        "", // ドメイン :指定なしで現在のドメイン
-        false, // HTTPS限定か？==> false
-        true //  JavaScriptからアクセス不可==> true
-    );
+        [
+  'expires' => time() + 86400 * 365,
+  'path' => '/',
+  'domain' => '',            // 固定ドメインがあるなら明示
+  'secure' => false,         // HTTPSならtrue推奨
+  'httponly' => true,
+  'samesite' => 'Lax'        // 要件に応じて Strict / None(+secure=true)
+]);
     $_COOKIE['device_id'] = $id;
 }
 }

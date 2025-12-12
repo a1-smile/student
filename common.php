@@ -23,7 +23,10 @@ $files_required = [
     'is-blocked.php',
     'rate-limit-check.php',
     'set-device-id-cookie.php',
-    'get-ip-prefix.php'
+    'get-ip-prefix.php',
+    'referer_check.php',
+    'content_type_check.php',
+    'origin_host_check.php'
 ];
 
 foreach ($files_required as $file_name) {
@@ -48,7 +51,8 @@ try {
 }    
 }
 
-
+//  device_id クッキーをセットします。
+set_device_id_cookie();
 
 //  function get_error() を定義します。
 //  $error は、
