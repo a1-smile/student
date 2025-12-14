@@ -15,7 +15,10 @@ if (empty($_COOKIE['device_id'])) {
   'expires' => time() + 86400 * 365,
   'path' => '/',
   'domain' => '',            // 固定ドメインがあるなら明示
+
   'secure' => false,         // HTTPSならtrue推奨
+  // 本番環境では 'secure' => true にしてください。
+  
   'httponly' => true,
   'samesite' => 'Lax'        // 要件に応じて Strict / None(+secure=true)
 ]);
