@@ -36,17 +36,9 @@
  */
 
 function user_agent_check(PDO $pdo): void {
-    // security level を $score で管理します。
-    // 初期値を定義します。
-    $score = [
-        'score_for_session_id' => 0,  // セッションIDベースのスコア
-        'score_for_ip_address' => 0,  // IPアドレスベースのスコア
-    ];
+    // UA未送信は警告のみ（他レイヤで防御する方針は維持）
 
-    //  データベースから、$scoreの値を取得します。
-    //  database から $score を取得する関数を呼び出します。
-
-    /*ua が session 継続中に代わるなどの
+    /* ua が session 継続中に代わるなどの
       異常検出は行うと、セキュリティ強化に寄与する*/
 
     $current_user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
@@ -59,8 +51,9 @@ function user_agent_check(PDO $pdo): void {
         ));
         return;
     }
-
-    $session_id = session_id() ?: 'unknown';
+//  session_id をハッシュ化して
+// $session_id = hash('sha256', session_id() ?: 'unknown');
+    $session_id = hash('sha256', session_id() ?: 'unknown');
     $ip_address = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 
 
@@ -106,14 +99,14 @@ function user_agent_check(PDO $pdo): void {
     //  ip アドレスベースのしきい値は
     // セッションIDベースのしきい値よりも緩やかに設定
     // （例: セッションIDベースの10倍）
-    $ACCESS_THRESHOLD = ['session'=>30, 'ip'=>300];  // 1分間のアクセス回数でエラー扱い
+    $ACCESS_THRESHOLD_ERROR       = ['session'=>30, 'ip'=>300];  // 1分間のアクセス回数でエラー扱い
 
 
     //  test 用閾値 テストのみ有効化
-    // $ACCESS_THRESHOLD_RECAPTCHA       = ['session'=>5, 'ip'=>7];  // 1分間のアクセス回数でエラー扱い
+    // $ACCESS_THRESHOLD_ERROR       = ['session'=>5, 'ip'=>7];  // 1分間のアクセス回数でエラー扱い
 
 
-    $ACCESS_THRESHOLD_ERROR   = ['session'=>60, 'ip'=>600]; // 1分間のアクセス回数で reCAPTCHA へ
+    $ACCESS_THRESHOLD_RECAPTCHA   = ['session'=>60, 'ip'=>600]; // 1分間のアクセス回数で reCAPTCHA へ
 
 
     //  test 用閾値 テストのみ有効化
@@ -127,7 +120,7 @@ function user_agent_check(PDO $pdo): void {
     // $MISMATCH_THRESHOLD_RECAPTCHA = ['session'=>2,  'ip'=>3];
 
 
-    // access が $ACCESS_THRESHOLD を超えた場合は $score
+    // access が $ACCESS_THRESHOLD_RECAPTCHA を超えた場合は recaptcha.php へリダイレクト
     if ($access_count_last_minute['session_id_access_count'] >= $ACCESS_THRESHOLD_RECAPTCHA['session']) {
         $context = ua_build_context([
             'reason'                    => 'ACCESS_RATE_RECAPTCHA',

@@ -97,12 +97,24 @@ set_error_handler(function ($errno, $errstr, $errfile, $errline) {
     exit;
 });
 
-
+//  データベース処理のために $pdo を取得します。
+try{
+    $dbm->connect();
+    $pdo = $dbm->get_db();
+  }catch(PDOException $e){
+    $error_id = uniqid('db_');
+    error_log('DB接続に失敗: ' . $e->getMessage());
+    die("システムエラーが発生しました。エラーID: $error_id");
+  }catch(Exception $e){
+    $error_id = uniqid('unexpected_');
+    error_log('予期しないエラーが発生しました: ' .$e->getMessage());
+    die("予期しないエラーが発生しました。エラーID: $error_id");
+  }
 
 
 //  ユーザーエージェントをチェックする
 try{
-    userAgentCheck();
+    user_agent_check($pdo);
 } catch (SessionHijackingException $e) {
     $log_message = $e->getLogMessage();
     error_log($log_message);

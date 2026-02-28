@@ -64,7 +64,7 @@ handle_session_timeout();
 
 //  ユーザーエージェントをチェックする
 try{
-    userAgentCheck();
+    user_agent_check();
 } catch (SessionHijackingException $e) {
     $log_message = $e->getLogMessage();
     error_log($log_message);

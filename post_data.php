@@ -73,7 +73,7 @@ set_error_handler(function ($errno, $errstr, $errfile, $errline) {
 
 //  ユーザーエージェントをチェックする
 try{
-    userAgentCheck();
+    user_agent_check();
 } catch (SessionHijackingException $e) {
     $log_message = $e->getLogMessage();
     error_log($log_message);

@@ -30,7 +30,13 @@ function ip_check_for_session(int $ipv4_blocks = null, int $ipv6_blocks = null):
                 'current_ip_prefix' => $current_prefix,
                 'session_id' => session_id(),
             ];
-            throw new SessionHijackingException('IPアドレスが変更されました', SecurityException::SEC_SESSION_HIJACK, $context);
+            throw new SessionHijackingException(
+                'IPアドレスが変更されました', //$message
+                SecurityException::SEC_SESSION_HIJACK, //$code
+                $context, // $context
+                SecurityException::LEVEL_HIGH, // $securityLevel
+                null // $previous
+                );
         }
     }
 

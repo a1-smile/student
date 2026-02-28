@@ -26,7 +26,8 @@ $files_required = [
     'get-ip-prefix.php',
     'referer_check.php',
     'content_type_check.php',
-    'origin_host_check.php'
+    'origin_host_check.php',
+    'get_simple_ua.php'
 ];
 
 foreach ($files_required as $file_name) {

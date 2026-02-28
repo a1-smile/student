@@ -1,9 +1,33 @@
 <?php
+//  index.php では、データベースからすべての学生情報を取得し、表示します。
+//  画面遷移は、student_edit.php （form から POST で、）
+//            student_input.php （a タグで、）
+//            form から送信するデーターは、データベースから取得した学生情報の
+//            idと
+//            csrf_token です。
+
+
+// <form action="student_edit.php" method="post" class="table-form">
+//             <input type="hidden" name="id" value="{$id}">
+//             <input type="hidden" name="data" value="update">
+//             <input type="hidden" name="csrf_token" value="{$token}">
+//             <button type="submit">編集確認へ...</button>
+//         </form>
+
+//  <form action="student_edit.php" method="post" class="table-form">
+//             <input type="hidden" name="id" value="{$id}">
+//             <input type="hidden" name="data" value="delete">
+//             <input type="hidden" name="csrf_token" value="{$token}">
+//             <button type="submit">削除確認へ...</button>
+//         </form>
+//    
+
+
 //  必要なファイルを読み込むのに必要な関数を定義します。
-//  common.php にある safe_file_path1() と重複読み込みを防ぐために
-//  safe_file_path() としています。
+//  common.php にある safe_file_path() と重複読み込みを防ぐために
+//  safe_file_path1() としています。
 /**
- * safe_file_path - path validation and normalization
+ * safe_file_path1 - path validation and normalization
  * 
  * @param string $file_name 読み込むファイル名
  * （関数を実行するディレクトリを基準にした相対パス）
@@ -154,6 +178,7 @@ function safe_file_path($file_name, $options = []) {
     }
 }
 
+
 //  共通ファイルを読み込みます。
 $file_name = 'common.php';
 try {
@@ -179,9 +204,7 @@ try {
 
 //  セッションを開始します。
 initializeSecureSession();
-// セッション開始前に安全なクッキー設定しています。
-// ただし、開発環境ではHTTPSが使えない場合もあります。
-// その場合は、'secure' => false に設定します。
+//  セキュアなクッキーを設定しています。
 // session_set_cookie_params([
 //     'lifetime' => 0,           // ブラウザを閉じるとクッキー削除
 //     'path'     => '/',         // サイト全体で有効
@@ -194,9 +217,6 @@ initializeSecureSession();
 // ]);                            // クッキーを送らない  (CSRF対策)
 
 //  以上は、セッション開始の前に設定を行う必要があります
-
-//  session timeout を設定します。
-handle_session_timeout();
 
 // 想定外のエラーに備えて、エラーハンドラと例外ハンドラを設定します。
 set_exception_handler(function ($e) {
@@ -214,59 +234,71 @@ set_error_handler(function ($errno, $errstr, $errfile, $errline) {
 });
 
 
+//  ユーザーエージェントをvalidateして
+//  安全ならsessionに保存します。
+//  $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+//  $_SESSION['user_agent'] = $user_agent;
 
 
-//  ユーザーエージェントをチェックする
-try{
-    user_agent_check();
-} catch (SessionHijackingException $e) {
-    $log_message = $e->getLogMessage();
-    error_log($log_message);
+try {
+    validate_user_agent();
+} catch (InvalidArgumentException $e) {
+    $code = (int)$e->getCode();
+    $attack_id = uniqid('UA_INVALID_');
     
-    //  session 完全廃棄
-    session_unset();
-    session_destroy();
-    session_write_close();
-    http_response_code(403);  // Forbidden アクセス禁止
-    die('セッションハイジャック攻撃検出<br>
-         セキュリティ上の理由により処理を中断します。<br>
-         この攻撃は記録され、管理者に通報されました。<br>
-         攻撃検出ID: ' . uniqid() . '<br>
-         正常な操作を行う場合は、トップページから再開してください。');
-} catch (Exception $e) {
-    // その他の予期しないエラー
-    error_log("予期しないエラー - ユーザーエージェントチェック - IP:" . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . ", エラー: " . $e->getMessage());
+    error_log("[SECURITY] User-Agent検証失敗 - AttackID: {$attack_id}, " .
+              "IP: " . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . 
+              ", エラー: " . $e->getMessage());
+    switch ($code) {
+        case 4001: // 長さ異常 → 400 不正なリクエスト
+            session_unset();
+            session_destroy();
+            session_write_close();
+            http_response_code(400);
+            die("不正なアクセスです。<br>正常なブラウザからアクセスしてください。<br>攻撃ID: {$attack_id}");
+
+        case 4031: // 攻撃的UA → 403（または302でerror_page.phpへ）
+            session_unset();
+            session_destroy();
+            session_write_close();
+            // 直接403応答
+            http_response_code(302);
+            //  302 リダイレクト（最終ステータスは遷移先で設定 403）
+            header('Location: error_page.php', true, 302); exit;
+
+        case 4291: // 高頻度検知（任意運用） → 429 or recaptchaへ
+            // セッションは維持して reCAPTCHA に誘導
+            header('Location: recaptcha.php', true, 302);
+            exit;
+
+        default: // 未分類は 400 として処理
+            session_unset();
+            session_destroy();
+            session_write_close();
+            http_response_code(400);
+            die("不正なアクセスです。<br>攻撃ID: {$attack_id}");
+    }
     
-    session_unset();
-    session_destroy();
-    session_write_close();
-    http_response_code(500);  // Internal Server Error 内部サーバーエラー
-    die('システムエラーが発生しました。管理者にお問い合わせください。<br>
-         エラーID: ' . uniqid() . '<br>
-         <a href="index.php">学生一覧に戻る</a>');
+} catch (RuntimeException $e) {
+    $error_id = uniqid('UA_SYSTEM_');
+    
+    error_log("[ERROR] User-Agent検証システムエラー - ErrorID: {$error_id}, " .
+              "エラー: " . $e->getMessage());
+    
+    http_response_code(500); // Internal Server Error
+    die("システムエラーが発生しました。<br>
+         エラーID: {$error_id}<br>
+         <a href=\"index.php\">再試行する</a>");
 }
 
-// IPアドレスの先頭部分をチェックする
-// ここでは、IPv4とIPv6の両方に対応した方法を示します。
+
+//  IPアドレスの先頭部分を取得して、
+//  セッションに保存します。
 
 try {
     $ipv4_blocks = 2;
     $ipv6_blocks = 3;
-    ip_check_for_session($ipv4_blocks, $ipv6_blocks);
-} catch (SessionHijackingException $e) {
-    $log_message = $e->getLogMessage();
-    error_log($log_message);
-    
-    //  session 完全廃棄
-    session_unset();
-    session_destroy();
-    session_write_close();
-    http_response_code(403);  // Forbidden アクセス禁止
-    die('セッションハイジャック攻撃検出<br>
-         セキュリティ上の理由により処理を中断します。<br>
-         この攻撃は記録され、管理者に通報されました。<br>
-         攻撃検出ID: ' . uniqid() . '<br>
-         正常な操作を行う場合は、トップページから再開してください。');
+    $_SESSION['ip_prefix'] = get_ip_prefix_for_session($ipv4_blocks, $ipv6_blocks);
 } catch (InvalidArgumentException $e) {
     // 不正なIPアドレス形式
     error_log("不正なIPアドレス - IP:".($_SERVER['REMOTE_ADDR'] ?? 'unknown').", エラー: " . $e->getMessage() . ", UA: " . ($_SERVER['HTTP_USER_AGENT'] ?? 'unknown'));
@@ -303,12 +335,39 @@ try {
          エラーID: ' . uniqid() . '<br>
          <a href="index.php">学生一覧に戻る</a>');
 }
-//  以上で
-//  共通ファイル読み込み
-//  セキュアなクッキー設定
-//  セッション開始
-//  session timeout 設定
-//  想定外のエラーに備えたエラーハンドラ
-//  ユーザーエージェントチェック
-//  IPアドレスの先頭部分チェック
-//  が完了しました。
+
+
+    
+    
+//  HTMLの開始タグ、h1 タグを表示
+show_top();
+
+// すべての学生情報を取得します。
+try{
+    $members = $dbm->get_allstudents();
+} catch (Exception $e) {
+    // エラーメッセージを表示します。
+    echo '<p>データーベースエラーが発生しました: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</p>';
+    $members = [];
+}
+
+if ($members === []) {
+    // 学生情報が存在しない場合は、メッセージを表示します。
+    echo '<p>データベースエラーまたは、学生情報が登録されていません。</p>';
+}else {
+        // 学生情報が存在する場合は、学生情報を表示します。
+//  トークンを生成します。
+$token = generate_csrf_token();
+//  show_student_list() において、
+//  $token はエスケープされた状態で渡されます。
+show_student_list($members);
+}
+
+//  新しい学生情報を登録するためのリンクを表示します。
+//  このリンクは、student_input.php に遷移します。
+echo '<a href="student_input.php">新しい学生情報を登録する</a>';
+echo '<br><br>';
+//  HTML の閉じタグを表示します。
+show_bottom();
+?>
+    

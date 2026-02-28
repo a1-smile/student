@@ -2,7 +2,7 @@
 //  ベース例外クラス
 
 /**
- * アプリケーション例外の基本クラス
+ * アプリケーション例外の基本 抽象クラス
  * @param string $message エラーメッセージ
  * @param int $code エラーコード
  * @param array $context 追加のコンテキスト情報
@@ -143,6 +143,11 @@ class SecurityException extends ApplicationException {
     private $securityLevel;
     //  const をクラス内で参照する場合は、self:: を使う。
     public function __construct($message = "", $code = 0, $context = [], $securityLevel = self::LEVEL_MEDIUM, ?Throwable $previous = null) {
+        //  子クラスが独自にコンストラクターを定義する場合、
+        //  親クラスのコンストラクターを呼び出す必要があります。
+        //  また、親クラスのコンストラクターが渡す引数を
+        //  とる場合も子クラスで親クラスの
+        //  コンストラクターを呼び出す必要があります。
         parent::__construct($message, $code, $context, $previous);
         $this->securityLevel = $securityLevel;
     }
@@ -523,9 +528,14 @@ class ValidationException extends ApplicationException {
  * @param Throwable|null $previous 前の例外
  */
 class SessionHijackingException extends SecurityException {
-     public function __construct($message = "", $code = SecurityException::SEC_SESSION_HIJACK, $context = [], ?Throwable $previous = null) {
-        parent::__construct($message, $code, $context, self::LEVEL_HIGH, $previous);
+
+     public function __construct($message = "", $code = SecurityException::SEC_SESSION_HIJACK, $context = [], $securityLevel = self::LEVEL_MEDIUM, ?Throwable $previous = null) {
+
+         parent::__construct($message, $code, $context, self::LEVEL_HIGH, $previous);
     }
+
+
+
 
     public function getPrevIp() {
         return $this->context['previous_ip_prefix'] ?? null;

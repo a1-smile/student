@@ -1,4 +1,103 @@
 <?php
+
+// 攻撃検知時のリダイレクト先に関する
+// 考え方は以下のように整理できます。
+
+//  soft_failure を超えたらSecurityException::LEVEL_MEDIUM
+// max_failures を超えたら
+// SecurityException::LEVEL_HIGH
+// さらに攻撃が来たら、
+// SecurityException::LEVEL_CRITICAL
+// として、
+// 例外をなげて、
+// CATCH BLOCK で
+// SecurityException::LEVEL_MEDIUM
+// で、リキャプチャ
+// SecurityException::LEVEL_HIGH
+// で、１回session廃棄、ログアウト
+// SecurityException::LEVEL_CRITICAL
+// で、ログアウト。
+// 
+
+// 方針そのものはとても良いです。
+// ただし「どのタイミングを HIGH／CRITICAL とみなすか」
+// を少し整理すると、より安全で分かりやすくなります。
+
+// 1. レベル設計の方向性
+
+// あなたの案：
+
+// soft_failure 超え → LEVEL_MEDIUM → reCAPTCHA
+// max_failures 超え → LEVEL_HIGH → 1回だけ session 廃棄＋ログアウト
+// さらに攻撃 → LEVEL_CRITICAL → ログアウト
+// この「段階的に強くする」考え方はとても良いです。
+
+// 2. 実装上もう少し整理したい点
+
+// 特に重要なのは「さらに攻撃が来たら」の扱いです。
+
+// いまの rate_limit_check にはすでに：
+
+// is_blocked($pdo, $session_key) / is_blocked($pdo, $device_key)
+// → ここで LEVEL_CRITICAL を投げている
+// max_failures 超えのとき
+// → record_block() して LEVEL_CRITICAL を投げている
+// という構造があります。
+
+// これをあなたの案に合わせるなら、ざっくりこう整理するときれいです：
+
+// soft_failure 超え（まだブロック登録はしない）
+// → SecurityException::LEVEL_MEDIUM（＝再試行は許可、reCAPTCHA など）
+// max_failures 超え（初めて「本格ブロック」に入るタイミング）
+// → SecurityException::LEVEL_HIGH
+// → record_block() して「このキーを一定時間ブロック」
+// → catch 側で この1回だけ セッション廃棄＋ログアウト
+// すでに is_blocked(...) でブロック中なのにさらにリクエスト
+// → SecurityException::LEVEL_CRITICAL
+// → catch 側では セッションをいじらず、ブロック／ログアウト済みページを出すだけ
+// こうしておくと：
+
+// セッション廃棄は HIGH に上がったタイミングの1回だけ
+// その後 CRITICAL でいくら攻撃されても
+// 「セッション開始も再生成もしない＋単純な block_page だけ返す」
+// ので、セッション廃棄ループやDoS化を避けられます。
+// 3. catch ブロック側の役割
+
+// レベルごとの処理イメージ：
+
+// LEVEL_MEDIUM（soft_failure 超え）
+// セッション維持
+// 「リクエストが多めです／reCAPTCHA を解いてください」ページへ
+// CSRF トークンは新しく発行して次のフォームで使用
+
+
+// LEVEL_HIGH（max_failures 到達直後のみ）
+// record_block() 済み
+// 1回だけ session_unset() / session_destroy() 相当でログアウト
+// 「セキュリティ上の理由でログアウトしました。再ログインしてください。」ページへ
+
+
+// LEVEL_CRITICAL（is_blocked に引っかかり続けるケース）
+// セッション操作は原則しない（もう信用していないため）
+// 単純に「ブロック中です」ページ or ログアウト済みページを返すだけ
+// ログ・監視には強めに記録
+
+
+// 4. CSRF 文脈での「セッション廃棄しない」選択肢について
+// CSRF は「正規ユーザのブラウザを悪用する攻撃」なので、
+// 多くの場合は「このリクエストだけ拒否」で十分です。
+// なので、必ずしも CSRF 検知で毎回セッション廃棄が必須ではありません。
+// ただし「明らかに異常な頻度＋rate limit で HIGH に達した」ときに
+// 一度だけセッション廃棄＋ログアウトを行う、という設計は教材としても現実的です。
+
+
+// まとめると：
+// soft_failure → LEVEL_MEDIUM + reCAPTCHA
+// max_failures → LEVEL_HIGH + このタイミングで1回だけ セッション廃棄＋ログアウト＋ブロック登録
+// ブロック中の再攻撃 → LEVEL_CRITICAL + セッションには触らず block/ログアウト済みページを返すだけ
+// という形に少し整理すると、あなたの案の意図を保ちながら、DoS 的なセッション廃棄ループも避けられるので、おすすめです。
+
+
 /**
  * 4層レート制限チェック
  * @param string $ip_key
@@ -53,7 +152,7 @@ if ($failure_count
         'IPアドレスからのリクエストが多すぎます',
         SecurityException::SEC_CSRF_ATTACK,
         [],
-        SecurityException::LEVEL_CRITICAL,
+        SecurityException::LEVEL_HIGH,
         null
     );
 }elseif ($failure_count 
@@ -63,7 +162,7 @@ if ($failure_count
         'IPアドレスからのリクエストが多めです',
         SecurityException::SEC_CSRF_ATTACK,
         [],
-        SecurityException::LEVEL_HIGH,
+        SecurityException::LEVEL_MEDIUM,
         null
     );
     }
@@ -82,7 +181,7 @@ if ($failure_count
         'セッションからのリクエストが多すぎます',
         SecurityException::SEC_CSRF_ATTACK,
         [],
-        SecurityException::LEVEL_CRITICAL,
+        SecurityException::LEVEL_HIGH,
         null
     );
 }elseif ($failure_count 
@@ -92,7 +191,7 @@ if ($failure_count
         'セッションからのリクエストが多めです',
         SecurityException::SEC_CSRF_ATTACK,
         [],
-        SecurityException::LEVEL_HIGH,
+        SecurityException::LEVEL_MEDIUM,
         null
     );
     }
@@ -111,7 +210,7 @@ if ($failure_count
             'デバイスからのリクエストが多すぎます',
             SecurityException::SEC_CSRF_ATTACK,
             [],
-            SecurityException::LEVEL_CRITICAL,
+            SecurityException::LEVEL_HIGH,
             null
         );
     }elseif ($failure_count 
@@ -121,7 +220,7 @@ if ($failure_count
             'デバイスからのリクエストが多めです',
             SecurityException::SEC_CSRF_ATTACK,
             [],
-            SecurityException::LEVEL_HIGH,
+            SecurityException::LEVEL_MEDIUM,
             null
         );
     }
@@ -138,7 +237,7 @@ if ($failure_count
             'IPプレフィックスからのリクエストが多すぎます',
             SecurityException::SEC_CSRF_ATTACK,
             [],
-            SecurityException::LEVEL_CRITICAL,
+            SecurityException::LEVEL_HIGH,
             null
         );
     }elseif ($failure_count 
@@ -148,7 +247,7 @@ if ($failure_count
             'IPプレフィックスからのリクエストが多めです',
             SecurityException::SEC_CSRF_ATTACK,
             [],
-            SecurityException::LEVEL_HIGH,
+            SecurityException::LEVEL_MEDIUM,
             null
         );
     }

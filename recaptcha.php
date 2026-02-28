@@ -1,4 +1,11 @@
 <?php
+// recaptcha.php が通ったら、
+// session に
+// recaptcha_solved = true
+// というフラグを立てます。
+// そして、rate-limit-check.php で
+
+
 http_response_code(403); // Forbidden アクセス禁止
 ?>
 

@@ -65,105 +65,6 @@ set_error_handler(function ($errno, $errstr, $errfile, $errline) {
 
 
 
-
-//  ユーザーエージェントをチェックする
-try{
-    userAgentCheck();
-} catch (SessionHijackingException $e) {
-    $log_message = $e->getLogMessage();
-    error_log($log_message);
-    
-    //  session 完全廃棄
-    session_unset();
-    session_destroy();
-    session_write_close();
-    http_response_code(403);  // Forbidden アクセス禁止
-    die('セッションハイジャック攻撃検出<br>
-         セキュリティ上の理由により処理を中断します。<br>
-         この攻撃は記録され、管理者に通報されました。<br>
-         攻撃検出ID: ' . uniqid() . '<br>
-         正常な操作を行う場合は、トップページから再開してください。');
-} catch (Exception $e) {
-    // その他の予期しないエラー
-    error_log("予期しないエラー - ユーザーエージェントチェック - IP:" . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . ", エラー: " . $e->getMessage());
-    
-    session_unset();
-    session_destroy();
-    session_write_close();
-    http_response_code(500);  // Internal Server Error 内部サーバーエラー
-    die('システムエラーが発生しました。管理者にお問い合わせください。<br>
-         エラーID: ' . uniqid() . '<br>
-         <a href="index.php">学生一覧に戻る</a>');
-}
-
-// IPアドレスの先頭部分をチェックする
-// ここでは、IPv4とIPv6の両方に対応した方法を示します。
-
-try {
-    $ipv4_blocks = 2;
-    $ipv6_blocks = 3;
-    ip_check_for_session($ipv4_blocks, $ipv6_blocks);
-} catch (SessionHijackingException $e) {
-    $log_message = $e->getLogMessage();
-    error_log($log_message);
-    
-    //  session 完全廃棄
-    session_unset();
-    session_destroy();
-    session_write_close();
-    http_response_code(403);  // Forbidden アクセス禁止
-    die('セッションハイジャック攻撃検出<br>
-         セキュリティ上の理由により処理を中断します。<br>
-         この攻撃は記録され、管理者に通報されました。<br>
-         攻撃検出ID: ' . uniqid() . '<br>
-         正常な操作を行う場合は、トップページから再開してください。');
-} catch (InvalidArgumentException $e) {
-    // 不正なIPアドレス形式
-    error_log("不正なIPアドレス - IP:".($_SERVER['REMOTE_ADDR'] ?? 'unknown').", エラー: " . $e->getMessage() . ", UA: " . ($_SERVER['HTTP_USER_AGENT'] ?? 'unknown'));
-    
-    session_unset();
-    session_destroy();
-    session_write_close();
-    http_response_code(400);  // Bad Request 不正なリクエスト
-    die('不正なアクセスです。サポートされていないネットワーク環境からのアクセスです。');
-         
-} catch (RuntimeException $e) {
-    // システムエラー
-    
-    $session_id = session_id();
-    error_log("IPアドレス処理エラー - IP:" . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . ", エラー: " . $e->getMessage() . ", セッションID: " . $session_id);
-
-    session_unset();
-    session_destroy();
-    session_write_close();
-    http_response_code(500);  // Internal Server Error 内部サーバーエラー
-    die('システムエラーが発生しました。ネットワーク環境を確認してください。<br>
-         エラーID: ' . uniqid() . '<br>
-         <a href="index.php">学生一覧に戻る</a>');
-         
-} catch (Exception $e) {
-    // その他の予期しないエラー
-    error_log("予期しないエラー - IPアドレス処理 - IP:" . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . ", エラー: " . $e->getMessage());
-    
-    session_unset();
-    session_destroy();
-    session_write_close();
-    http_response_code(500);  // Internal Server Error 内部サーバーエラー
-    die('システムエラーが発生しました。管理者にお問い合わせください。<br>
-         エラーID: ' . uniqid() . '<br>
-         <a href="index.php">学生一覧に戻る</a>');
-}
-//  以上で
-//  共通ファイル読み込み
-//  セキュアなクッキー設定
-//  セッション開始
-//  session timeout 設定
-//  想定外のエラーに備えたエラーハンドラ
-//  ユーザーエージェントチェック
-//  IPアドレスの先頭部分チェック
-//  が完了しました。
-
-
 try {
     // データベース接続状態の確認
     if (!($dbm instanceof DBManager)) {
@@ -358,11 +259,122 @@ try {
 
 
 
+//  データベース処理のために $pdo を取得します。
+try{
+    $dbm->connect();
+    $pdo = $dbm->get_db();
+  }catch(PDOException $e){
+    $error_id = uniqid('db_');
+    error_log('DB接続に失敗: ' . $e->getMessage());
+    die("システムエラーが発生しました。エラーID: $error_id");
+  }catch(Exception $e){
+    $error_id = uniqid('unexpected_');
+    error_log('予期しないエラーが発生しました: ' .$e->getMessage());
+    die("予期しないエラーが発生しました。エラーID: $error_id");
+  }
 
-//  以下のCSRF対策にデータベースを使用するので、
-//  PDOオブジェクトを取得します。
-$dbm->connect();
-$pdo = $dbm->get_db();
+
+
+//  ユーザーエージェントをチェックする
+try{
+    user_agent_check($pdo);
+} catch (SessionHijackingException $e) {
+    $log_message = $e->getLogMessage();
+    error_log($log_message);
+    
+    //  session 完全廃棄
+    session_unset();
+    session_destroy();
+    session_write_close();
+    http_response_code(403);  // Forbidden アクセス禁止
+    die('セッションハイジャック攻撃検出<br>
+         セキュリティ上の理由により処理を中断します。<br>
+         この攻撃は記録され、管理者に通報されました。<br>
+         攻撃検出ID: ' . uniqid() . '<br>
+         正常な操作を行う場合は、トップページから再開してください。');
+} catch (Exception $e) {
+    // その他の予期しないエラー
+    error_log("予期しないエラー - ユーザーエージェントチェック - IP:" . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . ", エラー: " . $e->getMessage());
+    
+    session_unset();
+    session_destroy();
+    session_write_close();
+    http_response_code(500);  // Internal Server Error 内部サーバーエラー
+    die('システムエラーが発生しました。管理者にお問い合わせください。<br>
+         エラーID: ' . uniqid() . '<br>
+         <a href="index.php">学生一覧に戻る</a>');
+}
+
+// IPアドレスの先頭部分をチェックする
+// ここでは、IPv4とIPv6の両方に対応した方法を示します。
+
+try {
+    $ipv4_blocks = 2;
+    $ipv6_blocks = 3;
+    ip_check_for_session($ipv4_blocks, $ipv6_blocks);
+} catch (SessionHijackingException $e) {
+    $log_message = $e->getLogMessage();
+    error_log($log_message);
+    
+    //  session 完全廃棄
+    session_unset();
+    session_destroy();
+    session_write_close();
+    http_response_code(403);  // Forbidden アクセス禁止
+    die('セッションハイジャック攻撃検出<br>
+         セキュリティ上の理由により処理を中断します。<br>
+         この攻撃は記録され、管理者に通報されました。<br>
+         攻撃検出ID: ' . uniqid() . '<br>
+         正常な操作を行う場合は、トップページから再開してください。');
+} catch (InvalidArgumentException $e) {
+    // 不正なIPアドレス形式
+    error_log("不正なIPアドレス - IP:".($_SERVER['REMOTE_ADDR'] ?? 'unknown').", エラー: " . $e->getMessage() . ", UA: " . ($_SERVER['HTTP_USER_AGENT'] ?? 'unknown'));
+    
+    session_unset();
+    session_destroy();
+    session_write_close();
+    http_response_code(400);  // Bad Request 不正なリクエスト
+    die('不正なアクセスです。サポートされていないネットワーク環境からのアクセスです。');
+         
+} catch (RuntimeException $e) {
+    // システムエラー
+    
+    $session_id = session_id();
+    error_log("IPアドレス処理エラー - IP:" . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . ", エラー: " . $e->getMessage() . ", セッションID: " . $session_id);
+
+    session_unset();
+    session_destroy();
+    session_write_close();
+    http_response_code(500);  // Internal Server Error 内部サーバーエラー
+    die('システムエラーが発生しました。ネットワーク環境を確認してください。<br>
+         エラーID: ' . uniqid() . '<br>
+         <a href="index.php">学生一覧に戻る</a>');
+         
+} catch (Exception $e) {
+    // その他の予期しないエラー
+    error_log("予期しないエラー - IPアドレス処理 - IP:" . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . ", エラー: " . $e->getMessage());
+    
+    session_unset();
+    session_destroy();
+    session_write_close();
+    http_response_code(500);  // Internal Server Error 内部サーバーエラー
+    die('システムエラーが発生しました。管理者にお問い合わせください。<br>
+         エラーID: ' . uniqid() . '<br>
+         <a href="index.php">学生一覧に戻る</a>');
+}
+//  以上で
+//  共通ファイル読み込み
+//  セキュアなクッキー設定
+//  セッション開始
+//  session timeout 設定
+//  想定外のエラーに備えたエラーハンドラ
+//  ユーザーエージェントチェック
+//  IPアドレスの先頭部分チェック
+//  が完了しました。
+
+
+
+
 
 
 
@@ -510,17 +522,47 @@ try {
 
     //  security level を取得
     $security_level = $e->getSecurityLevel();
-
+    try {
     if ($security_level === SecurityException::LEVEL_CRITICAL) {
-        //  致命的レベルの場合は、block_page.php にリダイレクト
+        //  致命的レベルの場合は、log_out.php にリダイレクト
         //  遷移先でステータスを設定する設計
-        header('Location: block_page.php', true, 302); exit;
+        header('Location: log_out.php', true, 302); exit;
+
     }elseif ($security_level === SecurityException::LEVEL_HIGH) {
-        //  recaptcha にリダイレクト
+        //  log_out_session_reset_.php にリダイレクト
         //  遷移先でステータスを設定する設計
-        header('Location: recaptcha.php', true, 302); exit;
+        header('Location: log_out_session_reset_.php', true, 302); exit;
+
+    }elseif ($security_level === SecurityException::LEVEL_MEDIUM) {
+            //  recaptcha にリダイレクト
+            //  遷移先でステータスを設定する設計
+            header('Location: recaptcha.php', true, 302); exit;
+            
+    } else {
+        //  プログラムがおかしい場合は、
+        // LogicException をスロー。
+        throw new LogicException(
+            '未知のセキュリティレベルです',
+            0,
+            null
+            );
+        //  その他のレベルの場合は、一般的なエラーページにリダイレクト
+        //  遷移先でステータスを設定する設計
     }   
+} catch (LogicException $e) {
+    // システムエラー
+    $session_id = session_id();
+    error_log("レート制限チェックエラー - IP:" . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . ", エラー: " . $e->getMessage() . ", セッションID: " . $session_id);
+
+    session_unset();
+    session_destroy();
+    session_write_close();
+    http_response_code(500);  // Internal Server Error 内部サーバーエラー
+    die('システムエラーが発生しました。管理者にお問い合わせください。<br>
+         エラーID: ' . uniqid() . '<br>');
 }
+}
+
     // トークンの一致確認
     try {
     $post_token = $_POST['csrf_token'];
