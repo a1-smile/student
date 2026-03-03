@@ -151,39 +151,56 @@ class UserAgentRiskEvaluator {
             $currentScoreIp += 3;
         }
 
-        if ($this->isDecreasedSession !== 1) {
-            if ($this->isNoAnomalySession === 1) {
-                $currentScoreSession -= 1;
-                //  ゼロ以下にならないようにする
-                if ($currentScoreSession < 0) {
-                    $currentScoreSession = 0;
-                }
-            }
-            if ($this->recaptchaSolved === 1) {
-                $currentScoreSession -= 4;
-                //  ゼロ以下にならないようにする
-                if ($currentScoreSession < 0) {
-                    $currentScoreSession = 0;
-                }
-            }    
-        }
+        // if ($this->isDecreasedSession !== 1) {
+        //     if ($this->isNoAnomalySession === 1) {
+        //         $currentScoreSession -= 1;
+        //         //  ゼロ以下にならないようにする
+        //         if ($currentScoreSession < 0) {
+        //             $currentScoreSession = 0;
+        //         }
+        //     }
+        //     if ($this->recaptchaSolved === 1) {
+        //         $currentScoreSession -= 4;
+        //         //  ゼロ以下にならないようにする
+        //         if ($currentScoreSession < 0) {
+        //             $currentScoreSession = 0;
+        //         }
+        //     }    
+        // }
 
-        if ($this->isDecreasedIp !== 1) {
-            if ($this->isNoAnomalyIp === 1) {
-                $currentScoreIp -= 1;
-                //  ゼロ以下にならないようにする
-                if ($currentScoreIp < 0) {
-                    $currentScoreIp = 0;
-                }
-            }
-            if ($this->recaptchaSolved === 1) {
-                $currentScoreIp -= 4;
-                //  ゼロ以下にならないようにする
-                if ($currentScoreIp < 0) {
-                    $currentScoreIp = 0;
-                }
-            }    
-        }
+        // 上記のロジックが重複するので、
+        //  decreaseScore メソッドにまとめる
+
+        $currentScoreSession = $this->decreaseScore(
+            $currentScoreSession,
+            $this->isDecreasedSession,
+            $this->isNoAnomalySession,
+            $this->recaptchaSolved
+        );
+
+        // if ($this->isDecreasedIp !== 1) {
+        //     if ($this->isNoAnomalyIp === 1) {
+        //         $currentScoreIp -= 1;
+        //         //  ゼロ以下にならないようにする
+        //         if ($currentScoreIp < 0) {
+        //             $currentScoreIp = 0;
+        //         }
+        //     }
+        //     if ($this->recaptchaSolved === 1) {
+        //         $currentScoreIp -= 4;
+        //         //  ゼロ以下にならないようにする
+        //         if ($currentScoreIp < 0) {
+        //             $currentScoreIp = 0;
+        //         }
+        //     }    
+        // }
+
+        $currentScoreIp = $this->decreaseScore(
+            $currentScoreIp,
+            $this->isDecreasedIp,
+            $this->isNoAnomalyIp,
+            $this->recaptchaSolved
+        );
 
         return new RiskEvaluationResult($currentScoreSession, $currentScoreIp);
     }
@@ -192,5 +209,93 @@ class UserAgentRiskEvaluator {
         return $this->isOverThresholdSession;
     }
 
-    
-}
+
+    /**
+     * スコアを減算する関数
+     * 
+     * $decreasedが1の場合は、
+     * 30分以内に減算されたことを意味し、
+     * さらに減算は行わない。
+     * 
+     * $isNoAnomalyが1の場合は、
+     * 10分以内に異常がないことを意味し、
+     * スコアを減算する。(-1)
+     * 
+     * $isNoAnomalyが0の場合は、
+     * 条件分岐
+     * - $isNoAnomalyが0で、$recaptchaSolvedが1の場合は、
+     * 疑わしいと判断されたが、
+     * reCAPTCHAを解いてアクセスして来る場合で、
+     * 信用することにして、スコアを減算する。(-4)
+     * - $isNoAnomalyが0で、
+     * $recaptchaSolvedが0の場合は、
+     * 過去10分以内に疑わしいと判断されたことがあり、
+     * 直近で reCAPTCHAを解いていない場合であり、
+     * スコアを減算しない。
+     * 
+     * @param  int $score 減算するスコア
+     * @param  int $decreased 30分以内に減算されたかどうかのフラグ
+     * @param  int $isNoAnomaly 10分以内に異常がない場合のフラグ
+     * @param  int $recaptchaSolved reCAPTCHAを解いたかどうかのフラグ
+     * @return int $score減算後のスコア（0未満にならないようにする）
+     * 
+     */
+    private function decreaseScore(
+        int $score, 
+        int $decreased, 
+        int $isNoAnomaly,
+        int $recaptchaSolved
+        ): int {
+        // 30分以内に減算された場合は
+        // さらに減算はしない
+        if ($decreased === 1) {
+            return $score;
+        }
+
+        if ($isNoAnomaly === 1) {
+            // 10分以内に異常がない場合はスコアを1減算
+            $score -= 1;
+            //  ゼロ以下にならないようにする
+            $score = max($score, 0);
+
+            return $score;
+
+            //  10分以内に異常がない場合で
+            //  reCAPTCHAを解いてアクセスして来る場合は
+            //  は、想定されないが、
+            //  -1減算し、return するロジックにする
+
+            }
+            
+        if ($recaptchaSolved === 1) {
+                // 異常があった場合でreCAPTCHAを
+                // 解いた場合はスコアを4減算
+
+                // 異常があって、10分以上経過して
+                // reCAPTCHAを解いてアクセス
+                // して来る場合は通常ありえない。
+                // つまり、異常なし 
+                // かつ 
+                // reCAPTCHAを解いてアクセス
+                // して来る場合は想定されないアクセスであると考えられる。
+                // したがって、
+                // この else if ブロックで
+                // 異常があって、
+                // reCAPTCHAを解いてアクセスして来る場合は
+                // スコアを4減算するというロジックにする
+            $score -= 4;
+                //  ゼロ以下にならないようにする
+            $score = max($score, 0);
+
+            return $score;
+
+            }
+            // 異常があって、
+            // 直近で reCAPTCHAを解いていない場合は
+            // スコアを減算しない
+            return $score;
+            }
+
+
+    }
+
