@@ -1302,5 +1302,12 @@ LOGOUT → SessionHijackingException + ログアウト処理
 - $isNoAnomalySession
 - $isNoAnomalyIp
 
-なので、
+
+
+
+# class UserAgentRiskEvaluator における evaluate() メソッドの中で
+decreaseScore()メソッドを使用していますが、
+現在のアクセスが疑わしい場合にスコアを減算しないようにするために、
+$this->isSuspiciousAccess というフラグであるプロパティが
+存在するので、
  

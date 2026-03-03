@@ -27,7 +27,7 @@ class UserAgentRiskEvaluator {
     private string $ipAddress; // IPアドレス
 
     private int $previousScoreSession; // セッションIDごとの前回のスコア
-    private int $previousScoreIp;      // IPアドレスごとの前回の
+    private int $previousScoreIp;      // IPアドレスごとの前回のスコア
 
 
     // private int $scoreSessionId; // セッションIDごとのスコア
@@ -43,8 +43,8 @@ class UserAgentRiskEvaluator {
     private int $isOverThresholdSession; // セッションIDごとのアクセス回数が閾値を超えているか
     private int $isOverThresholdIp;      // IPアドレスごとのアクセス回数が閾値を超えているか
 
-    private int $isDecreasedSession; // スコアが減少したかどうかのフラグ
-    private int $isDecreasedIp;      // IPアドレスごとのスコアが減少したかどうかのフラグ
+    private int $isDecreasedSession; // session ベースのスコアが減少したかどうかのフラグ
+    private int $isDecreasedIp;      // IPベースのスコアが減少したかどうかのフラグ
 
     private int $isNoAnomalySession; // セッションIDに異常がない場合のフラグ
     private int $isNoAnomalyIp;      // IPアドレスに異常がない場合のフラグ
@@ -94,7 +94,6 @@ class UserAgentRiskEvaluator {
         $this->requestContent->getRecaptchaSolved();
 
         $this->isSuspiciousAccess = 
-        
         $this->getIsSuspiciousAccess();
     }
     /**
@@ -112,7 +111,7 @@ class UserAgentRiskEvaluator {
         }
     }
 
-    public function getIsSuspiciousAccess(): int {
+    private function getIsSuspiciousAccess(): int {
         if ($this->isNoUa === 1) {
             return 1;
         } 
@@ -132,6 +131,9 @@ class UserAgentRiskEvaluator {
         // スコアを取得
         $currentScoreSession  = $this->previousScoreSession;
         $currentScoreIp       = $this->previousScoreIp;
+
+        //  疑わしいアクセスかのフラグ
+        $isSuspiciousAccess = $this->isSuspiciousAccess;
 
         if ($this->isNoUa===1) {
             $currentScoreSession += 1;
@@ -170,13 +172,15 @@ class UserAgentRiskEvaluator {
 
         // 上記のロジックが重複するので、
         //  decreaseScore メソッドにまとめる
-
+        
         $currentScoreSession = $this->decreaseScore(
             $currentScoreSession,
+            $isSuspiciousAccess,
             $this->isDecreasedSession,
             $this->isNoAnomalySession,
             $this->recaptchaSolved
         );
+        
 
         // if ($this->isDecreasedIp !== 1) {
         //     if ($this->isNoAnomalyIp === 1) {
@@ -197,6 +201,7 @@ class UserAgentRiskEvaluator {
 
         $currentScoreIp = $this->decreaseScore(
             $currentScoreIp,
+            $isSuspiciousAccess,
             $this->isDecreasedIp,
             $this->isNoAnomalyIp,
             $this->recaptchaSolved
@@ -242,10 +247,17 @@ class UserAgentRiskEvaluator {
      */
     private function decreaseScore(
         int $score, 
+        int $isSuspiciousAccess,
         int $decreased, 
         int $isNoAnomaly,
-        int $recaptchaSolved
+        int $recaptchaSolved,
         ): int {
+
+        //  疑わしいアクセスの場合は、スコアを減算しない
+        if ($isSuspiciousAccess === 1) {
+            return $score;
+        }
+
         // 30分以内に減算された場合は
         // さらに減算はしない
         if ($decreased === 1) {
