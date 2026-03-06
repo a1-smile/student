@@ -19,7 +19,7 @@ class RiskEvaluationResult {
 
     const int ALLOW            = 1;
     const int REQUIRE_CAPTCHA  = 2;
-    const int STOP_MOMENTARILY = 3;
+    const int STOP_MOMENTARY = 3;
     const int LOGOUT           = 4;
 
     // security level
@@ -93,7 +93,7 @@ class RiskEvaluationResult {
             self::RISK_THRESHOLD_FOR_MOMENTARY_STOP) {
 
             $this->accessDecision = 
-            self::STOP_MOMENTARILY;
+            self::STOP_MOMENTARY;
 
         } elseif ($maxScore >= 
             self::RISK_THRESHOLD_FOR_CAPTCHA) {
@@ -122,7 +122,7 @@ class RiskEvaluationResult {
             $this->securityLevel = 
             self::LEVEL_MEDIUM;
             break;
-        case self::STOP_MOMENTARILY:
+        case self::STOP_MOMENTARY:
             $this->securityLevel = 
             self::LEVEL_HIGH;
             break;

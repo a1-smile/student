@@ -21,7 +21,7 @@
 
   *  const int ALLOW            = 1;
   *  const int REQUIRE_CAPTCHA  = 2;
-  *  const int STOP_MOMENTARILY = 3;
+    *  const int STOP_MOMENTARY = 3;
   *  const int LOGOUT           = 4;
 
    * // security level
@@ -52,9 +52,9 @@
  * アクセスを許可します。
  * 
  * 
- * $decisionがSTOP_MOMENTARILY
- * （３ UserAgentRiskEvaluator::STOP_MOMENTARILY）
- * STOP_MOMENTARILYの場合は一時的に処理を停止するために。
+ * $decisionがSTOP_MOMENTARY
+ * （３ UserAgentRiskEvaluator::STOP_MOMENTARY）
+ * STOP_MOMENTARYの場合は一時的に処理を停止するために。
  * student\stop_momentary.php
  * にリダイレクトします。
  * 

@@ -1097,7 +1097,7 @@ getSecurityLevel() メソッド
   - $accessDecision は以下の値のいずれかを代入される。
         const int ALLOW = 0;
         const int REQUIRE_CAPTCHA = 1;
-        const int STOP_MOMENTARILY = 2;
+        const int STOP_MOMENTARY = 2;
         const int LOGOUT = 3;
 
  - $accessDecisionの計算ロジックはこのクラスで完結する。
@@ -1247,7 +1247,7 @@ evaluate() の戻り値として返す
 RiskEvaluationResult の責務
 
 コンストラクタで受け取ったスコアから
-$access_decision（ALLOW / REQUIRE_CAPTCHA / STOP_MOMENTARILY / LOGOUT）
+$access_decision（ALLOW / REQUIRE_CAPTCHA / STOP_MOMENTARY / LOGOUT）
 $security_level（LOW〜CRITICAL）
 を計算・保持する
 getAccessDecision() / getSecurityLevel() で結果だけを提供する
@@ -1288,7 +1288,7 @@ REQUIRE_CAPTCHA (2, securityLevel::MEDIUM)
   
   
   ) など
-STOP_MOMENTARILY → soft block ページへ誘導
+STOP_MOMENTARY → soft block ページへ誘導
 LOGOUT → SessionHijackingException + ログアウト処理
 この対応表をどこかに書いておけば、実装に入るときも迷いにくくなると思います。全体の設計方針としてはとても良いので、このまま進めて大丈夫です。
 

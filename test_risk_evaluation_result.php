@@ -19,7 +19,7 @@ class RiskEvaluationResult {
 
     const int ALLOW            = 1;
     const int REQUIRE_CAPTCHA  = 2;
-    const int STOP_MOMENTARILY = 3;
+    const int STOP_MOMENTARY = 3;
     const int LOGOUT           = 4;
 
     // security level
@@ -91,7 +91,7 @@ class RiskEvaluationResult {
             self::RISK_THRESHOLD_FOR_MOMENTARY_STOP) {
 
             $this->accessDecision = 
-            self::STOP_MOMENTARILY;
+            self::STOP_MOMENTARY;
 
         } elseif ($maxScore >= 
             self::RISK_THRESHOLD_FOR_CAPTCHA) {
@@ -120,7 +120,7 @@ class RiskEvaluationResult {
             $this->securityLevel = 
             self::LEVEL_MEDIUM;
             break;
-        case self::STOP_MOMENTARILY:
+        case self::STOP_MOMENTARY:
             $this->securityLevel = 
             self::LEVEL_HIGH;
             break;
@@ -143,15 +143,15 @@ echo "<pre>";
 echo "=== RiskEvaluationResult Test ===\n";
 // (0, 0) → ALLOW / LEVEL_LOW
 // (3, 0) → REQUIRE_CAPTCHA / LEVEL_MEDIUM
-// (5, 0) → STOP_MOMENTARILY / LEVEL_HIGH
+// (5, 0) → STOP_MOMENTARY / LEVEL_HIGH
 // (10, 0) → LOGOUT / LEVEL_CRITICAL
 $score_array_example = [
     ['session' => 0, 'ip' => 0, 'expected_decision' => RiskEvaluationResult::ALLOW, 'expected_level' => RiskEvaluationResult::LEVEL_LOW],
     ['session' => 3, 'ip' => 0, 'expected_decision' => RiskEvaluationResult::REQUIRE_CAPTCHA, 'expected_level' => RiskEvaluationResult::LEVEL_MEDIUM],
-    ['session' => 5, 'ip' => 0, 'expected_decision' => RiskEvaluationResult::STOP_MOMENTARILY, 'expected_level' => RiskEvaluationResult::LEVEL_HIGH],
+    ['session' => 5, 'ip' => 0, 'expected_decision' => RiskEvaluationResult::STOP_MOMENTARY, 'expected_level' => RiskEvaluationResult::LEVEL_HIGH],
     ['session' => 10, 'ip' => 0, 'expected_decision' => RiskEvaluationResult::LOGOUT, 'expected_level' => RiskEvaluationResult::LEVEL_CRITICAL],
     ['session' => 2, 'ip' => 4, 'expected_decision' => RiskEvaluationResult::REQUIRE_CAPTCHA, 'expected_level' => RiskEvaluationResult::LEVEL_MEDIUM],
-    ['session' => 6, 'ip' => 3, 'expected_decision' => RiskEvaluationResult::STOP_MOMENTARILY, 'expected_level' => RiskEvaluationResult::LEVEL_HIGH],
+    ['session' => 6, 'ip' => 3, 'expected_decision' => RiskEvaluationResult::STOP_MOMENTARY, 'expected_level' => RiskEvaluationResult::LEVEL_HIGH],
     ['session' => 1, 'ip' => 11, 'expected_decision' => RiskEvaluationResult::LOGOUT, 'expected_level' => RiskEvaluationResult::LEVEL_CRITICAL],
 ];
 foreach ($score_array_example as $case) {

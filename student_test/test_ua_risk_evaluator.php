@@ -115,7 +115,7 @@ echo '-----------------------------<br>';
 echo '-----------------------------<br>';
 
 
-// 3. 最大スコアが 5 の場合: STOP_MOMENTARILY / LEVEL_HIGH
+// 3. 最大スコアが 5 の場合: STOP_MOMENTARY / LEVEL_HIGH
 $request_context_array = [
     'is_no_ua' => 0,
     'is_ua_mismatch' => 0,
@@ -151,7 +151,7 @@ echo "Security Level: " . $securityLevel . "<br>";
 echo 'expected: ' . RiskEvaluationResult::LEVEL_HIGH . "<br>";
 echo '-----------------------------<br>';
 echo "Access Decision: " . $accessDecision . "<br>";
-echo 'expected: ' . RiskEvaluationResult::STOP_MOMENTARILY . "<br>";
+echo 'expected: ' . RiskEvaluationResult::STOP_MOMENTARY . "<br>";
 echo '-----------------------------<br>';
 echo '-----------------------------<br>';
 
@@ -209,6 +209,47 @@ $records_array = [
     'score_session' => 5,
     'score_ip' => 0,
     'access_count_session' => 0,
+    'access_count_ip' => 0,
+    'is_decreased_session' => 0,
+    'is_decreased_ip' => 0,
+    'is_no_anomaly_session' => 1,
+    'is_no_anomaly_ip' => 0
+];
+$mockUaRepository1 = new MockUaRepository($records_array);
+
+$userAgentRiskEvaluator = new UserAgentRiskEvaluator(
+    $mockRequestContent1,
+    $mockUaRepository1
+);
+
+$result = $userAgentRiskEvaluator->evaluate();
+$securityLevel = $result->getSecurityLevel();
+$accessDecision = $result->getAccessDecision();
+
+echo '-----------------------------<br>';
+echo '-----------------------------<br>';
+
+echo "Security Level: " . $securityLevel . "<br>";
+echo 'expected: ' . RiskEvaluationResult::LEVEL_MEDIUM . "<br>";
+echo '-----------------------------<br>';
+echo "Access Decision: " . $accessDecision . "<br>";
+echo 'expected: ' . RiskEvaluationResult::REQUIRE_CAPTCHA . "<br>";
+echo '-----------------------------<br>';
+echo '-----------------------------<br>';
+
+
+//  
+$request_context_array = [
+    'is_no_ua' => 0,
+    'is_ua_mismatch' => 1,
+    'recaptcha_solved' => 1,
+];
+$mockRequestContent1 = new MockRequestContent1($request_context_array);
+
+$records_array = [
+    'score_session' => 5,
+    'score_ip' => 0,
+    'access_count_session' => 60,
     'access_count_ip' => 0,
     'is_decreased_session' => 0,
     'is_decreased_ip' => 0,
