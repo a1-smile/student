@@ -1301,13 +1301,38 @@ LOGOUT → SessionHijackingException + ログアウト処理
 - $isDecreasedIp
 - $isNoAnomalySession
 - $isNoAnomalyIp
+です。
 
 
 
-
-# class UserAgentRiskEvaluator における evaluate() メソッドの中で
+# student\user_agent_risk_evaluator.php に記述した
+class UserAgentRiskEvaluator における 
+evaluate() メソッドの中で
 decreaseScore()メソッドを使用していますが、
 現在のアクセスが疑わしい場合にスコアを減算しないようにするために、
 $this->isSuspiciousAccess というフラグであるプロパティが
 存在するので、
- 
+$isSuspiciousAccess = 1のときは decreaseScore() 
+において、早期リターンするように、実装を変更しました。
+この変更に対するフィードバックをお願いします。
+
+# class UserAgentRiskEvaluator が
+コンストラクタで受け取るインターフェイスの実装
+のもとになるインターフェイスのうちの
+ひとつとして
+student\interface_ua_repository.php
+に記述されている
+interface UaRepositoryは適切ですか？
+
+# class UserAgentRiskEvaluator が
+コンストラクタで受け取るインターフェイスの実装
+のもとになるインターフェイスのうちの
+ひとつとして
+student\interface_request_content.php
+に記述されている
+interface RequestContentは適切ですか？
+
+# student\interface_request_content.php に記述されている
+interface RequestContent のtest 用の実装クラスとして
+student\mock_request_content.php に記述されている
+class MockRequestContent1 implements RequestContent は適切ですか？

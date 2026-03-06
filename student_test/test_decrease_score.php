@@ -2,10 +2,16 @@
 <?php
 function decreaseScore(
         int $score, 
+        int $isSuspicious,
         int $decreased, 
         int $isNoAnomaly,
         int $recaptchaSolved
         ): int {
+
+        //  疑わしいアクセスの場合は、スコアを減算しない
+        if ($isSuspicious === 1) {
+            return $score;
+        }
         // 30分以内に減算された場合は
         // さらに減算はしない
         if ($decreased === 1) {
@@ -59,15 +65,15 @@ function decreaseScore(
 // テストケース
 $argument_array = [
     // 30分以内に減算された場合はさらに減算しない
-    [10, 1, 0, 0],
+    ['score' => 10, 'isSuspicious' => 0, 'decreased' => 1, 'isNoAnomaly' => 0, 'recaptchaSolved' => 0],
     // 10分以内に異常がない場合はスコアを1減算
-    [10, 0, 1, 0],
+    ['score' => 10, 'isSuspicious' => 0, 'decreased' => 0, 'isNoAnomaly' => 1, 'recaptchaSolved' => 0],
     // 異常があった場合でreCAPTCHAを解いた場合はスコアを4減算
-    [10, 0, 0, 1],
+    ['score' => 10, 'isSuspicious' => 0, 'decreased' => 0, 'isNoAnomaly' => 0, 'recaptchaSolved' =>  1],
     // 異常があって、直近で reCAPTCHAを解いていない場合はスコアを減算しない
-    [10, 0, 0, 0],
+    ['score' => 10, 'isSuspicious' => 0, 'decreased' => 0, 'isNoAnomaly' => 0, 'recaptchaSolved' => 0],
     // スコアがゼロ以下にならないようにする
-    [ 3, 0, 0, 1],
+    ['score' => 3, 'isSuspicious' => 0, 'decreased' => 0, 'isNoAnomaly' => 0, 'recaptchaSolved' => 1],
 ];
 
 echo "Testing decreaseScore function...<br>";
@@ -84,12 +90,13 @@ echo "Test case 4: 0<br>";
 echo 'スコアがゼロ以下にならないようにする' . "<br>";
 echo "<hr> ";
 for ($i = 0; $i < count($argument_array); $i++) {
-    $score = $argument_array[$i][0];
-    $decreased = $argument_array[$i][1];
-    $isNoAnomaly = $argument_array[$i][2];
-    $recaptchaSolved = $argument_array[$i][3];
+    $score = $argument_array[$i]['score'];
+    $decreased = $argument_array[$i]['decreased'];
+    $isNoAnomaly = $argument_array[$i]['isNoAnomaly'];
+    $recaptchaSolved = $argument_array[$i]['recaptchaSolved'];
+    $isSuspicious = $argument_array[$i]['isSuspicious'];
 
-    $result = decreaseScore($score, $decreased, $isNoAnomaly, $recaptchaSolved);
+    $result = decreaseScore($score, $isSuspicious, $decreased, $isNoAnomaly, $recaptchaSolved);
     echo "Test case $i: $result<br>";
     echo "-------------------------<br> ";
 }

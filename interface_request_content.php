@@ -5,6 +5,15 @@
  * ユーザーエージェントや IP アドレスなどの
  * 情報を取得するためのインターフェース
  */
+
+
+// 「UserAgentRiskEvaluator 向けに提供するフラグ
+// （UA なし／UA 不一致／reCAPTCHA 成功）を返すインターフェイス」
+// と一文を入れておくと、
+// 「なぜこの3つだけがインターフェイスに出ているのか」
+// が将来の自分にも分かりやすくなります。
+
+
 interface RequestContent
 {
 	// session ID を返す getter

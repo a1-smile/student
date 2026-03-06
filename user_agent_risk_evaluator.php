@@ -11,6 +11,58 @@
  * リスク評価を$scoreSessionId と $scoreIp で行います。
  * RiskEvaluationResult クラスを使って
  * リスク評価の結果を＄decisionと＄securityLevelで返します。
+ * 
+ * プログラムを制御する層つまり、
+ * UAチェックの結果を受け取って行われる処理
+ * では、
+ * $decisionと$securityLevelをもとに
+ * 
+ * // AccessDecision statuses
+
+  *  const int ALLOW            = 1;
+  *  const int REQUIRE_CAPTCHA  = 2;
+  *  const int STOP_MOMENTARILY = 3;
+  *  const int LOGOUT           = 4;
+
+   * // security level
+    *private int   $securityLevel;
+
+    *const int LEVEL_LOW      =1;
+    *const int LEVEL_MEDIUM   =2;    
+    *const int LEVEL_HIGH     =3;
+    *const int LEVEL_CRITICAL =4;
+
+ * $decisionがALLOW
+ * （１ UserAgentRiskEvaluator::ALLOW）
+ * の場合はアクセスを許可し、
+ * 処理を続行します。
+ * 
+ * $decisionがREQUIRE_CAPTCHA
+ * （２ UserAgentRiskEvaluator::REQUIRE_CAPTCHA）
+ * の場合は例外をスローして、
+ * reCAPTCHAページにリダイレクトします。
+ * student\recaptcha.php
+ * リダイレクト先のページでは、CAPTCHAの入力を要求します。
+ * CAPTCHAの入力が成功した場合は、
+ * 元のページにリダイレクトします。
+ * session に$_SERVER['REQUEST_URI']を
+ * 保存しておいて、もとのページにリダイレクトするようにします。
+ * 
+ * sessionにCAPTCHAを解いたことを記録し、
+ * アクセスを許可します。
+ * 
+ * 
+ * $decisionがSTOP_MOMENTARILY
+ * （３ UserAgentRiskEvaluator::STOP_MOMENTARILY）
+ * STOP_MOMENTARILYの場合は一時的に処理を停止するために。
+ * student\stop_momentary.php
+ * にリダイレクトします。
+ * 
+ * $decisionがLOGOUT
+ * （４ UserAgentRiskEvaluator::LOGOUT）
+ * LOGOUTの場合はログアウトさせます。
+ * student\log_out.php
+ * 
  * @package student
  */
 
@@ -57,6 +109,9 @@ class UserAgentRiskEvaluator {
         $this->requestContent = $requestContent;
         $this->uaRepository   = $uaRepository;
 
+        // session ID と IPアドレスは、RequestContent の実装が
+        // 状態として保持していると想定して、
+        // ここでは、取得する必要がないと考えコメントアウトにしています。
         // $this->sessionId = $this->requestContent->getSessionId();
         // $this->ipAddress = $this->requestContent->getIpAddress();
 
@@ -239,6 +294,7 @@ class UserAgentRiskEvaluator {
      * スコアを減算しない。
      * 
      * @param  int $score 減算するスコア
+     * @param  int $isSuspiciousAccess 疑わしいアクセスかどうかのフラグ
      * @param  int $decreased 30分以内に減算されたかどうかのフラグ
      * @param  int $isNoAnomaly 10分以内に異常がない場合のフラグ
      * @param  int $recaptchaSolved reCAPTCHAを解いたかどうかのフラグ
