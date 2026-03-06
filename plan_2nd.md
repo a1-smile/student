@@ -1332,7 +1332,16 @@ student\interface_request_content.php
 に記述されている
 interface RequestContentは適切ですか？
 
+okです。
+
 # student\interface_request_content.php に記述されている
 interface RequestContent のtest 用の実装クラスとして
 student\mock_request_content.php に記述されている
 class MockRequestContent1 implements RequestContent は適切ですか？
+
+okです。
+
+# もし次に進めるなら、
+「UA 不一致 + 閾値超え + reCAPTCHA 成功」
+のような複合ケースを 1〜2 パターンテストに足して、
+境界値まわりの挙動をさらに確認しておくと安心です。

@@ -74,9 +74,10 @@ class UserAgentRiskEvaluator {
     private RequestContent $requestContent; // インターフェイス RequestContent の実装
     private UaRepository   $uaRepository;   // インターフェイス UaRepository の実装
 
-
-    private string $sessionId; // セッションID
-    private string $ipAddress; // IPアドレス
+    //session id ,ip address は、RequestContent の実装が状態として保持していると想定して、
+    //ここでは、取得する必要がないと考えコメントアウトにしています。
+    // private string $sessionId; // セッションID
+    // private string $ipAddress; // IPアドレス
 
     private int $previousScoreSession; // セッションIDごとの前回のスコア
     private int $previousScoreIp;      // IPアドレスごとの前回のスコア

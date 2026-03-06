@@ -5,16 +5,16 @@
 
 
 
-$data = [
-    'score_session' => 0,
-    'score_ip' => 0,
-    'access_count_session' => 0,
-    'access_count_ip' => 0,
-    'is_decreased_session' => 0,
-    'is_decreased_ip' => 0,
-    'is_no_anomaly_session' => 0,
-    'is_no_anomaly_ip' => 0
-];
+// $data = [
+//     'score_session' => 0,
+//     'score_ip' => 0,
+//     'access_count_session' => 0,
+//     'access_count_ip' => 0,
+//     'is_decreased_session' => 0,
+//     'is_decreased_ip' => 0,
+//     'is_no_anomaly_session' => 0,
+//     'is_no_anomaly_ip' => 0
+// ];
 
 class MockUaRepository implements UaRepository {
     

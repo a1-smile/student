@@ -1,14 +1,14 @@
 <?php
 
 
-$contents = [
-        // 'session_id' => 'abc123',
-        // 'ip_address' => '192.168.0.1',
-        // 'simple_ua' => 'Mozilla/5.0',
-        'is_no_ua' => 0,
-        'is_ua_mismatch' => 0,
-        'recaptcha_solved' => 0
-    ];  
+// $contents = [
+//         // 'session_id' => 'abc123',
+//         // 'ip_address' => '192.168.0.1',
+//         // 'simple_ua' => 'Mozilla/5.0',
+//         'is_no_ua' => 0,
+//         'is_ua_mismatch' => 0,
+//         'recaptcha_solved' => 0
+//     ];  
 
 
     class MockRequestContent1 implements RequestContent {
