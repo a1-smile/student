@@ -1345,3 +1345,8 @@ okです。
 「UA 不一致 + 閾値超え + reCAPTCHA 成功」
 のような複合ケースを 1〜2 パターンテストに足して、
 境界値まわりの挙動をさらに確認しておくと安心です。
+（確認済）
+
+# 次に、interface RequestContent の実装をします。
+- class RequestContentImplementation implements RequestContent
+  - getSessionId() などのメソッドを実装していく形になります。
