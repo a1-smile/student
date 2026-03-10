@@ -12,6 +12,14 @@
 
 
     class MockRequestContent1 implements RequestContent {
+
+
+        //  以下の実装が追加で必要です。（未実装）
+        // public function getSessionId(): string;
+        // public function getIpAddress(): string;
+
+
+
             // private string $sessionId;
             // private string $ipAddress;
             // private string $simpleUa;

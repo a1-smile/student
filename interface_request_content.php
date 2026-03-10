@@ -17,8 +17,8 @@
 interface RequestContent
 {
 	// session ID を返す getter
-	//  実装で記述 
-	// public function getSessionId(): string;
+	
+	public function getSessionId(): string;
 
 
 	//  session id をserver から取得するメソッド
@@ -26,8 +26,8 @@ interface RequestContent
 	// public function fetchSessionId(): string;
 
 	// IP アドレスを返す getter
-	//  実装で記述 
-	// public function getIpAddress(): string;
+	
+    public function getIpAddress(): string;
 	// IP アドレスを server から取得するメソッド
 	//  実装で記述 
 	// public function fetchIpAddress(): string;

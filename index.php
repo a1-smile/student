@@ -236,27 +236,26 @@ set_error_handler(function ($errno, $errstr, $errfile, $errline) {
 
 //  ユーザーエージェントをvalidateして
 //  安全ならsessionに保存します。
-//  $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
 //  $_SESSION['user_agent'] = $user_agent;
 
 
 try {
     validate_user_agent();
-} catch (InvalidArgumentException $e) {
-    $code = (int)$e->getCode();
-    $attack_id = uniqid('UA_INVALID_');
-    
-    error_log("[SECURITY] User-Agent検証失敗 - AttackID: {$attack_id}, " .
-              "IP: " . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . 
-              ", エラー: " . $e->getMessage());
-    switch ($code) {
+    } catch (InvalidArgumentException $e) {
+        $code = (int)$e->getCode();
+        $attack_id = uniqid('UA_INVALID_');
+        
+        error_log("[SECURITY] User-Agent検証失敗 - AttackID: {$attack_id}, " .
+        "IP: " . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . 
+        ", エラー: " . $e->getMessage());
+        switch ($code) {
         case 4001: // 長さ異常 → 400
             session_unset();
             session_destroy();
             session_write_close();
             http_response_code(400);
             die("不正なアクセスです。<br>正常なブラウザからアクセスしてください。<br>攻撃ID: {$attack_id}");
-
+                
         case 4031: // 攻撃的UA → 403（または302でerror_page.phpへ）
             session_unset();
             session_destroy();
@@ -265,31 +264,43 @@ try {
             http_response_code(302);
             //  302 リダイレクト（最終ステータスは遷移先で設定 403）
             header('Location: error_page.php', true, 302); exit;
-
+                    
         case 4291: // 高頻度検知（任意運用） → 429 or recaptchaへ
             // セッションは維持して reCAPTCHA に誘導
-            header('Location: recaptcha.php', true, 302);
-            exit;
-
-        default: // 未分類は 400 として処理
+                header('Location: recaptcha.php', true, 302);
+                exit;
+                        
+            default: // 未分類は 400 として処理
             session_unset();
             session_destroy();
             session_write_close();
             http_response_code(400);
             die("不正なアクセスです。<br>攻撃ID: {$attack_id}");
+        }
+                        
+    } catch (RuntimeException $e) {
+        $error_id = uniqid('UA_SYSTEM_');
+                            
+        error_log("[ERROR] User-Agent検証システムエラー - ErrorID: {$error_id}, " .
+        "エラー: " . $e->getMessage());
+                            
+        http_response_code(500); // Internal Server Error
+        die("システムエラーが発生しました。<br>
+            エラーID: {$error_id}<br>
+            <a href=\"index.php\">再試行する</a>");
     }
-    
-} catch (RuntimeException $e) {
-    $error_id = uniqid('UA_SYSTEM_');
-    
-    error_log("[ERROR] User-Agent検証システムエラー - ErrorID: {$error_id}, " .
-              "エラー: " . $e->getMessage());
-    
-    http_response_code(500); // Internal Server Error
-    die("システムエラーが発生しました。<br>
-         エラーID: {$error_id}<br>
-         <a href=\"index.php\">再試行する</a>");
-}
+                            
+                            
+    // 初回アクセス時に simple UA を記録
+    $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    $current_simple_ua = RequestContentImplementation::makeSimpleUa($user_agent);
+    if (!isset($_SESSION['first_simple_ua'])) {
+        $_SESSION['first_simple_ua'] = $current_simple_ua;
+    }
+
+
+
+
 //  IPアドレスの先頭部分を取得して、
 //  セッションに保存します。
 

@@ -7,8 +7,8 @@
 
 // recaptcha.php 側で、
 // session_start();
-// if ($captcha_solved) {
-//     $_SESSION['recaptcha_solved'] = 1;
+// if ($captcha_passed) {
+//     $_SESSION['recaptcha_passed'] = 1;
 //     $redirect = $_SESSION['redirect_after_captcha'] ?? 'index.php';
 
 //     // 外部url へリダイレクトさせない
@@ -29,16 +29,35 @@
 // 
 // recaptcha.php が通ったら、
 // session に
-// recaptcha_solved = true
+// recaptcha_passed = 1;
 // というフラグを立てます。
-// そして、rate-limit-check.php で
+// そして、rate-limit-check.php で……
 
+/***********************************/
+
+// - recaptcha.php での設定
+
+// recaptcha通過のフラグ
+$_SESSION['recaptcha_passed'] = 1;
+
+// recaptcha通過時のIPプレフィックス
+$ipv4_blocks = 2; // IPv4なら上位16ビット（/16）をプレフィックスとする例
+$ipv6_blocks = 3; // IPv6なら上位48ビット（/48）をプレフィックスとする例
+$_SESSION['recaptcha_ip_prefix'] = 
+get_ip_prefix_for_session($ipv4_blocks, $ipv6_blocks);
+
+// student\get-ip-prefix.php に get_ip_prefix_for_session()があります。
+
+//  recaptcha 通過の時刻
+$_SESSION['recaptcha_passed_at'] = time(); // 現在のタイム
+
+/************************************/
 
 http_response_code(403); // Forbidden アクセス禁止
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

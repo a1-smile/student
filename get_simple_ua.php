@@ -7,7 +7,7 @@
  */
 function get_simple_ua(string $ua): string {
     $ua = trim($ua);
-    if ($ua === '') return 'Unknown';
+    if ($ua === '') return '';
 
     // Edge (Chromium) と旧Edge
     if (preg_match('/\bEdg\/(\d+)/i', $ua, $m)) {
@@ -15,6 +15,14 @@ function get_simple_ua(string $ua): string {
     }
     if (preg_match('/\bEdge\/(\d+)/i', $ua, $m)) {
         return 'Edge/' . $m[1];
+    }
+
+    // 主要外（例：Opera, SamsungBrowser）
+    if (preg_match('/\bOPR\/(\d+)/i', $ua, $m)) {
+        return 'Opera/' . $m[1];
+    }
+    if (preg_match('/\bSamsungBrowser\/(\d+)/i', $ua, $m)) {
+        return 'SamsungBrowser/' . $m[1];
     }
 
     // Chrome（デスクトップ/Android）と iOS Chrome（CriOS）
@@ -46,13 +54,6 @@ function get_simple_ua(string $ua): string {
         return 'IE/' . $m[1];
     }
 
-    // 主要外（例：Opera, SamsungBrowser）
-    if (preg_match('/\bOPR\/(\d+)/i', $ua, $m)) {
-        return 'Opera/' . $m[1];
-    }
-    if (preg_match('/\bSamsungBrowser\/(\d+)/i', $ua, $m)) {
-        return 'SamsungBrowser/' . $m[1];
-    }
 
     return 'Unknown';
 }

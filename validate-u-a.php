@@ -50,11 +50,7 @@ function validate_user_agent(): void {
         }
     }
 
-    // 初回アクセス時に simple UA を記録
-    $current_simple_ua = get_simple_ua($user_agent);
-    if (!isset($_SESSION['first_simple_ua'])) {
-        $_SESSION['first_simple_ua'] = $current_simple_ua;
-    }
+
 
 }
 

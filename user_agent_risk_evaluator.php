@@ -66,10 +66,32 @@
  * @package student
  */
 
+    //  【今後の課題】
+//     推奨される対策
+// 減算回数の上限: 
+// 一定期間内（例: 24時間）での reCAPTCHA による
+// 減算回数に上限を設ける
+
+// 減算幅の段階的縮小: 
+// reCAPTCHA による減算を繰り返すほど、
+// 減算幅を小さくする（-4 → -2 → -1 → 0）
+
+// フラグの即時消費: recaptcha_solved を
+// 1回の evaluate() で使用したら即座に unset する
+
+// スコアの「最高到達点」を記録: 
+// 過去のピークスコアを保持し、
+// 一定閾値を超えた履歴があるユーザーには減算を制限する
+
+// LOGOUT 閾値（10）に達した場合は reCAPTCHA による回復を不可にする
+
 class UserAgentRiskEvaluator {
 
     const ACCESS_THRESHOLD_SESSION = 60;
     const ACCESS_THRESHOLD_IP      = 600;
+
+    const DECREASE_SCORE_SESSION= 4;
+    const DECREASE_SCORE_IP = 1;
 
     private RequestContent $requestContent; // インターフェイス RequestContent の実装
     private UaRepository   $uaRepository;   // インターフェイス UaRepository の実装
@@ -228,13 +250,19 @@ class UserAgentRiskEvaluator {
 
         // 上記のロジックが重複するので、
         //  decreaseScore メソッドにまとめる
+
+        // const DECREASE_SCORE_SESSION= 4;
+        // const DECREASE_SCORE_IP = 1;
+        // と定義してあります。
+        
         
         $currentScoreSession = $this->decreaseScore(
             $currentScoreSession,
             $isSuspiciousAccess,
             $this->isDecreasedSession,
             $this->isNoAnomalySession,
-            $this->recaptchaSolved
+            $this->recaptchaSolved,
+            self::DECREASE_SCORE_SESSION
         );
         
 
@@ -260,7 +288,9 @@ class UserAgentRiskEvaluator {
             $isSuspiciousAccess,
             $this->isDecreasedIp,
             $this->isNoAnomalyIp,
-            $this->recaptchaSolved
+            $this->recaptchaSolved,
+            self::DECREASE_SCORE_IP
+
         );
 
         return new RiskEvaluationResult($currentScoreSession, $currentScoreIp);
@@ -287,7 +317,7 @@ class UserAgentRiskEvaluator {
      * - $isNoAnomalyが0で、$recaptchaSolvedが1の場合は、
      * 疑わしいと判断されたが、
      * reCAPTCHAを解いてアクセスして来る場合で、
-     * 信用することにして、スコアを減算する。(-4)
+     * 信用することにして、スコアを減算する。(-$decreaseScore)
      * - $isNoAnomalyが0で、
      * $recaptchaSolvedが0の場合は、
      * 過去10分以内に疑わしいと判断されたことがあり、
@@ -308,6 +338,7 @@ class UserAgentRiskEvaluator {
         int $decreased, 
         int $isNoAnomaly,
         int $recaptchaSolved,
+        int $decreaseScore
         ): int {
 
         //  疑わしいアクセスの場合は、スコアを減算しない
@@ -351,8 +382,8 @@ class UserAgentRiskEvaluator {
                 // この else if ブロックで
                 // 異常があって、
                 // reCAPTCHAを解いてアクセスして来る場合は
-                // スコアを4減算するというロジックにする
-            $score -= 4;
+                // スコアを$decreaseScore減算するというロジックにする
+            $score -= $decreaseScore;
                 //  ゼロ以下にならないようにする
             $score = max($score, 0);
 

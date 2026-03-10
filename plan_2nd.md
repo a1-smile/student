@@ -1349,4 +1349,146 @@ okです。
 
 # 次に、interface RequestContent の実装をします。
 - class RequestContentImplementation implements RequestContent
-  - getSessionId() などのメソッドを実装していく形になります。
+- getSessionId() などのメソッドを実装していく形になります。
+
+- student\recaptcha.php で
+recaptcha を通過したら、
+session に 'recaptcha_solved' というキーで true
+を保存することにします。
+そして、'ip address 'もしくは ip プレフィックスを
+session に保存することにします。
+
+student\recaptcha.php からの、
+リダイレクト先で
+- recaptcha_solved が true で、
+かつ、現在のアクセス元の ip address が
+recaptcha.php で保存された ip address と同じであれば、
+RequestContentImplementation の getRecaptchaSolved() は true を返すようにします。
+そうでない場合は false を返すようにします。
+以上のロジックは、リキャプチャ通過の判断として適切ですか？
+
+答え => 基本的にok
+ip prefix 使用
+
+有効期限の追加
+
+フラグのリセットを忘れないようにする
+
+
+// recaptcha.php で保存する際
+$_SESSION['recaptcha_solved'] = true;
+$_SESSION['recaptcha_ip'] = $_SERVER['REMOTE_ADDR'];
+$_SESSION['recaptcha_solved_at'] = time();  // ← 追加
+
+
+
+// getRecaptchaSolved() で有効期限もチェック
+$solvedAt = $_SESSION['recaptcha_solved_at'] ?? 0;
+$isExpired = (time() - $solvedAt) > 600; // 例: 10分で失効
+
+
+実装のイメージは以下のようになります。
+public function getRecaptchaSolved(): int {
+  // RECAPTCHA の有効期限（秒）
+  TIME_THRESHOLD = 600; // 10分
+    // 1. フラグが立っているか
+    if (empty($_SESSION['recaptcha_solved'])) {
+        return 0;
+    }
+    // 2. IP が一致するか
+    $savedIp = $_SESSION['recaptcha_ip'] ?? '';
+    $currentIp = $_SERVER['REMOTE_ADDR'] ?? '';
+    if ($savedIp !== $currentIp) {
+        return 0;
+    }
+    // 3. 有効期限内か
+    $solvedAt = $_SESSION['recaptcha_passed_at'] ?? 0;
+    if ((time() - $solvedAt) > TIME_THRESHOLD) {
+        // 期限切れならフラグもクリア
+        unset($_SESSION['recaptcha_passed'],
+              $_SESSION['recaptcha_ip_prefix'],
+              $_SESSION['recaptcha_passed_at']);
+        return 0;
+    }
+    return 1;
+}
+
+セキュリティ的には「IPアドレスが完全に一致する」
+ことを要求するのは少し厳しいかもしれません。
+理由は、ユーザーのIPアドレスは変動することがあるためです。
+特にモバイルユーザーやISPのCGNAT環境では、IPアドレスが頻繁に変わることがあります。
+そのため、IPアドレスの完全一致を要求するのではなく、
+「IPアドレスのプレフィックスが同じであること」など、少し緩めの条件にすることも検討してみてください。
+
+
+プラン変更します。
+# getRecaptchaSolved() メソッドの実装のプラン
+- recaptcha.php での設定
+
+// recaptcha通過のフラグ
+$_SESSION['recaptcha_passed'] = 1;
+
+// recaptcha通過時のIPプレフィックス
+$ipv4_blocks = 2; // IPv4なら上位16ビット（/16）をプレフィックスとする例
+$ipv6_blocks = 3; // IPv6なら上位48ビット（/48）をプレフィックスとする例
+$_SESSION['recaptcha_ip_prefix'] = 
+get_ip_prefix_for_session(int $ipv4_blocks = 2, int $ipv6_blocks = 3);
+
+student\get-ip-prefix.php に get_ip_prefix_for_session()があります。
+
+//  recaptcha 通過の時刻
+$_SESSION['recaptcha_passed_at'] = time(); // 現在のタイム
+
+- getRecaptchaSolved() の実装
+const TIME_THRESHOLD = 600; // 10分 時間制限の定義
+public function getRecaptchaSolved(): int {
+
+    // 1. フラグが立っているか
+    if (empty($_SESSION['recaptcha_passed'])) {
+        return 0;  // recaptcha 通過していないとみなす
+    }
+
+    // 1-1. フラグが １かどうかも確認しておく
+    if ($_SESSION['recaptcha_passed'] !== 1) {
+        // フラグが不正な値ならクリアしておく
+        unset($_SESSION['recaptcha_passed'],
+              $_SESSION['recaptcha_ip_prefix'],
+              $_SESSION['recaptcha_passed_at']);
+        return 0;  // recaptcha 通過していないとみなす
+    }
+
+    // 2. IP プレフィックス が一致するか
+    $ipv4_blocks = 2; // IPv4なら上位16ビット（/16）をプレフィックスとする例
+    $ipv6_blocks = 3; // IPv6なら上位48ビット（/48）をプレフィックスとする例
+    $savedPrefix = $_SESSION['recaptcha_ip_prefix'] ?? '';
+    $currentPrefix = get_ip_prefix_for_session($ipv4_blocks, $ipv6_blocks);
+    if ($savedPrefix !== $currentPrefix) {
+      //  フラグをクリアしておく
+      unset($_SESSION['recaptcha_passed'],
+            $_SESSION['recaptcha_ip_prefix'],
+            $_SESSION['recaptcha_passed_at']);  
+        return 0;  // recaptcha 通過していないとみなす
+    }
+    // 3. 有効期限内か
+    $solvedAt = $_SESSION['recaptcha_passed_at'] ?? 0;
+    $pastTimeFromPassed = time() - $solvedAt; // 経過時間
+
+    // 経過時間が閾値を超えているか
+    $isExpired = $pastTimeFromPassed > self::TIME_THRESHOLD;
+    if ($isExpired) {
+        // 期限切れならフラグもクリア
+        unset($_SESSION['recaptcha_passed'],
+              $_SESSION['recaptcha_ip_prefix'],
+              $_SESSION['recaptcha_passed_at']);
+        return 0; // recaptcha 通過を失効とみなす
+    }
+    // すべての条件を満たしている場合は 1 を返す
+    // （recaptcha 通過とみなす）
+    //  フラグをクリアする。複数回の使用を防止するため。
+    unset($_SESSION['recaptcha_passed'],
+          $_SESSION['recaptcha_ip_prefix'],
+          $_SESSION['recaptcha_passed_at']);
+    return 1;  // recaptcha 通過とみなす
+}
+
+で、あっていますか？
