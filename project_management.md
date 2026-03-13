@@ -16,4 +16,21 @@
   getIpAddress(): string
   getRequestUri(): string
 
+
+- UaRepository : interface
+  public function getScoreSession(): int;
+  public function getScoreIp(): int;
+
+  public function getAccessCountSession(): int;
+  public function getAccessCountIp(): int;
+
+  public function getIsDecreasedSession(): int;
+  public function getIsDecreasedIp(): int;
+
+  public function getIsNoAnomalySession(): int;
+  public function getIsNoAnomalyIp(): int;
+
+
+  saveUaData(RequestContent $requestContent): void
+
   
