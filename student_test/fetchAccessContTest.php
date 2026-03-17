@@ -61,7 +61,8 @@
                         // count は、null出ない値の数をカウントすることになります。
         $sql = "SELECT 
                   COUNT(CASE WHEN session_id = :sid THEN 1 END) as session_id_access_count,
-                 COUNT(CASE WHEN ip_address = :ip THEN 1 END) as ip_address_access_count            FROM user_agent_logs 
+                  COUNT(CASE WHEN ip_address = :ip THEN 1 END) as ip_address_access_count            
+                            FROM user_agent_logs 
                  WHERE access_time >= (NOW() - INTERVAL 1 MINUTE)";
 
         $stmt = $pdo->prepare($sql);
@@ -76,9 +77,9 @@
         // 結果を連想配列として取得
         $resultArray = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        $accessCuntLastMinuteArray = $resultArray;
+        $accessCountLastMinuteArray = $resultArray;
 
-        return $accessCuntLastMinuteArray;
+        return $accessCountLastMinuteArray;
 
 
         }
@@ -87,6 +88,22 @@
     //  テストケース
     //  //  session start
 session_start();
+
+//  log を書き込む関数定義
+/**
+ * UAアクセスログを記録
+ */
+function ua_log_access_test(PDO $pdo, string $session_id, string $ip_address, string $simple_ua, int $is_ua_mismatch): void {
+    $sql = 'INSERT INTO user_agent_logs (session_id, ip_address, simple_ua, is_ua_mismatch, access_time)
+            VALUES (:session_id, :ip_address, :simple_ua, :is_ua_mismatch, NOW())';
+    $stmt = $pdo->prepare($sql);
+    $stmt->bindValue(':session_id', $session_id, PDO::PARAM_STR);
+    $stmt->bindValue(':ip_address', $ip_address, PDO::PARAM_STR);
+    $stmt->bindValue(':simple_ua', $simple_ua, PDO::PARAM_STR);
+    $stmt->bindValue(':is_ua_mismatch', $is_ua_mismatch, PDO::PARAM_INT);
+    $stmt->execute();
+}
+
 
 
     //  一階層上にある common フォルダ内の'dbmanager.php' を require_once します。
@@ -120,6 +137,9 @@ session_start();
     $dbManager->connect();
     $is_connected = $dbManager->is_connected();
     echo '<br><br>';
+    echo '接続状態: ';
+    echo '<br><br>';
+    echo 'expected: true <br>';
     var_dump($is_connected); // 接続状態を確認
     echo '<br><br>';
 
@@ -137,8 +157,18 @@ echo 'テスト開始<br><br>';
     $sessionId = session_id();
     // クライアントのIPアドレスを取得します。
     $ipAddress = $_SERVER['REMOTE_ADDR'];
+    // クライアントのユーザーエージェントを取得します。
+    $ua = $_SERVER['HTTP_USER_AGENT'];
 
+    //  simple_ua を取得します。
+    //  一階層上にある、get_simple_ua.php を require_once します。
+    require_once __DIR__ . '/../get_simple_ua.php';
+    $simple_ua = get_simple_ua($ua);
 
+//  log を書き込む関数を呼び出して、アクセスログを記録します。
+for ($i = 0; $i < 5; $i++) {
+    ua_log_access_test($pdo, $sessionId, $ipAddress, $simple_ua, $i % 2); // is_ua_mismatch は 0 と 1 を交互に設定
+}
 
 
 
@@ -146,9 +176,13 @@ echo 'テスト開始<br><br>';
     fetchAccessCountArrayTest($pdo, $sessionId, $ipAddress);
 
     echo '<br><br>';
+    echo 'var_dump<br>';
     var_dump($resultArray); // 結果を確認
     echo '<br><br>';
+    echo 'print_r<br>';
     print_r($resultArray); // 結果を確認
+
+    echo 'expected: session_id_access_count = 5, ip_address_access_count = 5 <br>';
 
     //  session_id を出力します。
     echo "Session ID: " . $sessionId . "<br>";

@@ -1,6 +1,6 @@
 <?php
 //  index.php では、データベースからすべての学生情報を取得し、表示します。
-//  画面遷移は、student_edit.php （form から POST で、）
+//  画面遷移は、student_edit.php （form タグで、メソッドは POST で、）
 //            student_input.php （a タグで、）
 //            form から送信するデーターは、データベースから取得した学生情報の
 //            idと
@@ -293,7 +293,20 @@ try {
                             
     // 初回アクセス時に simple UA を記録
     $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
-    $current_simple_ua = RequestContentImplementation::makeSimpleUa($user_agent);
+
+/****************************************/
+//  interface の実装が完成して、読み込んだら
+//  以下のコードを有効にしてください。
+//    $current_simple_ua = RequestContentImplementation::makeSimpleUa($user_agent);
+
+//  まだ、interface の実装が完成していない場合は、
+//  get_simple_ua() を直接呼び出して、
+// 簡易的なユーーエージェント情報を取得します。
+    $current_simple_ua = get_simple_ua($user_agent);
+
+/****************************************/
+
+
     if (!isset($_SESSION['first_simple_ua'])) {
         $_SESSION['first_simple_ua'] = $current_simple_ua;
     }

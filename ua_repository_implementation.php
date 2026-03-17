@@ -4,13 +4,22 @@
 class UaRepositoryImplementation implements UaRepository {
     
     //  プロパティ
+
+    // serverからの基本情報
     private int $SessionId;
     private int $IpAddress;
 
+    // PDO のインスタンスを保持するプロパティ
     private PDO $pdo;
 
+    //  databaseからの情報
     private int $scoreSession;
     private int $scoreIp;
+
+    // メソッド間でデータを共有するためのプロパティ
+    private array $accessCountArray;
+    private int $accessCountSession;
+    private int $accessCountIp;
 
 
     //  コンストラクタで 
@@ -23,8 +32,11 @@ class UaRepositoryImplementation implements UaRepository {
         $this->IpAddress = $IpAddress;
 
         $this->scoreSession = $this->fetchScore($this->pdo, (string)$this->SessionId, 'session');
-        $this->scoreIp = $this->fetchScore($this->pdo, (string)$this->IpAddress, 'ip');
+        $this->scoreIp      = $this->fetchScore($this->pdo, (string)$this->IpAddress, 'ip');
 
+        $this->accessCountArray   = $this->fetchAccessCountArray($this->pdo, (string)$this->SessionId, (string)$this->IpAddress);
+        $this->accessCountSession = $this->plunkAccessCountSession($this->accessCountArray);
+        $this->accessCountIp      = $this->plunkAccessCountIp($this->accessCountArray);
     }
 
 
@@ -74,8 +86,12 @@ class UaRepositoryImplementation implements UaRepository {
     
 
     // アクセス回数を返す getter
-    public function getAccessCountSession(): int;
-    public function getAccessCountIp(): int;
+    public function getAccessCountSession(): int{
+        return $this->accessCountSession;
+    }
+    public function getAccessCountIp(): int{
+        return $this->accessCountIp;
+    }
 
     //  data base からアクセス回数を配列で取得する
     //  実装で記述
@@ -152,9 +168,9 @@ class UaRepositoryImplementation implements UaRepository {
         // 結果を連想配列として取得
         $resultArray = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        $accessCuntLastMinuteArray = $resultArray;
+        $accessCountLastMinuteArray = $resultArray;
 
-        return $accessCuntLastMinuteArray;
+        return $accessCountLastMinuteArray;
 
 
         }
@@ -163,9 +179,22 @@ class UaRepositoryImplementation implements UaRepository {
 
 
     //  配列からアクセス回数を取得する
+    //  戻り値の例:
+    //  [
+    //   'session_id_access_count' => 5,
+    //     'ip_address_access_count' => 2,
+    //   ]
+
     //  実装で記述
     // public function plunkAccessCountSession(array $accessCountArray): int;
     // public function plunkAccessCountIp(array $accessCountArray): int;
+    public function plunkAccessCountSession(array $accessCountArray): int {
+        return $accessCountArray['session_id_access_count'] ?? 0;
+    }
+
+    public function plunkAccessCountIp(array $accessCountArray): int {
+        return $accessCountArray['ip_address_access_count'] ?? 0;
+    }
 
     // スコアが減少したかどうかを返す getter（1/0想定）
     public function getIsDecreasedSession(): int;

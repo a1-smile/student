@@ -32,7 +32,7 @@ COOKIE_FILE="curl/cookies-test1.txt"
 # -f オプションは、ファイルが存在しない場合でもエラーにしない
 rm -f "$COOKIE_FILE"
 
-echo "1) test_index.php にアクセスしてセッション開始（クッキー保存）"
+echo "1) index.php にアクセスしてセッション開始（クッキー保存）"
 #  -i: レスポンスヘッダーも表示
 #  -c: クッキーファイルに保存
 #  -A: ユーザーエージェントを指定
@@ -40,7 +40,7 @@ echo "1) test_index.php にアクセスしてセッション開始（クッキ�
 curl -i -c "$COOKIE_FILE" \
   -A "$UA" \
   -o /dev/null \
-  "$BASE_URL/test_index.php"
+  "$BASE_URL/index.php"
 
 #   以下はループに入ります。
 # 閾値
