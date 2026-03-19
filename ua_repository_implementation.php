@@ -24,6 +24,9 @@ class UaRepositoryImplementation implements UaRepository {
     private int $accessCountSession;
     private int $accessCountIp;
 
+    private array $decreasedCountArray;
+    private int $isDecreasedSession;
+    private int $isDecreasedIp;
 
     //  コンストラクタで 
     // $SessionId と $IpAddress を初期化する
@@ -41,10 +44,13 @@ class UaRepositoryImplementation implements UaRepository {
         $this->accessCountSession = $this->plunkAccessCountSession($this->accessCountArray);
         $this->accessCountIp      = $this->plunkAccessCountIp($this->accessCountArray);
 
-        $this->isDecreasedSession = $this-> ;
-        $this->isDecreasedIp      = $this-> ;
-
-
+        $this->decreasedCountArray = $this->countIsDecreasedLast30MinutesForTwoSubjects(
+            $this->pdo,
+            (string)$this->SessionId, 'session',
+            (string)$this->IpAddress, 'ip'
+        );
+        $this->isDecreasedSession = $this->plunkIsDecreasedSession($this->decreasedCountArray) ;
+        $this->isDecreasedIp      = $this->plunkIsDecreasedIp($this->decreasedCountArray);
 
     }
 
@@ -251,35 +257,88 @@ class UaRepositoryImplementation implements UaRepository {
     //  というエイリアスを付けることを意味します。
     //  PHP 側で $result['decreased_count'] としてアクセスできるようになる。
     //  呼び出し元では、この値が 0 より大きければ直近30分間にスコア減少があったと判断する用途で使われます。
-    private function countIsDecreasedLast30Minutes(PDO $pdo, string $subjectKey, string $subjectType): int {
-        $sql = "SELECT COUNT(*) as decreased_count
-                FROM ua_score_history
-                WHERE subject_key = :subjectKey
-                  AND subject_type = :subjectType
-                  AND is_decreased = 1
-                  AND access_time >= (NOW() - INTERVAL 30 MINUTE)";
+
+    //  session ベースと ip ベースの値を一度で取得したいため、
+    //  refactor します。
+    //  従って以下のメソッドをコメントアウトします。
+    // private function countIsDecreasedLast30Minutes(PDO $pdo, string $subjectKey, string $subjectType): int {
+    //     $sql = "SELECT COUNT(*) as decreased_count
+    //             FROM ua_score_history
+    //             WHERE subject_key = :subjectKey
+    //               AND subject_type = :subjectType
+    //               AND is_decreased = 1
+    //               AND access_time >= (NOW() - INTERVAL 30 MINUTE)";
+
+    //     $stmt = $pdo->prepare($sql);
+    //     $stmt->execute([
+    //         ':subjectKey' => $subjectKey,
+    //         ':subjectType' => $subjectType,
+    //     ]);
+
+    //     $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    //     return (int)$result['decreased_count'];
+    // }
+
+
+    /**
+ * database のtable ua_score_historyから、
+ * subject_key カラム が $sessionIdかつ
+ * subject_type カラム が $session 
+ * であるレコードの数をカウントする。
+ * 連想配列の 'session_decreased_count' キーにカウントされた数を格納する。
+ * そして
+ * subject_key カラム が $ipAddressかつ
+ * subject_type カラム が $ip であるレコードの数をカウントする。
+ * 連想配列の 'ip_decreased_count' キーにカウントされた数を格納する。
+ * そして、連想配列を返す。
+ * fetch される値は、
+ * デフォルトでは文字列であるため、
+ * (int) キャストして整数に変換する。
+ */
+
+    private function countIsDecreasedLast30MinutesForTwoSubjects(PDO $pdo, string $sessionId, string $session, string $ipAddress, string $ip): array {
+        $sql = "SELECT 
+                    COUNT(CASE WHEN subject_key = :sessionId AND subject_type = :session_id AND is_decreased = 1 AND access_time >= (NOW() - INTERVAL 30 MINUTE) THEN 1 END) as session_decreased_count,
+                    COUNT(CASE WHEN subject_key = :ipAddress AND subject_type = :ip_address AND is_decreased = 1 AND access_time >= (NOW() - INTERVAL 30 MINUTE) THEN 1 END) as ip_decreased_count
+                FROM ua_score_history";
 
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
-            ':subjectKey' => $subjectKey,
-            ':subjectType' => $subjectType,
+            ':sessionId' => $sessionId,
+            ':session_id' => $session,
+            ':ipAddress' => $ipAddress,
+            ':ip_address' => $ip,
         ]);
 
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        return (int)$result['decreased_count'];
+        return [
+            // COUNT の値は文字列で返されるため、(int) キャストして整数に変換する
+            'session_decreased_count' => (int)$result['session_decreased_count'],
+            'ip_decreased_count' => (int)$result['ip_decreased_count'],
+        ];
     }
 
-    private function isDecreasedLast30Minutes(PDO $pdo, string $subjectKey, string $subjectType): int {
-        $decreasedCount = $this->countIsDecreasedLast30Minutes($pdo, $subjectKey, $subjectType);
-        return $decreasedCount > 0 ? 1 : 0;
+    //  countIsDecreasedLast30MinutesForTwoSubjects() の結果から、
+    //  session ベースと ip ベースの値を取得して、
+    //  ゼロより大きければ 1 を返す。
+    private function plunkIsDecreasedSession(array $decreasedCountArray): int {
+        $decreasedCountSession = $decreasedCountArray['session_decreased_count'] ?? 0;
+        return $decreasedCountSession > 0 ? 1 : 0;
+    }
+
+    private function plunkIsDecreasedIp(array $decreasedCountArray): int {
+        $decreasedCountIp = $decreasedCountArray['ip_decreased_count'] ?? 0;
+        return $decreasedCountIp > 0 ? 1 : 0;
     }
 
     
+
+    
     public function getIsDecreasedSession(): int{
-        return $this->isDecreasedLast30Minutes($this->pdo, (string)$this->SessionId, 'session');
+        return $this->isDecreasedSession;
     }
     public function getIsDecreasedIp(): int{
-        return $this->isDecreasedLast30Minutes($this->pdo, (string)$this->IpAddress, 'ip');
+        return $this->isDecreasedIp;
     }
     
     // data base でスコアが減少したかどうかを確認する
@@ -355,18 +414,21 @@ class UaRepositoryImplementation implements UaRepository {
 <?php
 /**
  * database のtable ua_score_historyから、
- * subject_key カラム が $subject_key1かつ
- * subject_type カラム が $subject_type1 
+ * subject_key カラム が $sessionIdかつ
+ * subject_type カラム が $session 
  * であるレコードの数をカウントする。
- * 連想配列の 'decreased_count1' キーにカウントされた数を格納する。
+ * 連想配列の 'session_decreased_count' キーにカウントされた数を格納する。
  * そして
- * subject_key カラム が $subject_key2かつ
- * subject_type カラム が $subject_type2 であるレコードの数をカウントする。
- * 連想配列の 'decreased_count2' キーにカウントされた数を格納する。
-    * そして、連想配列を返す。
+ * subject_key カラム が $ipAddressかつ
+ * subject_type カラム が $ip であるレコードの数をカウントする。
+ * 連想配列の 'ip_decreased_count' キーにカウントされた数を格納する。
+ * そして、連想配列を返す。
+ * fetch される値は、
+ * デフォルトでは文字列であるため、
+ * (int) キャストして整数に変換する。
  */
 
-    function countIsDecreasedLast30MinutesForTwoSubjects(PDO $pdo, string $sessionId, string $session, string $ipAddress, string $ip): array {
+    private function countIsDecreasedLast30MinutesForTwoSubjects(PDO $pdo, string $sessionId, string $session, string $ipAddress, string $ip): array {
         $sql = "SELECT 
                     COUNT(CASE WHEN subject_key = :sessionId AND subject_type = :session_id AND is_decreased = 1 AND access_time >= (NOW() - INTERVAL 30 MINUTE) THEN 1 END) as session_decreased_count,
                     COUNT(CASE WHEN subject_key = :ipAddress AND subject_type = :ip_address AND is_decreased = 1 AND access_time >= (NOW() - INTERVAL 30 MINUTE) THEN 1 END) as ip_decreased_count
