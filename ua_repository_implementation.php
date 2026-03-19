@@ -16,6 +16,9 @@ class UaRepositoryImplementation implements UaRepository {
     private int $scoreSession;
     private int $scoreIp;
 
+    private int $isDecreasedSession;
+    private int $isDecreasedIp;
+
     // メソッド間でデータを共有するためのプロパティ
     private array $accessCountArray;
     private int $accessCountSession;
@@ -37,6 +40,12 @@ class UaRepositoryImplementation implements UaRepository {
         $this->accessCountArray   = $this->fetchAccessCountArray($this->pdo, (string)$this->SessionId, (string)$this->IpAddress);
         $this->accessCountSession = $this->plunkAccessCountSession($this->accessCountArray);
         $this->accessCountIp      = $this->plunkAccessCountIp($this->accessCountArray);
+
+        $this->isDecreasedSession = $this-> ;
+        $this->isDecreasedIp      = $this-> ;
+
+
+
     }
 
 
@@ -166,9 +175,12 @@ class UaRepositoryImplementation implements UaRepository {
         ]);
 
         // 結果を連想配列として取得
+        // 値は文字列で返されるため、(int) キャストして整数に変換する
         $resultArray = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        $accessCountLastMinuteArray = $resultArray;
+        $accessCountLastMinuteArray['session_id_access_count'] = (int)$resultArray['session_id_access_count'];
+        $accessCountLastMinuteArray['ip_address_access_count'] = (int)$resultArray['ip_address_access_count'];
+    
 
         return $accessCountLastMinuteArray;
 
@@ -188,12 +200,14 @@ class UaRepositoryImplementation implements UaRepository {
     //  実装で記述
     // public function plunkAccessCountSession(array $accessCountArray): int;
     // public function plunkAccessCountIp(array $accessCountArray): int;
-    public function plunkAccessCountSession(array $accessCountArray): int {
-        return $accessCountArray['session_id_access_count'] ?? 0;
+    private function plunkAccessCountSession(array $accessCountArray): int {
+        $accessCountSession = $accessCountArray['session_id_access_count'] ?? 0;
+        return $accessCountSession;
     }
 
-    public function plunkAccessCountIp(array $accessCountArray): int {
-        return $accessCountArray['ip_address_access_count'] ?? 0;
+    private function plunkAccessCountIp(array $accessCountArray): int {
+        $accessCountIp = $accessCountArray['ip_address_access_count'] ?? 0;
+        return $accessCountIp;        
     }
 
     // スコアが減少したかどうかを返す getter（1/0想定）
@@ -259,8 +273,14 @@ class UaRepositoryImplementation implements UaRepository {
         $decreasedCount = $this->countIsDecreasedLast30Minutes($pdo, $subjectKey, $subjectType);
         return $decreasedCount > 0 ? 1 : 0;
     }
-    public function getIsDecreasedSession(): int{}
-    public function getIsDecreasedIp(): int{}
+
+    
+    public function getIsDecreasedSession(): int{
+        return $this->isDecreasedLast30Minutes($this->pdo, (string)$this->SessionId, 'session');
+    }
+    public function getIsDecreasedIp(): int{
+        return $this->isDecreasedLast30Minutes($this->pdo, (string)$this->IpAddress, 'ip');
+    }
     
     // data base でスコアが減少したかどうかを確認する
     //  実装で記述
@@ -328,3 +348,46 @@ class UaRepositoryImplementation implements UaRepository {
 
 
 }
+
+
+?>
+
+<?php
+/**
+ * database のtable ua_score_historyから、
+ * subject_key カラム が $subject_key1かつ
+ * subject_type カラム が $subject_type1 
+ * であるレコードの数をカウントする。
+ * 連想配列の 'decreased_count1' キーにカウントされた数を格納する。
+ * そして
+ * subject_key カラム が $subject_key2かつ
+ * subject_type カラム が $subject_type2 であるレコードの数をカウントする。
+ * 連想配列の 'decreased_count2' キーにカウントされた数を格納する。
+    * そして、連想配列を返す。
+ */
+
+    function countIsDecreasedLast30MinutesForTwoSubjects(PDO $pdo, string $sessionId, string $session, string $ipAddress, string $ip): array {
+        $sql = "SELECT 
+                    COUNT(CASE WHEN subject_key = :sessionId AND subject_type = :session_id AND is_decreased = 1 AND access_time >= (NOW() - INTERVAL 30 MINUTE) THEN 1 END) as session_decreased_count,
+                    COUNT(CASE WHEN subject_key = :ipAddress AND subject_type = :ip_address AND is_decreased = 1 AND access_time >= (NOW() - INTERVAL 30 MINUTE) THEN 1 END) as ip_decreased_count
+                FROM ua_score_history";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':sessionId' => $sessionId,
+            ':session_id' => $session,
+            ':ipAddress' => $ipAddress,
+            ':ip_address' => $ip,
+        ]);
+
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return [
+            // COUNT の値は文字列で返されるため、(int) キャストして整数に変換する
+            'session_decreased_count' => (int)$result['session_decreased_count'],
+            'ip_decreased_count' => (int)$result['ip_decreased_count'],
+        ];
+    }
+
+
+
+?>

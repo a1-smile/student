@@ -33,4 +33,28 @@
 
   saveUaData(RequestContent $requestContent): void
 
-  
+
+
+
+
+# class UaRepositoryImplementation implements UaRepository
+
+##プロパティ
+
+-serverからの基本情報
+    private int $SessionId;
+    private int $IpAddress;
+
+-PDO のインスタンスを保持するプロパティ
+    private PDO $pdo;
+
+-databaseからの情報
+    private int $scoreSession;
+    private int $scoreIp;
+    private int $isDecreasedSession;
+    private int $isDecreasedIp;
+
+-メソッド間でデータを共有するためのプロパティ
+    private array $accessCountArray;
+    private int $accessCountSession;
+    private int $accessCountIp;

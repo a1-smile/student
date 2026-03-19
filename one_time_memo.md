@@ -71,5 +71,77 @@ GPT-5.1 • 1x
 #windows でシンボリックリンクで紐ずけられているフォルダの一方を、
 git で操作したら、もう一方のフォルダも同じように操作されるますか？
 
+    // スコアが減少したかどうかを返す getter（1/0想定）
+    // public function getIsDecreasedSession(): int;
+    // public function getIsDecreasedIp(): int;
+
+
+//     CREATE TABLE ua_score_history (
+//   id                INT AUTO_INCREMENT PRIMARY KEY,
+//   subject_type      ENUM('session', 'ip') NOT NULL,
+//   subject_key       VARCHAR(128) NOT NULL,
+//   is_no_ua          TINYINT(1) NOT NULL DEFAULT 0,
+//   is_ua_mismatch    TINYINT(1) NOT NULL DEFAULT 0,
+//   is_over_threshold_session TINYINT(1) NOT NULL DEFAULT 0,
+//   is_over_threshold_ip TINYINT(1) NOT NULL DEFAULT 0,
+//   is_no_anomaly     TINYINT(1) NOT NULL DEFAULT 0,
+//   recaptcha_solved  TINYINT(1) NOT NULL DEFAULT 0,
+//   is_decreased      TINYINT(1) NOT NULL DEFAULT 0,
+//   access_time       DATETIME NOT NULL,
+//   INDEX idx_subject_time (subject_type, subject_key, access_time)
+// ) ENGINE=InnoDB
+//   DEFAULT CHARSET=utf8mb4
+//   COLLATE=utf8mb4_unicode_ci;
+
+
+    /**
+     * データベースの
+     * ua_score_history テーブルで
+     * subject_key カラム が $subject_keyで、
+     * subject_type カラム が $subject_type であるレコードのうち、
+     * is_decreased カラムの値が 1 で
+     * access_time が直近30分以内のレコードの数をカウントする。
+     * 
+     */
+
+    //  SQL 文の説明
+    //  SELECT COUNT(*) as decreased_count
+    //  SELECT COUNT(*) は条件に一致するレコードの数をカウントします。
+    //  as decreased_count は、
+    //  カウントされた数に decreased_count 
+    //  というエイリアスを付けることを意味します。
+    //  PHP 側で $result['decreased_count'] としてアクセスできるようになる。
+    //  呼び出し元では、この値が 0 より大きければ直近30分間にスコア減少があったと判断する用途で使われます。
+    private function countIsDecreasedLast30Minutes(PDO $pdo, string $subjectKey, string $subjectType): int {
+        $sql = "SELECT COUNT(*) as decreased_count
+                FROM ua_score_history
+                WHERE subject_key = :subjectKey
+                  AND subject_type = :subjectType
+                  AND is_decreased = 1
+                  AND access_time >= (NOW() - INTERVAL 30 MINUTE)";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':subjectKey' => $subjectKey,
+            ':subjectType' => $subjectType,
+        ]);
+
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return (int)$result['decreased_count'];
+    }
+
+    private function isDecreasedLast30Minutes(PDO $pdo, string $subjectKey, string $subjectType): int {
+        $decreasedCount = $this->countIsDecreasedLast30Minutes($pdo, $subjectKey, $subjectType);
+        return $decreasedCount > 0 ? 1 : 0;
+    }
+
+    
+    public function getIsDecreasedSession(): int{
+        return $this->isDecreasedLast30Minutes($this->pdo, (string)$this->SessionId, 'session');
+    }
+    public function getIsDecreasedIp(): int{
+        return $this->isDecreasedLast30Minutes($this->pdo, (string)$this->IpAddress, 'ip');
+    }
+
 
 
