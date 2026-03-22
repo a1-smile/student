@@ -25,8 +25,6 @@ class UaRepositoryImplementation implements UaRepository {
     private int $accessCountIp;
 
     private array $decreasedCountArray;
-    private int $isDecreasedSession;
-    private int $isDecreasedIp;
 
     //  コンストラクタで 
     // $SessionId と $IpAddress を初期化する
@@ -41,16 +39,16 @@ class UaRepositoryImplementation implements UaRepository {
         $this->scoreIp      = $this->fetchScore($this->pdo, (string)$this->IpAddress, 'ip');
 
         $this->accessCountArray   = $this->fetchAccessCountArray($this->pdo, (string)$this->SessionId, (string)$this->IpAddress);
-        $this->accessCountSession = $this->plunkAccessCountSession($this->accessCountArray);
-        $this->accessCountIp      = $this->plunkAccessCountIp($this->accessCountArray);
+        $this->accessCountSession = $this->extractAccessCountSession($this->accessCountArray);
+        $this->accessCountIp      = $this->extractAccessCountIp($this->accessCountArray);
 
         $this->decreasedCountArray = $this->countIsDecreasedLast30MinutesForTwoSubjects(
             $this->pdo,
             (string)$this->SessionId, 'session',
             (string)$this->IpAddress, 'ip'
         );
-        $this->isDecreasedSession = $this->plunkIsDecreasedSession($this->decreasedCountArray) ;
-        $this->isDecreasedIp      = $this->plunkIsDecreasedIp($this->decreasedCountArray);
+        $this->isDecreasedSession = $this->extractSessionDecreasedFlag($this->decreasedCountArray) ;
+        $this->isDecreasedIp      = $this->extractIpDecreasedFlag($this->decreasedCountArray);
 
     }
 
@@ -206,12 +204,12 @@ class UaRepositoryImplementation implements UaRepository {
     //  実装で記述
     // public function plunkAccessCountSession(array $accessCountArray): int;
     // public function plunkAccessCountIp(array $accessCountArray): int;
-    private function plunkAccessCountSession(array $accessCountArray): int {
+    private function extractAccessCountSession(array $accessCountArray): int {
         $accessCountSession = $accessCountArray['session_id_access_count'] ?? 0;
         return $accessCountSession;
     }
 
-    private function plunkAccessCountIp(array $accessCountArray): int {
+    private function extractAccessCountIp(array $accessCountArray): int {
         $accessCountIp = $accessCountArray['ip_address_access_count'] ?? 0;
         return $accessCountIp;        
     }
@@ -321,12 +319,12 @@ class UaRepositoryImplementation implements UaRepository {
     //  countIsDecreasedLast30MinutesForTwoSubjects() の結果から、
     //  session ベースと ip ベースの値を取得して、
     //  ゼロより大きければ 1 を返す。
-    private function plunkIsDecreasedSession(array $decreasedCountArray): int {
+    private function extractSessionDecreasedFlag(array $decreasedCountArray): int {
         $decreasedCountSession = $decreasedCountArray['session_decreased_count'] ?? 0;
         return $decreasedCountSession > 0 ? 1 : 0;
     }
 
-    private function plunkIsDecreasedIp(array $decreasedCountArray): int {
+    private function extractIpDecreasedFlag(array $decreasedCountArray): int {
         $decreasedCountIp = $decreasedCountArray['ip_decreased_count'] ?? 0;
         return $decreasedCountIp > 0 ? 1 : 0;
     }
