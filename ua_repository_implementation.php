@@ -428,28 +428,26 @@ class UaRepositoryImplementation implements UaRepository {
  * (int) キャストして整数に変換する。
  */
 
-    private function countIsDecreasedLast30MinutesForTwoSubjects(PDO $pdo, string $sessionId, string $session, string $ipAddress, string $ip): array {
-        $sql = "SELECT 
-                    COUNT(CASE WHEN subject_key = :sessionId AND subject_type = :session_id AND is_decreased = 1 AND access_time >= (NOW() - INTERVAL 30 MINUTE) THEN 1 END) as session_decreased_count,
-                    COUNT(CASE WHEN subject_key = :ipAddress AND subject_type = :ip_address AND is_decreased = 1 AND access_time >= (NOW() - INTERVAL 30 MINUTE) THEN 1 END) as ip_decreased_count
-                FROM ua_score_history";
+    // function countIsDecreasedLast30MinutesForTwoSubjects(PDO $pdo, string $sessionId, string $session, string $ipAddress, string $ip): array {
+    //     $sql = "SELECT 
+    //                 COUNT(CASE WHEN subject_key = :sessionId AND subject_type = :session_id AND is_decreased = 1 AND access_time >= (NOW() - INTERVAL 30 MINUTE) THEN 1 END) as session_decreased_count,
+    //                 COUNT(CASE WHEN subject_key = :ipAddress AND subject_type = :ip_address AND is_decreased = 1 AND access_time >= (NOW() - INTERVAL 30 MINUTE) THEN 1 END) as ip_decreased_count
+    //             FROM ua_score_history";
 
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            ':sessionId' => $sessionId,
-            ':session_id' => $session,
-            ':ipAddress' => $ipAddress,
-            ':ip_address' => $ip,
-        ]);
+    //     $stmt = $pdo->prepare($sql);
+    //     $stmt->execute([
+    //         ':sessionId' => $sessionId,
+    //         ':session_id' => $session,
+    //         ':ipAddress' => $ipAddress,
+    //         ':ip_address' => $ip,
+    //     ]);
 
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        return [
-            // COUNT の値は文字列で返されるため、(int) キャストして整数に変換する
-            'session_decreased_count' => (int)$result['session_decreased_count'],
-            'ip_decreased_count' => (int)$result['ip_decreased_count'],
-        ];
-    }
+    //     $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    //     return [
+    //         // COUNT の値は文字列で返されるため、(int) キャストして整数に変換する
+    //         'session_decreased_count' => (int)$result['session_decreased_count'],
+    //         'ip_decreased_count' => (int)$result['ip_decreased_count'],
+    //     ];
+    // }
 
 
-
-?>
