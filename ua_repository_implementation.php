@@ -202,8 +202,8 @@ class UaRepositoryImplementation implements UaRepository {
     //   ]
 
     //  実装で記述
-    // public function plunkAccessCountSession(array $accessCountArray): int;
-    // public function plunkAccessCountIp(array $accessCountArray): int;
+    // public function extractAccessCountSession(array $accessCountArray): int;
+    // public function extractAccessCountIp(array $accessCountArray): int;
     private function extractAccessCountSession(array $accessCountArray): int {
         $accessCountSession = $accessCountArray['session_id_access_count'] ?? 0;
         return $accessCountSession;
@@ -298,6 +298,7 @@ class UaRepositoryImplementation implements UaRepository {
         $sql = "SELECT 
                     COUNT(CASE WHEN subject_key = :sessionId AND subject_type = :session_id AND is_decreased = 1 AND access_time >= (NOW() - INTERVAL 30 MINUTE) THEN 1 END) as session_decreased_count,
                     COUNT(CASE WHEN subject_key = :ipAddress AND subject_type = :ip_address AND is_decreased = 1 AND access_time >= (NOW() - INTERVAL 30 MINUTE) THEN 1 END) as ip_decreased_count
+                    WHERE access_time >= (NOW() - INTERVAL 30 MINUTE)
                 FROM ua_score_history";
 
         $stmt = $pdo->prepare($sql);

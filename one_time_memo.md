@@ -144,4 +144,22 @@ git で操作したら、もう一方のフォルダも同じように操作さ�
     }
 
 
+# $isDecreasedSession をコンストラクタが実行されるタイミングで
+確定させるためのロジックが以下になります。
+
+この考え方に対するフィードバックをお願いします。
+
+- constructor で $sessionId を受け取る
+
+- 値をプロパティにセットする
+
+- countIsDecreasedLast30MinutesForTwoSubjects() 
+で $sessionId と 'session' を渡して、直近30分間にスコア減少があったかどうかを確認する   
+- 結果が配列として返ってくるので、
+$decreasedCountArray に constructor 内でセットする
+
+- extractSessionDecreasedFlag() で 
+$decreasedCountArray からセッションのスコア減少フラグを抽出して、
+$isDecreasedSession にconstructor内でセットする
+
 
