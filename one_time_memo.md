@@ -163,3 +163,75 @@ $decreasedCountArray からセッションのスコア減少フラグを抽出�
 $isDecreasedSession にconstructor内でセットする
 
 
+
+
+
+# student project （学生管理アプリ）の、
+security の部分の、ua checkのモジュールで、
+データベースからデータを取得するインターフェイス
+UaRepositoryInterface の実装をしています。
+必須のメソッドのうち、
+getIsNoAnomalySession() を実装するためのロジックを考えています。
+
+- database の ua_anomaly_events テーブルが以下になります。
+
+CREATE TABLE ua_anomaly_events (
+id INT AUTO_INCREMENT PRIMARY KEY,
+session_id VARCHAR(128) NOT NULL,
+ip_address VARCHAR(45) NOT NULL,
+is_no_ua TINYINT(1) NOT NULL DEFAULT 0,
+is_ua_mismatch TINYINT(1) NOT NULL DEFAULT 0,
+is_over_threshold_session TINYINT(1) NOT NULL DEFAULT 0,
+is_over_threshold_ip TINYINT(1) NOT NULL DEFAULT 0,
+access_time DATETIME NOT NULL,
+INDEX idx_session_time (session_id, access_time),
+INDEX idx_ip_time (ip_address, access_time),
+INDEX idx_time (access_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+- 過去10分の session_id カラムが 
+$sessionId であるレコード数をカウントする。
+DB の効率を考えて、
+この、アクセスで$ipAddress に関しても同様のロジックで、
+過去10分の ip_address カラムが $ipAddress であるレコード数をカウントする。
+
+以上のロジックを実装するためのメソッド名を
+countNoAnomalyEventsLast10MinutesForTwoSubjects() として、
+引数に $sessionId と $ipAddress を受け取る形で実装する。
+戻り値は、以下のような連想配列を返す形にする。
+
+[
+    'session_anomaly_count' => (int)セッションIDベースの過去10分のレコード数,
+    'ip_anomaly_count' => (int)IPアドレスベースの過去10分のレコード数
+]
+
+この、戻り値を受け取るプロパティが必要なので、
+$anomalyCountArray というプロパティをクラス内に定義する。
+このプロパティは、constructor 内で 
+countNoAnomalyEventsLast10MinutesForTwoSubjects() 
+を呼び出してセットする。
+
+$this->anomalyCountArray = $this->countNoAnomalyEventsLast10MinutesForTwoSubjects($sessionId, $ipAddress);
+
+- extractIsNoAnomalySessionFlag() メソッド内で、
+$anomalyCountArray から session_anomaly_count を取り出して、
+
+過去10分のセッションIDベースのレコード数が 0 より大きい場合は、
+$isNoAnomalySessionFlag を 0 にセットして、
+リターンする。
+
+
+
+
+0の場合は、$isNoAnomalySessionFlag を 1 にセットして、
+リターンする。
+
+（マイナスの場合は、プログラムでは防げないエラーと判断して、
+処理を中断する。）
+
+プロパティ$isNoAnomalySession をクラス内に定義して、
+constructor 内で extractIsNoAnomalySessionFlag() 
+を呼び出してセットする。
+
+getIsNoAnomalySession() は、
+プロパティ$isNoAnomalySession を返す形で実装する。
