@@ -296,10 +296,10 @@ class UaRepositoryImplementation implements UaRepository {
 
     private function countIsDecreasedLast30MinutesForTwoSubjects(PDO $pdo, string $sessionId, string $session, string $ipAddress, string $ip): array {
         $sql = "SELECT 
-                    COUNT(CASE WHEN subject_key = :sessionId AND subject_type = :session_id AND is_decreased = 1 AND access_time >= (NOW() - INTERVAL 30 MINUTE) THEN 1 END) as session_decreased_count,
-                    COUNT(CASE WHEN subject_key = :ipAddress AND subject_type = :ip_address AND is_decreased = 1 AND access_time >= (NOW() - INTERVAL 30 MINUTE) THEN 1 END) as ip_decreased_count
-                    WHERE access_time >= (NOW() - INTERVAL 30 MINUTE)
-                FROM ua_score_history";
+                    COUNT(CASE WHEN subject_key = :sessionId AND subject_type = :session_id AND is_decreased = 1 THEN 1 END) as session_decreased_count,
+                    COUNT(CASE WHEN subject_key = :ipAddress AND subject_type = :ip_address AND is_decreased = 1 THEN 1 END) as ip_decreased_count
+                    
+                FROM ua_score_history WHERE access_time >= (NOW() - INTERVAL 30 MINUTE)";
 
         $stmt = $pdo->prepare($sql);
         $stmt->execute([

@@ -195,6 +195,11 @@ DB の効率を考えて、
 この、アクセスで$ipAddress に関しても同様のロジックで、
 過去10分の ip_address カラムが $ipAddress であるレコード数をカウントする。
 
+
+また、WHERE ACCESS_TIME >= (NOW() - INTERVAL 10 MINUTE) を付与して、
+過去10分のレコード数をカウントするようにする。
+そうしないと、過去の全レコードをカウントしてしまうことになるためです。
+
 以上のロジックを実装するためのメソッド名を
 countNoAnomalyEventsLast10MinutesForTwoSubjects() として、
 引数に $sessionId と $ipAddress を受け取る形で実装する。
@@ -213,14 +218,19 @@ countNoAnomalyEventsLast10MinutesForTwoSubjects()
 
 $this->anomalyCountArray = $this->countNoAnomalyEventsLast10MinutesForTwoSubjects($sessionId, $ipAddress);
 
-- extractIsNoAnomalySessionFlag() メソッド内で、
+- $isNoAnomalySessionFlag($anomalyCountArray) メソッド内を定義して、
 $anomalyCountArray から session_anomaly_count を取り出して、
+ 
+$sessionAnomalyCount という変数にセットする。
+$sessionAnomalyCount = $anomalyCountArray['session_anomaly_count'];
 
 過去10分のセッションIDベースのレコード数が 0 より大きい場合は、
 $isNoAnomalySessionFlag を 0 にセットして、
 リターンする。
 
-
+つまり、
+$sessionAnomalyCount > 0 の場合は、
+$isNoAnomalySessionFlag を 0 にセットして、
 
 
 0の場合は、$isNoAnomalySessionFlag を 1 にセットして、
@@ -233,5 +243,11 @@ $isNoAnomalySessionFlag を 0 にセットして、
 constructor 内で extractIsNoAnomalySessionFlag() 
 を呼び出してセットする。
 
+$isNoAnomalySession = $this->extractIsNoAnomalySessionFlag($this->anomalyCountArray);
+
 getIsNoAnomalySession() は、
 プロパティ$isNoAnomalySession を返す形で実装する。
+
+return $this->isNoAnomalySession;
+
+このロジックの考え方に対するフィードバックをお願いします。

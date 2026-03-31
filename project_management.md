@@ -58,3 +58,41 @@
     private array $accessCountArray;
     private int $accessCountSession;
     private int $accessCountIp;
+
+
+#
+database の ua_anomaly_events
+
+countNoAnomalyEventsLast10MinutesForTwoSubjects(
+  $sessionId,
+  $ipAddress
+)
+
+[
+    'session_anomaly_count' => (int)セッションIDベースの過去10分のレコード数,
+    'ip_anomaly_count' => (int)IPアドレスベースの過去10分のレコード数
+]
+
+$anomalyCountArray というプロパティをクラス内に定義する。
+
+$this->anomalyCountArray = 
+$this->countNoAnomalyEventsLast10MinutesForTwoSubjects($sessionId, $ipAddress);
+
+extractIsNoAnomalySessionFlag($anomalyCountArray){
+$sessionAnomalyCount = $anomalyCountArray['session_anomaly_count'];
+if ($sessionAnomalyCount > 0) {
+    $isNoAnomalySessionFlag = 0;
+} elseif ($sessionAnomalyCount === 0) {
+    $isNoAnomalySessionFlag = 1;
+}
+return $isNoAnomalySessionFlag;
+}
+
+プロパティ$isNoAnomalySession をクラス内に定義
+
+コンストラクタ内で
+
+$this->isNoAnomalySession = $this->extractIsNoAnomalySessionFlag($this->anomalyCountArray);
+
+
+
