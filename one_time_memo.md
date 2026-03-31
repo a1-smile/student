@@ -213,10 +213,10 @@ countNoAnomalyEventsLast10MinutesForTwoSubjects() として、
 この、戻り値を受け取るプロパティが必要なので、
 $anomalyCountArray というプロパティをクラス内に定義する。
 このプロパティは、constructor 内で 
-countNoAnomalyEventsLast10MinutesForTwoSubjects() 
+countAnomalyEventsLast10MinutesForTwoSubjects() 
 を呼び出してセットする。
 
-$this->anomalyCountArray = $this->countNoAnomalyEventsLast10MinutesForTwoSubjects($sessionId, $ipAddress);
+$this->anomalyCountArray = $this->countAnomalyEventsLast10MinutesForTwoSubjects($sessionId, $ipAddress);
 
 - $isNoAnomalySessionFlag($anomalyCountArray) メソッド内を定義して、
 $anomalyCountArray から session_anomaly_count を取り出して、

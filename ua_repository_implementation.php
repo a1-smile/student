@@ -16,6 +16,9 @@ class UaRepositoryImplementation implements UaRepository {
     private int $scoreSession;
     private int $scoreIp;
 
+    private int $isNoAnomalySession;
+    private int $isNoAnomalyIp;
+
     private int $isDecreasedSession;
     private int $isDecreasedIp;
 
@@ -25,6 +28,8 @@ class UaRepositoryImplementation implements UaRepository {
     private int $accessCountIp;
 
     private array $decreasedCountArray;
+
+    private array $anomalyCountArray;
 
     //  コンストラクタで 
     // $SessionId と $IpAddress を初期化する
@@ -49,6 +54,16 @@ class UaRepositoryImplementation implements UaRepository {
         );
         $this->isDecreasedSession = $this->extractSessionDecreasedFlag($this->decreasedCountArray) ;
         $this->isDecreasedIp      = $this->extractIpDecreasedFlag($this->decreasedCountArray);
+
+
+        $this->anomalyCountArray =
+        $this->countAnomalyEventsLast10MinutesForTwoSubjects(
+            $this->pdo,
+            $this->SessionId, 
+            $this->IpAddress
+        );
+        $this->isNoAnomalySession = $this->extractIsNoAnomalySessionFlag($this->anomalyCountArray);
+        $this->isNoAnomalyIp      = $this->extractIsNoAnomalyIpFlag($this->anomalyCountArray);
 
     }
 
@@ -345,9 +360,64 @@ class UaRepositoryImplementation implements UaRepository {
     // public function checkIsDecreasedLast30Minutes(string $subjectType, string $subjectKey): int;
 
 
+    private function countAnomalyEventsLast10MinutesForTwoSubjects(PDO $pdo, string $sessionId, string $ipAddress): array {
+        // ここでデータベースから異常イベントの数を取得するロジックを実装
+        // 例: SQLクエリを実行して、$sessionId と $ipAddress に基づいて異常イベントの数を取得する
+        // 取得した異常イベントの数の配列を返す
+
+        //  データベースのua_score_historyの subject_key カラムが $sessionId
+        //  であるレコードの数をカウントする。
+
+        //  subject_key カラムが $ipAddress
+        //  であるレコードの数をカウントする。
+
+
+//         CREATE TABLE ua_anomaly_events (
+// id INT AUTO_INCREMENT PRIMARY KEY,
+// session_id VARCHAR(128) NOT NULL,
+// ip_address VARCHAR(45) NOT NULL,
+// is_no_ua TINYINT(1) NOT NULL DEFAULT 0,
+// is_ua_mismatch TINYINT(1) NOT NULL DEFAULT 0,
+// is_over_threshold_session TINYINT(1) NOT NULL DEFAULT 0,
+// is_over_threshold_ip TINYINT(1) NOT NULL DEFAULT 0,
+// access_time DATETIME NOT NULL,
+// INDEX idx_session_time (session_id, access_time),
+// INDEX idx_ip_time (ip_address, access_time),
+// INDEX idx_time (access_time)
+// ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+        $sql = "SELECT 
+                    COUNT(CASE WHEN session_id = :sessionId THEN 1 END) as session_anomaly_count,
+                    COUNT(CASE WHEN ip_address = :ipAddress THEN 1 END) as ip_anomaly_count
+                    
+                FROM ua_anomaly_events WHERE access_time >= (NOW() - INTERVAL 10 MINUTE)";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':sessionId' => $sessionId,
+            ':ipAddress' => $ipAddress,
+        ]);
+
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return [
+            // COUNT の値は文字列で返されるため、(int) キャストして整数に変換する
+            'session_anomaly_count' => (int)$result['session_anomaly_count'],
+            'ip_anomaly_count' => (int)$result['ip_anomaly_count'],
+        ];
+
+    }
+
+
+
     // 追跡対象に異常がない場合は 1 を返す getter
-    public function getIsNoAnomalySession(): int;
-    public function getIsNoAnomalyIp(): int;
+    public function getIsNoAnomalySession(): int{
+        return $this->isNoAnomalySession;
+    }
+    public function getIsNoAnomalyIp(): int{
+        return $this->isNoAnomalyIp;
+    }
 
     // data base で異常フラグがあるレコードの数を配列で取得する
     //  実装で記述
