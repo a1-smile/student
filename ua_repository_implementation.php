@@ -6,11 +6,11 @@ class UaRepositoryImplementation implements UaRepository {
     //  プロパティ
 
     // serverからの基本情報
-    private int $SessionId;
-    private int $IpAddress;
+    private string $sessionId;
+    private string $ipAddress;
 
     // PDO のインスタンスを保持するプロパティ
-    private PDO $pdo;
+private PDO $pdo;
 
     //  databaseからの情報
     private int $scoreSession;
@@ -29,21 +29,26 @@ class UaRepositoryImplementation implements UaRepository {
 
     private array $decreasedCountArray;
 
-    private array $anomalyCountArray;
+    // DB から一つずつ値を取得する方法に変更したため、
+    // 以下のプロパティは不要になりました。
+    // DB へのアクセス回数よりも、
+    // インデックスの適切な利用のほうが
+    // パフォーマンスに寄与する可能性が高いためです。
+    // private array $anomalyCountArray;
 
     //  コンストラクタで 
     // $SessionId と $IpAddress を初期化する
     //  PDO のインスタンスを受け取る
-    public function __construct(PDO $pdo, int $SessionId, int $IpAddress) {
+    public function __construct(PDO $pdo, string $sessionId, string $ipAddress) {
         $this->pdo = $pdo;
 
-        $this->SessionId = $SessionId;
-        $this->IpAddress = $IpAddress;
+        $this->sessionId = $sessionId;
+        $this->ipAddress = $ipAddress;
 
-        $this->scoreSession = $this->fetchScore($this->pdo, (string)$this->SessionId, 'session');
-        $this->scoreIp      = $this->fetchScore($this->pdo, (string)$this->IpAddress, 'ip');
+        $this->scoreSession = $this->fetchScore($this->pdo, (string)$this->sessionId, 'session');
+        $this->scoreIp      = $this->fetchScore($this->pdo, (string)$this->ipAddress, 'ip');
 
-        $this->accessCountArray   = $this->fetchAccessCountArray($this->pdo, (string)$this->SessionId, (string)$this->IpAddress);
+        $this->accessCountArray   = $this->fetchAccessCountArray($this->pdo, (string)$this->sessionId, (string)$this->ipAddress);
         $this->accessCountSession = $this->extractAccessCountSession($this->accessCountArray);
         $this->accessCountIp      = $this->extractAccessCountIp($this->accessCountArray);
 
@@ -360,7 +365,11 @@ class UaRepositoryImplementation implements UaRepository {
     // public function checkIsDecreasedLast30Minutes(string $subjectType, string $subjectKey): int;
 
 
-    private function countAnomalyEventsLast10MinutesForTwoSubjects(PDO $pdo, string $sessionId, string $ipAddress): array {
+    //  DB へのアクセス回数よりも、
+    //  インデックスの適切な利用のほうが
+    //  パフォーマンスに寄与する可能性が高いため、
+    //  以下のメソッドは、コメントアウトします。
+    // private function countAnomalyEventsLast10MinutesForTwoSubjects(PDO $pdo, string $sessionId, string $ipAddress): array {
         // ここでデータベースから異常イベントの数を取得するロジックを実装
         // 例: SQLクエリを実行して、$sessionId と $ipAddress に基づいて異常イベントの数を取得する
         // 取得した異常イベントの数の配列を返す
@@ -387,27 +396,27 @@ class UaRepositoryImplementation implements UaRepository {
 // ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
-        $sql = "SELECT 
-                    COUNT(CASE WHEN session_id = :sessionId THEN 1 END) as session_anomaly_count,
-                    COUNT(CASE WHEN ip_address = :ipAddress THEN 1 END) as ip_anomaly_count
+    //     $sql = "SELECT 
+    //                 COUNT(CASE WHEN session_id = :sessionId THEN 1 END) as session_anomaly_count,
+    //                 COUNT(CASE WHEN ip_address = :ipAddress THEN 1 END) as ip_anomaly_count
                     
-                FROM ua_anomaly_events WHERE access_time >= (NOW() - INTERVAL 10 MINUTE)";
+    //             FROM ua_anomaly_events WHERE access_time >= (NOW() - INTERVAL 10 MINUTE)";
 
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            ':sessionId' => $sessionId,
-            ':ipAddress' => $ipAddress,
-        ]);
+    //     $stmt = $pdo->prepare($sql);
+    //     $stmt->execute([
+    //         ':sessionId' => $sessionId,
+    //         ':ipAddress' => $ipAddress,
+    //     ]);
 
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    //     $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        return [
-            // COUNT の値は文字列で返されるため、(int) キャストして整数に変換する
-            'session_anomaly_count' => (int)$result['session_anomaly_count'],
-            'ip_anomaly_count' => (int)$result['ip_anomaly_count'],
-        ];
+    //     return [
+    //         // COUNT の値は文字列で返されるため、(int) キャストして整数に変換する
+    //         'session_anomaly_count' => (int)$result['session_anomaly_count'],
+    //         'ip_anomaly_count' => (int)$result['ip_anomaly_count'],
+    //     ];
 
-    }
+    // }
 
 
 
