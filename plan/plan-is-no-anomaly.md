@@ -56,18 +56,84 @@ WHERE ip_address = :ipAddress AND access_time >= (NOW() - INTERVAL 10 MINUTE);
 
 このクエリを実行して、
 fetchAll すると、以下のような結果が得られます。
-$resultsArray = [
+$anomalyCountArrayString = [
     ['type' => 'session', 'anomaly_count' => '5'],
     ['type' => 'ip', 'anomaly_count' => '3']
 ]; 
 
 
+$anomalyCountArrayString
+
+
+
+
 この結果をもとに、セッションIDとIPアドレスの異常イベント数をそれぞれ取得することができます。
-foreach ($resultsArray as $result) {
-    if ($result['type'] === 'session') {
-        $sessionAnomalyCount = $result['anomaly_count'];
-    } elseif ($result['type'] === 'ip') {
-        $ipAnomalyCount = $result['anomaly_count'];
+foreach ($anomalyCountArrayString as $countArray) {
+    if ($countArray['type'] === 'session') {
+        $sessionAnomalyCount = (int)$countArray['anomaly_count'];
+    } elseif ($countArray['type'] === 'ip') {
+        $ipAnomalyCount = (int)$countArray['anomaly_count'];
     }
 }
+
+$anomalyCountArrayInt = [
+    'session' => $sessionAnomalyCount,
+    'ip' => $ipAnomalyCount
+];
+
+この、$anomalyCountArrayInt
+を return
+ここまでで、一つのメソッドとします。
+
+プロパティ
+$anomalyCountArrayInt
+に代入します。
+（配列だが、値はintという意味です。）
+戻り値をうけとって、
+
+isNoAnomalyFlagArray
+という配列を返すメソッドを
+定義します。
+
+$sessionAnomalyCount =
+ $anomalyCountArrayInt['session'];
+
+$ipAnomalyCount =
+ $anomalyCountArrayInt['ip'];
+
+if ($sessionAnomalyCount > 0) {
+    $isNoAnomalySession = 0;
+} else {
+    $isNoAnomalySession = 1;
+}
+if ($ipAnomalyCount > 0) {
+    $isNoAnomalyIp = 0;
+} else {
+    $isNoAnomalyIp = 1;
+}
+
+$isNoAnomalyFlagArray = [
+    'session' => $isNoAnomalySession,
+    'ip' => $isNoAnomalyIp
+];
+
+return $isNoAnomalyFlagArray;
+
+
+コンストラクタ内で、値を受け取って、プロパティに代入します。
+$this->isNoAnomalySession = 
+$this->isNoAnomalyFlagArray['session'];
+
+$this->isNoAnomalyIp =
+$this->isNoAnomalyFlagArray['ip'];
+
+
+
+
+
+
+
+
+$sessionAnomalyCount = $anomalyCountArrayInt['session'];
+$ipAnomalyCount = $anomalyCountArrayInt['ip'];
 
