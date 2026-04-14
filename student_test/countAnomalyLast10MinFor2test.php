@@ -6,12 +6,6 @@
         // 例: SQLクエリを実行して、$sessionId と $ipAddress に基づいて異常イベントの数を取得する
         // 取得した異常イベントの数を配列で返す
 
-        //  データベースのua_score_historyの subject_key カラムが $sessionId
-        //  であるレコードの数をカウントする。
-
-        //  subject_key カラムが $ipAddress
-        //  であるレコードの数をカウントする。
-
 
 //         CREATE TABLE ua_anomaly_events (
 // id INT AUTO_INCREMENT PRIMARY KEY,
@@ -59,6 +53,11 @@
                 $anomalyCountArray['ip'] = (int)$row['anomaly_count'];
             }
         }
+        //  最終的に、以下のような配列が得られます。
+        // $anomalyCountArray = [
+        //     'session' => 5,
+        //     'ip' => 3
+        // ];
 
         return $anomalyCountArray;
 
@@ -74,9 +73,10 @@ session_start();
  * UAアクセスログを記録
  */
 function ua_anomaly_test(PDO $pdo, string $session_id, string $ip_address, int $is_no_ua, int $is_ua_mismatch, int $is_over_threshold_session, int $is_over_threshold_ip): void {
-    $sql = 'INSERT INTO ua_anomaly_events (session_id, ip_address, is_no_ua, is_ua_mismatch, is_over_threshold_session, is_over_threshold_ip, access_time) )
+    $sql = 'INSERT INTO ua_anomaly_events (session_id, ip_address, is_no_ua, is_ua_mismatch, is_over_threshold_session, is_over_threshold_ip, access_time)
             VALUES (:session_id, :ip_address, :is_no_ua, :is_ua_mismatch, :is_over_threshold_session, :is_over_threshold_ip, NOW())';
     $stmt = $pdo->prepare($sql);
+
     $stmt->bindValue(':session_id',     
     $session_id, PDO::PARAM_STR);
 
@@ -91,6 +91,7 @@ function ua_anomaly_test(PDO $pdo, string $session_id, string $ip_address, int $
 
     $stmt->bindValue(':is_over_threshold_session',
     $is_over_threshold_session, PDO::PARAM_INT);
+
     $stmt->bindValue(':is_over_threshold_ip',
     $is_over_threshold_ip, PDO::PARAM_INT);
     
@@ -188,9 +189,9 @@ foreach ($arguments_array as $args) {
     echo 'print_r<br>';
     print_r($resultArray); // 結果を確認
 
-    echo 'expected: session_id_access_count = 4, ip_address_access_count = 2 <br>';
+    echo 'expected: $resultArray["session"] = 4, $resultArray["ip"] = 2 <br>';
 
     //  session_id を出力します。
-    echo "Session ID: " . $sessionId . "<br>";
+    echo "\$resultArray[\"session\"]: " . $resultArray["session"] . "<br>";
     //  IPアドレスを出力します。
-    echo "IP Address: " . $ipAddress . "<br>";
+    echo "\$resultArray[\"ip\"]: " . $resultArray["ip"] . "<br>";
