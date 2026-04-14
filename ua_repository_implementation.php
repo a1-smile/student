@@ -29,12 +29,8 @@ private PDO $pdo;
 
     private array $decreasedCountArray;
 
-    // DB から一つずつ値を取得する方法に変更したため、
-    // 以下のプロパティは不要になりました。
-    // DB へのアクセス回数よりも、
-    // インデックスの適切な利用のほうが
-    // パフォーマンスに寄与する可能性が高いためです。
-    // private array $anomalyCountArray;
+    private array $anomalyCountArray;
+    private array $isNoAnomalyFlagArray;
 
     //  コンストラクタで 
     // $SessionId と $IpAddress を初期化する
@@ -62,13 +58,15 @@ private PDO $pdo;
 
 
         $this->anomalyCountArray =
-        $this->countAnomalyEventsLast10MinutesForTwoSubjects(
+        $this->countAnomalyLast10MinFor2(
             $this->pdo,
             $this->SessionId, 
             $this->IpAddress
         );
-        $this->isNoAnomalySession = $this->extractIsNoAnomalySessionFlag($this->anomalyCountArray);
-        $this->isNoAnomalyIp      = $this->extractIsNoAnomalyIpFlag($this->anomalyCountArray);
+
+        $this->isNoAnomalyFlagArray = $this->makeNoAnomalyFlagArray($this->anomalyCountArray);
+        $this->isNoAnomalySession = $this->isNoAnomalyFlagArray['session'];
+        $this->isNoAnomalyIp      = $this->isNoAnomalyFlagArray['ip'];
 
     }
 
@@ -368,11 +366,11 @@ private PDO $pdo;
     //  DB へのアクセス回数よりも、
     //  インデックスの適切な利用のほうが
     //  パフォーマンスに寄与する可能性が高いため、
-    //  以下のメソッドは、コメントアウトします。
-    // private function countAnomalyEventsLast10MinutesForTwoSubjects(PDO $pdo, string $sessionId, string $ipAddress): array {
+    //  以下のメソッドは、リファクタリング
+     private function countAnomalyLast10MinFor2(PDO $pdo, string $sessionId, string $ipAddress): array {
         // ここでデータベースから異常イベントの数を取得するロジックを実装
         // 例: SQLクエリを実行して、$sessionId と $ipAddress に基づいて異常イベントの数を取得する
-        // 取得した異常イベントの数の配列を返す
+        // 取得した異常イベントの数を配列で返す
 
         //  データベースのua_score_historyの subject_key カラムが $sessionId
         //  であるレコードの数をカウントする。
@@ -394,6 +392,43 @@ private PDO $pdo;
 // INDEX idx_ip_time (ip_address, access_time),
 // INDEX idx_time (access_time)
 // ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+    $sql = "SELECT 'session' as type, COUNT(*) as anomaly_count
+            FROM ua_anomaly_events 
+            WHERE session_id = :sessionId AND access_time >= (NOW() - INTERVAL 10 MINUTE)
+            UNION ALL
+            SELECT 'ip' as type, COUNT(*) as anomaly_count
+            FROM ua_anomaly_events 
+            WHERE ip_address = :ipAddress AND access_time >= (NOW() - INTERVAL 10 MINUTE);
+            ";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':sessionId' => $sessionId,
+            ':ipAddress' => $ipAddress,
+        ]);
+
+        $resultArray = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // このクエリを実行して、
+        // fetchAll すると、以下のような結果が得られます。
+        // $anomalyCountArrayString = [
+        //     ['type' => 'session', 'anomaly_count' => '5'],
+        //     ['type' => 'ip', 'anomaly_count' => '3']
+        // ]; 
+
+        $anomalyCountArray = [];
+        foreach ($resultArray as $row) {
+            if ($row['type'] === 'session') {
+                $anomalyCountArray['session'] = (int)$row['anomaly_count'];
+            } elseif ($row['type'] === 'ip') {
+                $anomalyCountArray['ip'] = (int)$row['anomaly_count'];
+            }
+        }
+
+        return $anomalyCountArray;
+
+    }
 
 
     //     $sql = "SELECT 

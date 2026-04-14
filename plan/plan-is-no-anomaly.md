@@ -88,7 +88,7 @@ $anomalyCountArrayInt = [
 プロパティ
 $anomalyCountArrayInt
 に代入します。
-（配列だが、値はintという意味です。）
+（配列の中身の要素の値の型はintという意味です。）
 戻り値をうけとって、
 
 isNoAnomalyFlagArray
@@ -128,12 +128,9 @@ $this->isNoAnomalyIp =
 $this->isNoAnomalyFlagArray['ip'];
 
 
-
-
-
-
-
-
+以下は、プロパティではなくて、
+メソッド内のローカル変数として定義して、
+利用します。
 $sessionAnomalyCount = $anomalyCountArrayInt['session'];
 $ipAnomalyCount = $anomalyCountArrayInt['ip'];
 
