@@ -1,12 +1,46 @@
 #student アプリケーションのセキュリティー部分における
-ua check で、
+ua check モジュールでは、
+
+interface_request_content.php
+に定義した、
+interface RequestContent
+の実装によって
+サーバーからの基本情報を取得します。
+
+interface_ua_repository.php
+に定義した、
+interface UaRepository
+の実装によって、DB から値を取得します。
+
+user_agent_risk_evaluator.php
+に定義されている
+class UserAgentRiskEvaluator
+において、
+interface RequestContentの実装と
+interface UaRepositoryの実装から
+データを取得して、
+アクセス元のセキュリティリスクを計算します。
+
+その後、
+計算結果をDBに保存し、
+計算結果によって、その後の処理を分岐させます。
+
 DB から値を取得する、インターフェイスの実装
 class UaRepositoryImplementation implements UaRepository 
 のメソッドである
-private function countAnomalyEventsLast10MinutesForTwoSubjects(PDO $pdo, string $sessionId, string $ipAddress)
+private function countAnomalyLast10MinFor2(PDO $pdo, string $sessionId, string $ipAddress)
 は、DB処理の効率化のためにコメントアウトして、
 リファクタリングします。
 
+このメソッドは、
+session id と ip address の両方に対して、
+過去10分間の異常イベントの数をカウントするためのものです。
+このメソッドの戻り値をもとに、
+過去10分間に異常イベントがあったかを表すフラグ
+$isNoAnomalySession と $isNoAnomalyIp を確定させます。
+
+この処理に必要なDBのテーブルは、
+ua_anomaly_events というテーブルで、
 テーブル構造は以下の通りです。
 CREATE TABLE ua_anomaly_events (
 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -56,19 +90,20 @@ WHERE ip_address = :ipAddress AND access_time >= (NOW() - INTERVAL 10 MINUTE);
 
 このクエリを実行して、
 fetchAll すると、以下のような結果が得られます。
-$anomalyCountArrayString = [
+$resultArray = [
     ['type' => 'session', 'anomaly_count' => '5'],
     ['type' => 'ip', 'anomaly_count' => '3']
 ]; 
 
-
-$anomalyCountArrayString
+$resultArrayを加工するために、
+$anomalyCountArray = [];
+という配列を定義して、
 
 
 
 
 この結果をもとに、セッションIDとIPアドレスの異常イベント数をそれぞれ取得することができます。
-foreach ($anomalyCountArrayString as $countArray) {
+foreach ($resultArray as $countArray) {
     if ($countArray['type'] === 'session') {
         $sessionAnomalyCount = (int)$countArray['anomaly_count'];
     } elseif ($countArray['type'] === 'ip') {
@@ -76,30 +111,39 @@ foreach ($anomalyCountArrayString as $countArray) {
     }
 }
 
-$anomalyCountArrayInt = [
+$anomalyCountArray = [
     'session' => $sessionAnomalyCount,
     'ip' => $ipAnomalyCount
 ];
 
-この、$anomalyCountArrayInt
-を return
-ここまでで、一つのメソッドとします。
+この、$anomalyCountArray
 
+を return
+する処理を
+ひとつのメソッドにまとめ、
+private function countAnomalyLast10MinFor2(PDO $pdo, string $sessionId, string $ipAddress): array
+とします。
+
+戻り値を
 プロパティ
-$anomalyCountArrayInt
+$anomalyCountArray
 に代入します。
-（配列の中身の要素の値の型はintという意味です。）
-戻り値をうけとって、
+（配列の中身の要素の値の型はstringです。）
+
+
 
 isNoAnomalyFlagArray
 という配列を返すメソッドを
 定義します。
 
+
+
+
 $sessionAnomalyCount =
- $anomalyCountArrayInt['session'];
+ $anomalyCountArray['session'];
 
 $ipAnomalyCount =
- $anomalyCountArrayInt['ip'];
+ $anomalyCountArray['ip'];
 
 if ($sessionAnomalyCount > 0) {
     $isNoAnomalySession = 0;
@@ -128,9 +172,26 @@ $this->isNoAnomalyIp =
 $this->isNoAnomalyFlagArray['ip'];
 
 
-以下は、プロパティではなくて、
-メソッド内のローカル変数として定義して、
-利用します。
-$sessionAnomalyCount = $anomalyCountArrayInt['session'];
-$ipAnomalyCount = $anomalyCountArrayInt['ip'];
+このようなロジックで、
+ua_repository_implementation.php
+に記述している
+class UaRepositoryImplementation implements UaRepository 
+のプロパティ
+$isNoAnomalySession と $isNoAnomalyIp
+を確定させます。
+
+という予定ですが、
+ひとまずは、
+private function countAnomalyLast10MinFor2(PDO $pdo, string $sessionId, string $ipAddress)
+を実装し、
+テストコードも書いてみます。
+student_test\countAnomalyLast10MinFor2test.php
+にテストコードを記述します。
+function countAnomalyLast10MinFor2Test()
+のテストコードを実行した結果、ブラウザの表示が
+以下になります。
+テストコードと
+function countAnomalyLast10MinFor2Test()
+の改善点を、指摘してください。
+
 
