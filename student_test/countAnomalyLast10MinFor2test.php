@@ -1,5 +1,11 @@
 <?php
 
+// 変数定義
+$testSessionId = hash('sha256', session_id());
+$testIpAddress = $_SERVER['REMOTE_ADDR'];
+$unmatchedSession = 'unmatched_session';
+$unmatchedIp = '10.99.99.99';
+
 
      function countAnomalyLast10MinFor2Test(PDO $pdo, string $sessionId, string $ipAddress): array {
         // ここでデータベースから異常イベントの数を取得するロジックを実装
@@ -45,7 +51,10 @@
         //     ['type' => 'ip', 'anomaly_count' => '3']
         // ]; 
 
-        $anomalyCountArray = [];
+        $anomalyCountArray = [
+            'session' => 0,
+            'ip' => 0
+        ];
         foreach ($resultArray as $row) {
             if ($row['type'] === 'session') {
                 $anomalyCountArray['session'] = (int)$row['anomaly_count'];
@@ -104,25 +113,6 @@ function ua_anomaly_test(PDO $pdo, string $session_id, string $ip_address, int $
     // require_once 'common/dbmanager.php';
     require_once __DIR__ . '/../common/dbmanager.php';
 
-    //  プロパティーの定義
-    //  データベースアクセス情報
-    // private $access_info;
-    // //  データベースのユーザー名
-    // private $user;
-    // //  データベースのパスワード
-    // private $password;
-    // //  PDO インスタンス
-    // private $db = null;
-    // public function get_db() {
-    //     return $this->db;
-    // }
-    // //  コンストラクタ
-    // public function __construct() {
-    //     $this->access_info = 'mysql:host=localhost;dbname=school;charset=utf8mb4';
-    //     $this->user = 'root';
-    //     $this->password = 'root';
-    // }
-
 
     //  DBManager クラスのインスタンスを作成し、
     // PDO インスタンスを取得します。
@@ -147,12 +137,19 @@ echo 'テスト開始<br><br>';
     }
 
 
-    // セッションIDを取得します。
-    $sessionId = session_id();
-    // クライアントのIPアドレスを取得します。
-    $ipAddress = $_SERVER['REMOTE_ADDR'];
+    // // セッションIDを取得します。
+    // $sessionId = session_id();
+    // // 取得したセッションIDをハッシュ化
+    // $sessionId = hash('sha256', $sessionId);
+    // // クライアントのIPアドレスを取得します。
+    // $ipAddress = $_SERVER['REMOTE_ADDR'];
 
+    // // dummyIp を定義します。
+    // $unmatchedIp = '127.0.0.1';
+    // // dummySessionId を定義します。
+    // $unmatchedSession = 'dummy_session_id';
 
+function test1(PDO $pdo, string $testSessionId, string $testIpAddress, string $unmatchedSession, string $unmatchedIp) {
 //  テーブルua_anomaly_events を一度クリアします。
 $pdo->exec("TRUNCATE TABLE ua_anomaly_events");
 
@@ -162,11 +159,11 @@ $pdo->exec("TRUNCATE TABLE ua_anomaly_events");
 
 $arguments_array = [
     // session_id, ip_address, is_no_ua, is_ua_mismatch, is_over_threshold_session, is_over_threshold_ip
-    [$sessionId, $ipAddress, 1, 1, 1, 1],
-    [$sessionId, ''        , 1, 1, 1, 1],
-    [''        , ''        , 1, 1, 1, 1],
-    [$sessionId, ''        , 1, 1, 1, 1],
-    [$sessionId, $ipAddress, 1, 1, 1, 1],
+    [$testSessionId,        $testIpAddress,     1, 1, 1, 1],
+    [$testSessionId,        $unmatchedIp,   1, 1, 1, 1],
+    [$unmatchedSession,     $unmatchedIp,   1, 1, 1, 1],
+    [$testSessionId,        $unmatchedIp,   1, 1, 1, 1],
+    [$testSessionId,        $testIpAddress,   1, 1, 1, 1]
 ];
 
 foreach ($arguments_array as $args) {
@@ -178,20 +175,155 @@ foreach ($arguments_array as $args) {
     $resultArray = 
     countAnomalyLast10MinFor2Test(
         $pdo,
-        $sessionId,
-        $ipAddress,
+        $testSessionId,
+        $testIpAddress,
         );
 
     echo '<br><br>';
-    echo 'var_dump<br>';
-    var_dump($resultArray); // 結果を確認
     echo '<br><br>';
-    echo 'print_r<br>';
-    print_r($resultArray); // 結果を確認
-
     echo 'expected: $resultArray["session"] = 4, $resultArray["ip"] = 2 <br>';
 
     //  session_id を出力します。
     echo "\$resultArray[\"session\"]: " . $resultArray["session"] . "<br>";
     //  IPアドレスを出力します。
     echo "\$resultArray[\"ip\"]: " . $resultArray["ip"] . "<br>";
+
+    $expected = [
+        'session' => 4,
+        'ip' => 2
+    ];
+
+    echo '<br><br>';
+    if ($resultArray == $expected) {
+        echo "テスト成功: 結果が期待通りです。<br>";
+    } else {
+        echo "テスト失敗: 結果が期待と異なります。<br>";
+    }
+}
+
+// ============================================
+// エッジケーステスト
+// ============================================
+
+echo '<br><hr><br>';
+echo '<b>エッジケーステスト開始</b><br><br>';
+
+// --------------------------------------------
+// テスト2: TRUNCATE 直後、INSERT なしで呼び出す場合
+//   テーブルが空 → session=0, ip=0 を期待
+// --------------------------------------------
+$pdo->exec("TRUNCATE TABLE ua_anomaly_events");
+
+$resultArray2 = countAnomalyLast10MinFor2Test(
+    $pdo,
+    $testSessionId,
+    $testIpAddress
+);
+
+$expected2 = ['session' => 0, 'ip' => 0];
+
+echo 'テスト2: テーブルが空の場合<br>';
+echo 'expected: session=0, ip=0<br>';
+echo 'actual: session=' . $resultArray2['session'] . ', ip=' . $resultArray2['ip'] . '<br>';
+if ($resultArray2 === $expected2) {
+    echo "テスト2 成功<br>";
+} else {
+    echo "テスト2 失敗<br>";
+}
+
+// --------------------------------------------
+// テスト3: session_id は一致するが ip_address は一致しない場合
+//   $sessionId のレコードのみ INSERT し、$ipAddress は別の値にする
+// --------------------------------------------
+$pdo->exec("TRUNCATE TABLE ua_anomaly_events");
+
+$arguments_array3 = [
+    [$testSessionId, $unmatchedIp, 1, 1, 1, 1],
+    [$testSessionId, $unmatchedIp, 1, 1, 1, 1],
+    [$testSessionId, $unmatchedIp, 1, 1, 1, 1],
+];
+foreach ($arguments_array3 as $args) {
+    ua_anomaly_test($pdo, $args[0], $args[1], $args[2], $args[3], $args[4], $args[5]);
+}
+
+$resultArray3 = countAnomalyLast10MinFor2Test(
+    $pdo,
+    $testSessionId,
+    $testIpAddress
+);
+
+$expected3 = ['session' => 3, 'ip' => 0];
+
+echo '<br>テスト3: session_id のみ一致、ip_address は不一致<br>';
+echo 'expected: session=3, ip=0<br>';
+echo 'actual: session=' . $resultArray3['session'] . ', ip=' . $resultArray3['ip'] . '<br>';
+if ($resultArray3 === $expected3) {
+    echo "テスト3 成功<br>";
+} else {
+    echo "テスト3 失敗<br>";
+}
+
+// --------------------------------------------
+// テスト4: ip_address は一致するが session_id は一致しない場合
+// --------------------------------------------
+$pdo->exec("TRUNCATE TABLE ua_anomaly_events");
+
+$arguments_array4 = [
+    [$unmatchedSession, $testIpAddress, 1, 1, 1, 1],
+    [$unmatchedSession, $testIpAddress, 1, 1, 1, 1],
+];
+foreach ($arguments_array4 as $args) {
+    ua_anomaly_test($pdo, $args[0], $args[1], $args[2], $args[3], $args[4], $args[5]);
+}
+
+$resultArray4 = countAnomalyLast10MinFor2Test(
+    $pdo,
+    $testSessionId,
+    $testIpAddress
+);
+
+$expected4 = ['session' => 0, 'ip' => 2];
+
+echo '<br>テスト4: ip_address のみ一致、session_id は不一致<br>';
+echo 'expected: session=0, ip=2<br>';
+echo 'actual: session=' . $resultArray4['session'] . ', ip=' . $resultArray4['ip'] . '<br>';
+if ($resultArray4 === $expected4) {
+    echo "テスト4 成功<br>";
+} else {
+    echo "テスト4 失敗<br>";
+}
+
+// --------------------------------------------
+// テスト5: session_id も ip_address も一致しない場合
+// --------------------------------------------
+$pdo->exec("TRUNCATE TABLE ua_anomaly_events");
+
+$arguments_array5 = [
+    [$unmatchedSession, $unmatchedIp, 1, 1, 1, 1],
+    [$unmatchedSession, $unmatchedIp, 1, 1, 1, 1],
+];
+foreach ($arguments_array5 as $args) {
+    ua_anomaly_test($pdo, $args[0], $args[1], $args[2], $args[3], $args[4], $args[5]);
+}
+
+$resultArray5 = countAnomalyLast10MinFor2Test(
+    $pdo,
+    $testSessionId,
+    $testIpAddress
+);
+
+$expected5 = ['session' => 0, 'ip' => 0];
+
+echo '<br>テスト5: session_id も ip_address も不一致（レコードはあるが該当なし）<br>';
+echo 'expected: session=0, ip=0<br>';
+echo 'actual: session=' . $resultArray5['session'] . ', ip=' . $resultArray5['ip'] . '<br>';
+if ($resultArray5 === $expected5) {
+    echo "テスト5 成功<br>";
+} else {
+    echo "テスト5 失敗<br>";
+}
+
+echo '<br><hr><br>';
+echo '<b>全エッジケーステスト完了</b><br>';
+
+test1($pdo, $testSessionId, $testIpAddress, $unmatchedSession, $unmatchedIp);

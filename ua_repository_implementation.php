@@ -50,8 +50,8 @@ private PDO $pdo;
 
         $this->decreasedCountArray = $this->countIsDecreasedLast30MinutesForTwoSubjects(
             $this->pdo,
-            (string)$this->SessionId, 'session',
-            (string)$this->IpAddress, 'ip'
+            (string)$this->sessionId, 'session',
+            (string)$this->ipAddress, 'ip'
         );
         $this->isDecreasedSession = $this->extractSessionDecreasedFlag($this->decreasedCountArray) ;
         $this->isDecreasedIp      = $this->extractIpDecreasedFlag($this->decreasedCountArray);
@@ -60,8 +60,8 @@ private PDO $pdo;
         $this->anomalyCountArray =
         $this->countAnomalyLast10MinFor2(
             $this->pdo,
-            $this->SessionId, 
-            $this->IpAddress
+            $this->sessionId, 
+            $this->ipAddress
         );
 
         $this->isNoAnomalyFlagArray = $this->makeNoAnomalyFlagArray($this->anomalyCountArray);
@@ -417,7 +417,7 @@ private PDO $pdo;
         //     ['type' => 'ip', 'anomaly_count' => '3']
         // ]; 
 
-        $anomalyCountArray = [];
+        $anomalyCountArray = ['session' => 0, 'ip' => 0]; // デフォルト値を設定
         foreach ($resultArray as $row) {
             if ($row['type'] === 'session') {
                 $anomalyCountArray['session'] = (int)$row['anomaly_count'];

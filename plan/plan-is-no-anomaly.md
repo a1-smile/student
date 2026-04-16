@@ -4,13 +4,16 @@ ua check モジュールでは、
 interface_request_content.php
 に定義した、
 interface RequestContent
-の実装によって
+の実装によって、
+$sessionId と $ipAddress などの
 サーバーからの基本情報を取得します。
 
 interface_ua_repository.php
 に定義した、
 interface UaRepository
-の実装によって、DB から値を取得します。
+の実装によって、DB から
+$isNoAnomalySession や $isNoAnomalyIp などの
+過去のアクセス情報を取得します。
 
 user_agent_risk_evaluator.php
 に定義されている
@@ -98,16 +101,12 @@ $resultArray = [
 $resultArrayを加工するために、
 $anomalyCountArray = [];
 という配列を定義して、
-
-
-
-
-この結果をもとに、セッションIDとIPアドレスの異常イベント数をそれぞれ取得することができます。
-foreach ($resultArray as $countArray) {
-    if ($countArray['type'] === 'session') {
-        $sessionAnomalyCount = (int)$countArray['anomaly_count'];
-    } elseif ($countArray['type'] === 'ip') {
-        $ipAnomalyCount = (int)$countArray['anomaly_count'];
+以下のforeach loop 処理を実行します。
+foreach ($resultArray as $row) {
+    if ($row['type'] === 'session') {
+        $anomalyCountArray['session'] = (int)$row['anomaly_count'];
+    } elseif ($row['type'] === 'ip') {
+        $anomalyCountArray['ip'] = (int)$row['anomaly_count'];
     }
 }
 
@@ -131,14 +130,18 @@ $anomalyCountArray
 （配列の中身の要素の値の型はstringです。）
 
 
+function makeNoAnomalyFlagArray(array $anomalyCountArray): array
+{
+    $isNoAnomalyFlagArray = [
+        'session' => $anomalyCountArray['session'] > 0 ? 0 : 1,
+        'ip' => $anomalyCountArray['ip'] > 0 ? 0 : 1
+    ];
+    return $isNoAnomalyFlagArray;
+}
+という処理をします。
 
-isNoAnomalyFlagArray
-という配列を返すメソッドを
-定義します。
-
-
-
-
+三項演算子を使用しなければ、
+以下のように記述することもできます。
 $sessionAnomalyCount =
  $anomalyCountArray['session'];
 
@@ -193,5 +196,30 @@ function countAnomalyLast10MinFor2Test()
 テストコードと
 function countAnomalyLast10MinFor2Test()
 の改善点を、指摘してください。
+
+
+
+接続状態:
+
+expected: true
+bool(true)
+
+テスト開始
+
+データベースに接続できました。
+
+var_dump
+array(2) { ["session"]=> int(4) ["ip"]=> int(2) }
+
+print_r
+Array ( [session] => 4 [ip] => 2 ) expected: $resultArray["session"] = 4, $resultArray["ip"] = 2
+$resultArray["session"]: 4
+$resultArray["ip"]: 2
+
+エッジケースのテストが不足しています。
+
+異常イベントが 0件 の場合（テーブルが空、またはマッチしないID）
+session_id は一致するが ip_address は一致しない場合（逆も）
+TRUNCATE 直後に何も INSERT せずに呼び出す場合
 
 
