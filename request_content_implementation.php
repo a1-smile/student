@@ -13,7 +13,7 @@ class RequestContentImplementation implements RequestContent
     // プロパティ
     // private $userAgent; 関数内で定義してもいいですが、
     // プロパティとして定義しておくと便利です。
-    private $userAgent;
+    private string $userAgent;
     // private $firstSimpleUa;
     // private $currentSimpleUa;
 

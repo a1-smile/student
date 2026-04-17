@@ -454,7 +454,12 @@ private PDO $pdo;
     // }
 
 
-
+    private function convertCountsToNoAnomalyFlags(array $anomalyCountArray): array {
+        return [
+            'session' => $anomalyCountArray['session'] === 0 ? 1 : 0,
+            'ip' => $anomalyCountArray['ip'] === 0 ? 1 : 0,
+        ];
+    }
     // 追跡対象に異常がない場合は 1 を返す getter
     public function getIsNoAnomalySession(): int{
         return $this->isNoAnomalySession;

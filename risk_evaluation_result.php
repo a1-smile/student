@@ -140,4 +140,15 @@ class RiskEvaluationResult {
     public function getAccessDecision(): int {
         return $this->calculateAccessDecision($this->scoreForSession, $this->scoreForIp);
     }
+
+    // getter for $scoreForSession
+    public function getScoreForSession(): int {
+        return $this->scoreForSession;
+        }
+        
+    // getter for $scoreForIp
+    public function getScoreForIp(): int {
+        return $this->scoreForIp;
+    }
+
 }

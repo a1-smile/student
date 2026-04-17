@@ -43,6 +43,8 @@ new UserAgentRiskEvaluator(
     $mockUaRepository1
 );
 //  UserAgentRiskEvaluator->evaluate() を呼び出す。
+//  RiskEvaluationResult オブジェクトが返る。
+
 $result = $userAgentRiskEvaluator->evaluate();
 
 //  RiskEvaluationResult->getSecurityLevel() を呼び出す。
