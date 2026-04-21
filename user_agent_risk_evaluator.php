@@ -300,6 +300,10 @@ class UserAgentRiskEvaluator {
         return $this->isOverThresholdSession;
     }
 
+    public function getIsOverThresholdIp(): int {
+        return $this->isOverThresholdIp;
+    }
+
 
     /**
      * スコアを減算する関数
@@ -379,7 +383,7 @@ class UserAgentRiskEvaluator {
                 // reCAPTCHAを解いてアクセス
                 // して来る場合は想定されないアクセスであると考えられる。
                 // したがって、
-                // この else if ブロックで
+                // この  if ブロックで
                 // 異常があって、
                 // reCAPTCHAを解いてアクセスして来る場合は
                 // スコアを$decreaseScore減算するというロジックにする
