@@ -15,7 +15,7 @@ class RequestContentImplementation implements RequestContent
     // プロパティとして定義しておくと便利です。
     private string $userAgent;
     // private $firstSimpleUa;
-    // private $currentSimpleUa;
+    private string $currentSimpleUa;
 
     // reCAPTCHA を通過の有効時間（秒）
     const TIME_THRESHOLD = 600; // 10分 時間制限の定義
@@ -26,6 +26,7 @@ class RequestContentImplementation implements RequestContent
         // コンストラクタ内で、fetchUa() を呼び出して
         // $this->userAgent にセットしておくと便利です。
         $this->userAgent = $this->fetchUa();
+        $this->currentSimpleUa = self::makeSimpleUa($this->userAgent);
     }
 
         /**
@@ -50,7 +51,7 @@ class RequestContentImplementation implements RequestContent
             // それ以外の場合は 0 を返すことを想定
             // （実装例）
             $firstSimpleUa = $this->fetchFirstSimpleUa();
-            $currentSimpleUa = self::makeSimpleUa($this->userAgent);
+            $currentSimpleUa = $this->currentSimpleUa;
             if ($firstSimpleUa !== $currentSimpleUa) {
                 return 1;
             } else {
@@ -230,4 +231,11 @@ class RequestContentImplementation implements RequestContent
         $ipAddress = $_SERVER['REMOTE_ADDR'];
         return $ipAddress;
     }
+
+    //  getter of $currentSimpleUa
+    public function getCurrentSimpleUa(): string
+    {
+        return $this->currentSimpleUa;
+    }
+
 }
