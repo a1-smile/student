@@ -383,7 +383,8 @@ class UserAgentRiskEvaluator {
                 // reCAPTCHAを解いてアクセス
                 // して来る場合は想定されないアクセスであると考えられる。
                 // したがって、
-                // この  if ブロックで
+                // この 
+                //  if ブロックで
                 // 異常があって、
                 // reCAPTCHAを解いてアクセスして来る場合は
                 // スコアを$decreaseScore減算するというロジックにする

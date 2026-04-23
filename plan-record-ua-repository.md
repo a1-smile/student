@@ -7,6 +7,7 @@ UaRepositoryImplementation
 DBにデータを記録する処理は別クラスで行うことにします。
 
 class WriteUa{
+  private PDO $pdo;
   private RequestContent $requestContent;
   private UaRepository $uaRepository; 
 
@@ -27,13 +28,17 @@ class WriteUa{
   private int $scoreIp;
 
   private int $recaptchaSolved;
-  private int $isDecreased;
+  private int $isDecreasedSession;
+  private int $isDecreasedIp;
 
-  __construct(
+
+  public function __construct(
+    PDO $pdo,
     RequestContent $request_content,
     UaRepository $ua_repository,
     instance $user_agent_risk_evaluator
     ) {
+        $this->pdo = $pdo;
         $this->requestContent = $request_content;
         $this->uaRepository   = $ua_repository;
 
@@ -63,8 +68,43 @@ class WriteUa{
         $this->recaptchaSolved =
           $this->requestContent->getRecaptchaSolved();
 
+        $this->isDecreasedSession =
+          $this->userAgentRiskEvaluator->getIsDecreasedSession();
+        $this->isDecreasedIp =
+          $this->userAgentRiskEvaluator->getIsDecreasedIp();
+    }
 
-  }
+    public function writeUserAgentLog(
+      PDO $pdo,
+    string $sessionId,
+      string $ipAddress,
+      string $simpleUa,
+      int $isUaMismatch,
+    ) {
+      // user_agent_logs テーブルにデータを記録する処理
+      $sql = "INSERT INTO user_agent_logs (
+                session_id,
+                ip_address,
+                simple_ua,
+                is_ua_mismatch, 
+                access_time
+                )
+              VALUES (
+                :session_id,
+                :ip_address,
+                :simple_ua,
+                :is_ua_mismatch,
+                NOW())";
+      $stmt = $this->pdo->prepare($sql);
+      //  パラメーターの型を指定してバインドする
+      $stmt->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
+      $stmt->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
+      $stmt->bindParam(':simple_ua', $simpleUa, PDO::PARAM_STR);
+      $stmt->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
+      $stmt->execute();
+
+
+    }
 }
 - CREATE TABLE user_agent_logs (
   id             INT AUTO_INCREMENT PRIMARY KEY,
@@ -165,3 +205,51 @@ CREATE TABLE ua_score_history (
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
+
+のカラム
+is_decreased の値を取得するために、
+classUserAgentRiskEvaluator 内で
+プロパティ
+  $isDecreasedSession;
+  $isDecreasedIp;
+
+  $riskEvaluationResult;
+
+  $currentScoreSession;
+  $currentScoreIp;
+  を定義して、
+
+  $this->riskEvaluationResult = $this->evaluate();
+
+  $this->currentScoreSession =
+    $this->riskEvaluationResult->getScoreForSession();
+  $this->currentScoreIp =
+    $this->riskEvaluationResult->getScoreForIp();
+
+  private function isScoreDecreased(
+    int $previousScore,
+    int $currentScore,
+  ) : int {
+    if ($currentScore < $previousScore) {
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+
+  $this->isDecreasedSession =
+    $this->isScoreDecreased($previousScoreSession, $currentScoreSession);
+  $this->isDecreasedIp =
+    $this->isScoreDecreased($previousScoreIp, $currentScoreIp);
+
+  // getter for isDecreasedSession and isDecreasedIp
+  public function getIsDecreasedSession(): int {
+    return $this->isDecreasedSession;
+  }
+
+  public function getIsDecreasedIp(): int {
+    return $this->isDecreasedIp;
+  }
+
+
+というロジックをUserAgentRiskEvaluatorに追加します。
