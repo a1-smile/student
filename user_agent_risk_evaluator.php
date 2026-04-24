@@ -125,8 +125,10 @@ class UserAgentRiskEvaluator {
     private int $isOverThresholdSession; // セッションIDごとのアクセス回数が閾値を超えているか
     private int $isOverThresholdIp;      // IPアドレスごとのアクセス回数が閾値を超えているか
 
+    // DBからのフラグ
     private int $isDecreasedSession; // session ベースのスコアが減少したかどうかのフラグ
-    private int $isDecreasedIp;      // IPベースのスコアが減少したかどうかのフラグ
+    private int $isDecreasedIp;
+    // 今回のアクセスでの減算があるかを意味するフラグ
     private int $resultIsDecreasedSession; // session ベースのスコアが減少したかどうかのフラグ
     private int $resultIsDecreasedIp;      // IPベースのスコア
 
@@ -192,6 +194,20 @@ class UserAgentRiskEvaluator {
         $this->riskEvaluationResult->getScoreForSession();
         $this->currentScoreIp      =
         $this->riskEvaluationResult->getScoreForIp();
+
+        // currentScore（今回evaluate()後）と 
+        // previousScore（DB取得値）を比較して
+        // スコアが下がったかどうかを判定する
+        $this->resultIsDecreasedSession =
+            $this->isScoreDecreased(
+                $this->currentScoreSession,
+                $this->previousScoreSession
+            );
+        $this->resultIsDecreasedIp =
+            $this->isScoreDecreased(
+                $this->currentScoreIp,
+                $this->previousScoreIp
+            );
     }
     /**
      * アクセス回数が閾値を超えているかどうかを判定するメソッド
@@ -332,6 +348,15 @@ class UserAgentRiskEvaluator {
         return $this->riskEvaluationResult; 
     }
 
+    // getter for resultIsDecreasedSession and resultIsDecreasedIp
+    public function getResultIsDecreasedSession(): int {
+        return $this->resultIsDecreasedSession;
+    }
+
+    public function getResultIsDecreasedIp(): int {
+        return $this->resultIsDecreasedIp;
+    }
+
 
     /**
      * スコアを減算する関数
@@ -436,7 +461,8 @@ class UserAgentRiskEvaluator {
         ): int {
         if ($currentScore < $previousScore) {
             return 1;
-        }
+        } // END IF
         return 0;
-    }
+    } // END FUNCTION
 
+} // END CLASS

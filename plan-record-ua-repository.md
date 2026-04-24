@@ -124,10 +124,10 @@ class WriteUa{
           $this->requestContent->getRecaptchaSolved();
 
         $this->isDecreasedSession =
-          $this->userAgentRiskEvaluator->getIsDecreasedSession();
+          $this->userAgentRiskEvaluator->getResultIsDecreasedSession();
         $this->isDecreasedIp =
-          $this->userAgentRiskEvaluator->getIsDecreasedIp();
-    }
+          $this->userAgentRiskEvaluator->getResultIsDecreasedIp();
+    } // END CONSTRUCT
 
     public function writeUserAgentLog(
       PDO $pdo,
@@ -159,8 +159,73 @@ class WriteUa{
       $stmt->execute();
 
 
-    }
-}
+    } // END FUNCTION
+  /**
+  * ua_anomaly_events テーブルにデータを記録する処理
+  *  CREATE TABLE ua_anomaly_events (
+  * id INT AUTO_INCREMENT PRIMARY KEY,
+  * session_id VARCHAR(128) NOT NULL,
+  * ip_address VARCHAR(45) NOT NULL,
+  * is_no_ua TINYINT(1) NOT NULL DEFAULT 0,
+  * is_ua_mismatch TINYINT(1) NOT NULL DEFAULT 0,
+  * is_over_threshold_session TINYINT(1) NOT NULL DEFAULT 0,
+  * is_over_threshold_ip TINYINT(1) NOT NULL DEFAULT 0,
+  * access_time DATETIME NOT NULL,
+  * INDEX idx_session_time (session_id, access_time),
+  * INDEX idx_ip_time (ip_address, access_time),
+  * INDEX idx_time (access_time)
+  *) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  *
+  *もし、
+  * $isNoUa が 0 かつ
+  * $isUaMismatch が 0 かつ
+  * $isOverThresholdSession が 0 かつ
+  * $isOverThresholdIp が 0
+  *のときは、UAに異常がないと判断して、
+  *ua_anomaly_events テーブルには記録しない。
+  *何もせずに returnする。
+
+
+  */
+  public function writeUaAnomalyEvents(
+    PDO $pdo,
+    string $sessionId,
+    string $ipAddress,
+    int $isNoUa,
+    int $isUaMismatch,
+    int $isOverThresholdSession,
+    int $isOverThresholdIp
+  ) {
+    // ua_anomaly_events テーブルにデータを記録する処理
+    $sql = "INSERT INTO ua_anomaly_events (
+              session_id,
+              ip_address,
+              is_no_ua,
+              is_ua_mismatch,
+              is_over_threshold_session,
+              is_over_threshold_ip,
+              access_time
+            ) VALUES (
+              :session_id,
+              :ip_address,
+              :is_no_ua,
+              :is_ua_mismatch,
+              :is_over_threshold_session,
+              :is_over_threshold_ip,
+              NOW())";
+    $stmt = $this->pdo->prepare($sql);
+    // パラメーターの型を指定してバインドする
+    $stmt->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
+    $stmt->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
+    $stmt->bindParam(':is_no_ua', $isNoUa, PDO::PARAM_INT);
+    $stmt->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
+    $stmt->bindParam(':is_over_threshold_session', $isOverThresholdSession, PDO::PARAM_INT);
+    $stmt->bindParam(':is_over_threshold_ip', $isOverThresholdIp, PDO::PARAM_INT);
+    $stmt->execute();
+
+
+
+} // END CLASS
 - CREATE TABLE user_agent_logs (
   id             INT AUTO_INCREMENT PRIMARY KEY,
   session_id     VARCHAR(128) NOT NULL,
@@ -282,8 +347,8 @@ private RiskEvaluationResult $riskEvaluationResult;
     $this->riskEvaluationResult->getScoreForIp();
 
   private function isScoreDecreased(
-    int $previousScore,
     int $currentScore,
+    int $previousScore,
   ) : int {
     if ($currentScore < $previousScore) {
       return 1;
@@ -292,11 +357,23 @@ private RiskEvaluationResult $riskEvaluationResult;
     }
   }
 
-  $this->resultIsDecreasedSession =
-    $this->isScoreDecreased($this->previousScoreSession, $this->currentScoreSession);
-  $this->resultIsDecreasedIp =
-    $this->isScoreDecreased($this->previousScoreIp, $this->currentScoreIp);
 
+$resultIsDecreasedSession
+と
+$resultIsDecreasedIp というプロパティが、
+設定されているので、値を代入させるために、
+コンストラクタで、
+  $this->resultIsDecreasedSession =
+    $this->isScoreDecreased(
+      $this->currentScoreSession,
+      $this->previousScoreSession
+      );
+  $this->resultIsDecreasedIp =
+    $this->isScoreDecreased(
+      $this->currentScoreIp,
+      $this->previousScoreIp
+      );
+クラス外から取得するために、
   // getter for resultIsDecreasedSession and resultIsDecreasedIp
   public function getResultIsDecreasedSession(): int {
     return $this->resultIsDecreasedSession;
@@ -307,4 +384,5 @@ private RiskEvaluationResult $riskEvaluationResult;
   }
 
 
-というロジックをUserAgentRiskEvaluatorに追加します。
+というロジックをUserAgentRiskEvaluatorしたいとおもいます
+気を付ける点を指摘してください。
