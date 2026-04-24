@@ -1,10 +1,65 @@
-# Plan for WriteUa Data to DB
+# Plan for WriteUa 
 plan 変更：
 UaRepositoryImplementation
 でuaに関係するデータベース処理を行う
 予定でしたが、
 可読性を考慮して、
 DBにデータを記録する処理は別クラスで行うことにします。
+
+# UA check の手順は以下の通りです。
+1. RequestContentImplementation から 
+(ua_repository_implementation.php)
+session_id,
+ip_address,
+simple_ua,
+is_ua_mismatch,
+is_no_ua を取得する。
+2. UaRepositoryImplementation に
+(ua_repository_implementation.php)
+session_id と ip_address を渡す。
+3. UserAgentRiskEvaluator に、
+UaRepositoryImplementation と
+RequestContentImplementation を渡す。
+4. UserAgentRiskEvaluator 内で、UAリスク評価の結果を求める。
+(user_agent_risk_evaluator.php)
+5. RiskEvaluationResult が結果としてreturnされる
+(risk_evaluation_result.php)
+6. WriteUa クラスを作成して、
+UserAgentRiskEvaluator の結果をもとに、
+user_agent_logsなど
+DBの各 テーブルにデータを記録する。
+7. UAリスク評価の結果をもとに、
+処理を分岐させる。
+
+WriteUa は、new する時点で、
+DBへの書き込みを行うか、
+書き込み関数をpublic function write() のようにして、
+$write_ua->write() のようにして
+呼び出すタイミングでDBへの書き込みを行うか、
+どちらが適切ですか？
+テストのしやすさを考慮すると
+、DBへの書き込みを行う関数を
+public function write() のようにして、
+呼び出すタイミングでDBへの書き込みを行う方が適切だと思います。
+理由としては、new する時点でDBへの書き込みを行うと
+テストの際に、new するだけでDBにデータが記録されてしまうため、
+テストのコントロールが難しくなります。
+汎用性や保守性を考慮しても、
+DBへの書き込みを行う関数を
+public function write() のようにして、
+呼び出すタイミングでDBへの書き込みを行う方が適切だと思います。
+
+is_no_anomaly の値には、
+1. session ベースで追跡している値として、
+$isNoAnomalySession をしようします。
+この時に
+subject_type      ENUM('session', 'ip') NOT NULL,
+のカラムの値は 'session' になります。
+2. ip ベースで追跡している値として、
+$isNoAnomalyIp を使用します。
+この時にsubject_type      ENUM('session', 'ip') NOT NULL,
+のカラムの値は 'ip' になります。
+
 
 class WriteUa{
   private PDO $pdo;
@@ -210,13 +265,13 @@ CREATE TABLE ua_score_history (
 is_decreased の値を取得するために、
 classUserAgentRiskEvaluator 内で
 プロパティ
-  $isDecreasedSession;
-  $isDecreasedIp;
+  private int $resultIsDecreasedSession;
+  private int $resultIsDecreasedIp;
 
-  $riskEvaluationResult;
+private RiskEvaluationResult $riskEvaluationResult;
 
-  $currentScoreSession;
-  $currentScoreIp;
+  private int $currentScoreSession;
+  private int $currentScoreIp;
   を定義して、
 
   $this->riskEvaluationResult = $this->evaluate();
@@ -237,18 +292,18 @@ classUserAgentRiskEvaluator 内で
     }
   }
 
-  $this->isDecreasedSession =
-    $this->isScoreDecreased($previousScoreSession, $currentScoreSession);
-  $this->isDecreasedIp =
-    $this->isScoreDecreased($previousScoreIp, $currentScoreIp);
+  $this->resultIsDecreasedSession =
+    $this->isScoreDecreased($this->previousScoreSession, $this->currentScoreSession);
+  $this->resultIsDecreasedIp =
+    $this->isScoreDecreased($this->previousScoreIp, $this->currentScoreIp);
 
-  // getter for isDecreasedSession and isDecreasedIp
-  public function getIsDecreasedSession(): int {
-    return $this->isDecreasedSession;
+  // getter for resultIsDecreasedSession and resultIsDecreasedIp
+  public function getResultIsDecreasedSession(): int {
+    return $this->resultIsDecreasedSession;
   }
 
-  public function getIsDecreasedIp(): int {
-    return $this->isDecreasedIp;
+  public function getResultIsDecreasedIp(): int {
+    return $this->resultIsDecreasedIp;
   }
 
 

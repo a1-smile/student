@@ -93,6 +93,12 @@ class UserAgentRiskEvaluator {
     const DECREASE_SCORE_SESSION= 4;
     const DECREASE_SCORE_IP = 1;
 
+    //  後述の evaluate() の呼び出しは
+    //  複数回行われると整合性が取れなくなる可能性があるため、
+    //  一度だけ呼び出して結果を保持するようにしています。
+    //  その戻り値を保持するプロパティを定義します。
+    private RiskEvaluationResult $riskEvaluationResult;
+
     private RequestContent $requestContent; // インターフェイス RequestContent の実装
     private UaRepository   $uaRepository;   // インターフェイス UaRepository の実装
 
@@ -104,7 +110,8 @@ class UserAgentRiskEvaluator {
     private int $previousScoreSession; // セッションIDごとの前回のスコア
     private int $previousScoreIp;      // IPアドレスごとの前回のスコア
 
-
+    private int $currentScoreSession;
+    private int $currentScoreIp;
     // private int $scoreSessionId; // セッションIDごとのスコア
     // private int $scoreIp;        // IPアドレスごとのスコア
 
@@ -120,6 +127,8 @@ class UserAgentRiskEvaluator {
 
     private int $isDecreasedSession; // session ベースのスコアが減少したかどうかのフラグ
     private int $isDecreasedIp;      // IPベースのスコアが減少したかどうかのフラグ
+    private int $resultIsDecreasedSession; // session ベースのスコアが減少したかどうかのフラグ
+    private int $resultIsDecreasedIp;      // IPベースのスコア
 
     private int $isNoAnomalySession; // セッションIDに異常がない場合のフラグ
     private int $isNoAnomalyIp;      // IPアドレスに異常がない場合のフラグ
@@ -173,6 +182,16 @@ class UserAgentRiskEvaluator {
 
         $this->isSuspiciousAccess = 
         $this->getIsSuspiciousAccess();
+
+        //  参照するプロパティがすべて初期化された後に、
+        //  evaluate() を呼び出してリスク評価を行い、
+        // その結果をプロパティに保持します。
+        $this->riskEvaluationResult = $this->evaluate();
+
+        $this->currentScoreSession =
+        $this->riskEvaluationResult->getScoreForSession();
+        $this->currentScoreIp      =
+        $this->riskEvaluationResult->getScoreForIp();
     }
     /**
      * アクセス回数が閾値を超えているかどうかを判定するメソッド
@@ -204,8 +223,13 @@ class UserAgentRiskEvaluator {
         }
         return 0;
     }
-
-    public function evaluate(): RiskEvaluationResult {
+    //  リスク評価が重複して行われることを防ぐために、
+    //  evaluate() を呼び出すのはコンストラクタ内で一度だけにし、
+    //  その結果をプロパティに保持するようにしています。
+    //  テストなどで、evaluate() の結果を取得したい場合は、
+    //  getRiskEvaluationResult() メソッドを
+    //  通じてアクセスするようにします。
+    private function evaluate(): RiskEvaluationResult {
         // スコアを取得
         $currentScoreSession  = $this->previousScoreSession;
         $currentScoreIp       = $this->previousScoreIp;
@@ -302,6 +326,10 @@ class UserAgentRiskEvaluator {
 
     public function getIsOverThresholdIp(): int {
         return $this->isOverThresholdIp;
+        }
+    //  getter of $riskEvaluationResult
+    public function getRiskEvaluationResult(): RiskEvaluationResult {
+        return $this->riskEvaluationResult; 
     }
 
 
@@ -402,5 +430,13 @@ class UserAgentRiskEvaluator {
             }
 
 
+    private function isScoreDecreased(
+        int $currentScore,
+        int $previousScore
+        ): int {
+        if ($currentScore < $previousScore) {
+            return 1;
+        }
+        return 0;
     }
 
