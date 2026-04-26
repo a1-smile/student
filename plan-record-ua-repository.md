@@ -44,6 +44,10 @@ public function write() のようにして、
 理由としては、new する時点でDBへの書き込みを行うと
 テストの際に、new するだけでDBにデータが記録されてしまうため、
 テストのコントロールが難しくなります。
+
+役割の分離の観点からも、コンストラクタ内で
+DBへの書き込みを行うのは適切ではないです。
+
 汎用性や保守性を考慮しても、
 DBへの書き込みを行う関数を
 public function write() のようにして、
@@ -51,7 +55,7 @@ public function write() のようにして、
 
 is_no_anomaly の値には、
 1. session ベースで追跡している値として、
-$isNoAnomalySession をしようします。
+$isNoAnomalySession を使用します。
 この時に
 subject_type      ENUM('session', 'ip') NOT NULL,
 のカラムの値は 'session' になります。
@@ -223,7 +227,7 @@ class WriteUa{
     $stmt->bindParam(':is_over_threshold_ip', $isOverThresholdIp, PDO::PARAM_INT);
     $stmt->execute();
 
-
+  } // END FUNCTION
 
 } // END CLASS
 - CREATE TABLE user_agent_logs (
