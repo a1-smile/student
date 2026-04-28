@@ -84,8 +84,7 @@ CREATE TABLE ua_score_history (
   subject_key       VARCHAR(128) NOT NULL,
   is_no_ua          TINYINT(1) NOT NULL DEFAULT 0,
   is_ua_mismatch    TINYINT(1) NOT NULL DEFAULT 0,
-  is_over_threshold_session TINYINT(1) NOT NULL DEFAULT 0,
-  is_over_threshold_ip TINYINT(1) NOT NULL DEFAULT 0,
+  is_over_threshold TINYINT(1) NOT NULL DEFAULT 0,
   is_no_anomaly     TINYINT(1) NOT NULL DEFAULT 0,
   recaptcha_solved  TINYINT(1) NOT NULL DEFAULT 0,
   is_decreased      TINYINT(1) NOT NULL DEFAULT 0,
@@ -96,7 +95,7 @@ CREATE TABLE ua_score_history (
   COLLATE=utf8mb4_unicode_ci;
 
   $sql = "SELECT 
-            COUNT(CASE WHEN subject_key = :sessionId AND subject_type = :session_id AND is_decreased = 1 THEN 1 END) as session_decreased_count,
-            COUNT(CASE WHEN subject_key = :ipAddress AND subject_type = :ip_address AND is_decreased = 1 THEN 1 END) as ip_decreased_count
+            COUNT(CASE WHEN subject_key = :sessionId AND subject_type = 'session' AND is_decreased = 1 THEN 1 END) as session_decreased_count,
+            COUNT(CASE WHEN subject_key = :ipAddress AND subject_type = 'ip' AND is_decreased = 1 THEN 1 END) as ip_decreased_count
             
         FROM ua_score_history WHERE access_time >= (NOW() - INTERVAL 30 MINUTE)";

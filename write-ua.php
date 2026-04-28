@@ -260,8 +260,7 @@ class WriteUa{
 //   subject_key       VARCHAR(128) NOT NULL,
 //   is_no_ua          TINYINT(1) NOT NULL DEFAULT 0,
 //   is_ua_mismatch    TINYINT(1) NOT NULL DEFAULT 0,
-//   is_over_threshold_session TINYINT(1) NOT NULL DEFAULT 0,
-//   is_over_threshold_ip TINYINT(1) NOT NULL DEFAULT 0,
+//   is_over_threshold TINYINT(1) NOT NULL DEFAULT 0,
 //   is_no_anomaly     TINYINT(1) NOT NULL DEFAULT 0,
 //   recaptcha_solved  TINYINT(1) NOT NULL DEFAULT 0,
 //   is_decreased      TINYINT(1) NOT NULL DEFAULT 0,
@@ -272,9 +271,20 @@ class WriteUa{
 //   COLLATE=utf8mb4_unicode_ci;
 /**
  * ua_score_history テーブルで、
- * アクセスに対するリスクを評価するロジックに使用する
- * 値は
- * is_decreased
+ * アクセスがあるたびに、
+ * session_id と
+ * ip_address 両方について、
+ * アクセス情報を記録します、
+ * 
+ * session base でかんがえていきます。
+ * 
+ * subject_type : 'session'
+ * subject_key : $sessionId
+ * is_no_ua : $isNoUa
+ * is_ua_mismatch : $isUaMismatch
+ * is_over_threshold : $isOverThresholdSession
+ * is_no_anomaly : $isNoAnomalySession
+ * 
  */
 
 

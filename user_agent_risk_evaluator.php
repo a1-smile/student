@@ -465,4 +465,13 @@ class UserAgentRiskEvaluator {
         return 0;
     } // END FUNCTION
 
+    // getter for isNOanomalySession and isNoAnomalyIp
+    public function getIsNoAnomalySession(): int {
+        return $this->isNoAnomalySession;
+    }
+
+    public function getIsNoAnomalyIp(): int {
+        return $this->isNoAnomalyIp;
+    }
+
 } // END CLASS
