@@ -2,9 +2,9 @@
 
 
 // $contents = [
-//         // 'session_id' => 'abc123',
-//         // 'ip_address' => '192.168.0.1',
-//         // 'simple_ua' => 'Mozilla/5.0',
+//         'session_id' => 'abc123',
+//         'ip_address' => '192.168.0.1',
+//         'simple_ua' => 'Mozilla/5.0',
 //         'is_no_ua' => 0,
 //         'is_ua_mismatch' => 0,
 //         'recaptcha_solved' => 0
@@ -29,6 +29,8 @@
         private string $sessionId;
         private string $ipAddress;
         private string $simpleUa;
+        private string $currentSimpleUa;
+        private string $userAgent;
 
         public function __construct(array $content) {
             // $this->sessionId = $content['session_id'];
@@ -40,6 +42,10 @@
             $this->sessionId = $content['session_id'] ?? '';
             $this->ipAddress = $content['ip_address'] ?? '';
             $this->simpleUa = $content['simple_ua'] ?? '';
+            $this->userAgent = $content['user_agent'] ?? '';
+
+            $this->currentSimpleUa = RequestContentImplementation::makeSimpleUa($this->userAgent); // ここでは currentSimpleUa を simpleUa と同じ値に設定しています。
+
         }
 
         // public function getSessionId(): string {
@@ -77,6 +83,13 @@
         public function getSimpleUa(): string {
             return $this->simpleUa;
         }
+
+            //  getter of $currentSimpleUa
+    public function getCurrentSimpleUa(): string
+    {
+        return $this->currentSimpleUa;
+    }
+
     }
     
     

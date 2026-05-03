@@ -64,7 +64,7 @@ private PDO $pdo;
             $this->ipAddress
         );
 
-        $this->isNoAnomalyFlagArray = $this->makeNoAnomalyFlagArray($this->anomalyCountArray);
+        $this->isNoAnomalyFlagArray = $this->convertCountsToNoAnomalyFlags($this->anomalyCountArray);
         $this->isNoAnomalySession = $this->isNoAnomalyFlagArray['session'];
         $this->isNoAnomalyIp      = $this->isNoAnomalyFlagArray['ip'];
 

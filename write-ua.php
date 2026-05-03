@@ -81,7 +81,7 @@ class WriteUa{
           $this->userAgentRiskEvaluator->getIsOverThresholdIp();
 
         $this->riskEvaluationResult =
-          $this->userAgentRiskEvaluator->evaluate();
+          $this->userAgentRiskEvaluator->getRiskEvaluationResult  ();
 
         $this->scoreSession =
           $this->riskEvaluationResult->getScoreForSession();
@@ -105,13 +105,13 @@ class WriteUa{
 
     } // END CONSTRUCT
 
-    public function writeUserAgentLog(
-      PDO $pdo,
-    string $sessionId,
-      string $ipAddress,
-      string $simpleUa,
-      int $isUaMismatch,
-    ) {
+    public function writeUserAgentLog(): void {
+    $pdo = $this->pdo;
+    $sessionId = $this->sessionId;
+    $ipAddress = $this->ipAddress;
+    $simpleUa = $this->simpleUa;
+    $isUaMismatch = $this->isUaMismatch;
+    
       // user_agent_logs テーブルにデータを記録する処理
       $sql = "INSERT INTO user_agent_logs (
                 session_id,
@@ -126,7 +126,7 @@ class WriteUa{
                 :simple_ua,
                 :is_ua_mismatch,
                 NOW())";
-      $stmt = $this->pdo->prepare($sql);
+      $stmt = $pdo->prepare($sql);
       //  パラメーターの型を指定してバインドする
       $stmt->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
       $stmt->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
@@ -163,15 +163,14 @@ class WriteUa{
 
 
   */
-  public function writeUaAnomalyEvents(
-    PDO $pdo,
-    string $sessionId,
-    string $ipAddress,
-    int $isNoUa,
-    int $isUaMismatch,
-    int $isOverThresholdSession,
-    int $isOverThresholdIp
-  ): void {
+  public function writeUaAnomalyEvents(): void {
+    $pdo = $this->pdo;
+    $sessionId = $this->sessionId;
+    $ipAddress = $this->ipAddress;
+    $isNoUa = $this->isNoUa;
+    $isUaMismatch = $this->isUaMismatch;
+    $isOverThresholdSession = $this->isOverThresholdSession;
+    $isOverThresholdIp = $this->isOverThresholdIp;
     // UAに異常がない場合は何もせずに return
     if (
         $isNoUa === 0 
@@ -238,18 +237,17 @@ class WriteUa{
 
    */
 
-  public function writeUaScores(
-    PDO $pdo,
-    string $sessionId,
-    string $ipAddress,
-    int $scoreSession,
-    int $scoreIp
-  ): void {
+  public function writeUaScores(): void{
+    $pdo = $this->pdo;
+    $sessionId = $this->sessionId;
+    $ipAddress = $this->ipAddress;
+    $scoreSession = $this->scoreSession;
+    $scoreIp = $this->scoreIp;
     // セッションベースのスコアを記録
     $sqlSession = "INSERT INTO ua_scores (subject_type, subject_key, score, updated_at)
                    VALUES ('session', :session_id, :score_session, NOW())
                    ON DUPLICATE KEY UPDATE score = :score_session, updated_at = NOW()";
-    $stmtSession = $this->pdo->prepare($sqlSession);
+    $stmtSession = $pdo->prepare($sqlSession);
     $stmtSession->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
     $stmtSession->bindParam(':score_session', $scoreSession, PDO::PARAM_INT);
     $stmtSession->execute();
@@ -258,7 +256,7 @@ class WriteUa{
     $sqlIp = "INSERT INTO ua_scores (subject_type, subject_key, score, updated_at)
               VALUES ('ip', :ip_address, :score_ip, NOW())
               ON DUPLICATE KEY UPDATE score = :score_ip, updated_at = NOW()";
-    $stmtIp = $this->pdo->prepare($sqlIp);
+    $stmtIp = $pdo->prepare($sqlIp);
     $stmtIp->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
     $stmtIp->bindParam(':score_ip', $scoreIp, PDO::PARAM_INT);
     $stmtIp->execute();
@@ -324,20 +322,19 @@ class WriteUa{
 //  削除処理も、session base か ip base かで分ける場合は、複雑になる。
 
 
-  public function writeUaScoreHistory(
-    PDO $pdo,
-    string $sessionId,
-    string $ipAddress,
-    int $isNoUa,
-    int $isUaMismatch,
-    int $isOverThresholdSession,
-    int $isNoAnomalySession,
-    int $isOverThresholdIp,
-    int $isNoAnomalyIp,
-    int $recaptchaSolved,
-    int $isDecreasedSession,
-    int $isDecreasedIp
-  ): void {
+  public function writeUaScoreHistory(): void {
+    $pdo = $this->pdo;
+    $sessionId = $this->sessionId;
+    $ipAddress = $this->ipAddress;
+    $isNoUa = $this->isNoUa;
+    $isUaMismatch = $this->isUaMismatch;
+    $isOverThresholdSession = $this->isOverThresholdSession;
+    $isNoAnomalySession = $this->isNoAnomalySession;
+    $isOverThresholdIp = $this->isOverThresholdIp;
+    $isNoAnomalyIp = $this->isNoAnomalyIp;
+    $recaptchaSolved = $this->recaptchaSolved;
+    $isDecreasedSession = $this->isDecreasedSession;
+    $isDecreasedIp = $this->isDecreasedIp;
     // session base のスコア履歴を記録
     $sqlSession = "INSERT INTO ua_score_history (
                     subject_type, subject_key, is_no_ua, is_ua_mismatch, 
@@ -347,7 +344,7 @@ class WriteUa{
                     'session', :session_id, :is_no_ua, :is_ua_mismatch, 
                     :is_over_threshold_session, :is_no_anomaly_session, 
                     :recaptcha_solved, :is_decreased_session, NOW())";
-    $stmtSession = $this->pdo->prepare($sqlSession);
+    $stmtSession = $pdo->prepare($sqlSession);
     $stmtSession->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
     $stmtSession->bindParam(':is_no_ua', $isNoUa, PDO::PARAM_INT);
     $stmtSession->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
@@ -367,7 +364,7 @@ class WriteUa{
                 :is_over_threshold_ip, :is_no_anomaly_ip,
                 :recaptcha_solved, :is_decreased_ip, NOW())";
     // パラメーターの型を指定してバインドする
-    $stmtIp = $this->pdo->prepare($sqlIp);
+    $stmtIp = $pdo->prepare($sqlIp);
     $stmtIp->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
     $stmtIp->bindParam(':is_no_ua', $isNoUa, PDO::PARAM_INT);
     $stmtIp->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
@@ -376,10 +373,6 @@ class WriteUa{
     $stmtIp->bindParam(':recaptcha_solved', $recaptchaSolved, PDO::PARAM_INT);
     $stmtIp->bindParam(':is_decreased_ip', $isDecreasedIp, PDO::PARAM_INT);
     $stmtIp->execute();                                                             
-
-
-
-
-
+  } // END FUNCTION writeUaScoreHistory()
 
 } // END CLASS

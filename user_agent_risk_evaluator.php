@@ -358,6 +358,7 @@ class UserAgentRiskEvaluator {
     }
 
 
+
     /**
      * スコアを減算する関数
      * 
