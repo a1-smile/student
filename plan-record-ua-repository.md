@@ -388,5 +388,15 @@ $resultIsDecreasedIp というプロパティが、
   }
 
 
-というロジックをUserAgentRiskEvaluatorしたいとおもいます
+というロジックをUserAgentRiskEvaluator に追記したいとおもいます
 気を付ける点を指摘してください。
+
+# ua_score_history に
+writeUaScoreHistory（）で
+sessionベースでの記録と
+ipベースでの記録の両方を行います。
+これにより、
+ひとつのテーブルにsessionベースとipベースの両方の履歴を記録することになります。
+DB の可読性の観点などから、 session base と ip base で
+テーブルを分ける場合と、ひとつのテーブルに両方記録する場合はどちらが適切でしょうか？
+

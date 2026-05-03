@@ -26,6 +26,9 @@
         private int    $isNoUa;
         private int    $isUaMismatch;
         private int    $recaptchaSolved;
+        private string $sessionId;
+        private string $ipAddress;
+        private string $simpleUa;
 
         public function __construct(array $content) {
             // $this->sessionId = $content['session_id'];
@@ -34,6 +37,9 @@
             $this->isNoUa = $content['is_no_ua'];
             $this->isUaMismatch = $content['is_ua_mismatch'];
             $this->recaptchaSolved = $content['recaptcha_solved'];
+            $this->sessionId = $content['session_id'] ?? '';
+            $this->ipAddress = $content['ip_address'] ?? '';
+            $this->simpleUa = $content['simple_ua'] ?? '';
         }
 
         // public function getSessionId(): string {
@@ -58,6 +64,18 @@
 
         public function getRecaptchaSolved(): int {
             return $this->recaptchaSolved;
+        }
+
+        public function getSessionId(): string {
+            return $this->sessionId;
+        }
+
+        public function getIpAddress(): string {
+            return $this->ipAddress;
+        }
+
+        public function getSimpleUa(): string {
+            return $this->simpleUa;
         }
     }
     
