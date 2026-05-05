@@ -60,9 +60,9 @@ $mock_request_content = new MockRequestContent1(
     $contents
 );
 
-$session_id = $mock_request_content->getSessionId();
-$ip_address = $mock_request_content->getIpAddress();
-
+$session_id_to_db = $mock_request_content->getSessionId();
+$ip_address_to_db = $mock_request_content->getIpAddress();
+    
 //  interface_ua_repository.php
 require_once __DIR__ . '/../interface_ua_repository.php';
 //  ua_repository_implementation.php
@@ -70,8 +70,8 @@ require_once __DIR__ . '/../ua_repository_implementation.php';
 //  class UaRepositoryImplementation implements UaRepository を new します。
 $ua_repository = new UaRepositoryImplementation(
     $pdo,
-    $session_id,
-    $ip_address
+    $session_id_to_db,
+    $ip_address_to_db
     );
 
 //  risk_evaluation_result.php
@@ -86,10 +86,10 @@ $risk_evaluator = new UserAgentRiskEvaluator(
 );
 
 //  WriteUaの writeUserAgentLog() が書き込むと期待される値を取得します。
-        // $session_id    = $mock_request_content->getSessionId();
-        // $ip_address    = $mock_request_content->getIpAddress();
-        $simpleUa     = $mock_request_content->getCurrentSimpleUa();
-        $isUaMismatch = $mock_request_content->getIsUaMismatch();
+        // $session_id_to_db    = $mock_request_content->getSessionId();
+        // $ip_address_to_db    = $mock_request_content->getIpAddress();
+        $simple_ua_to_db  = $mock_request_content->getCurrentSimpleUa();
+        $is_ua_mismatch_to_db = $mock_request_content->getIsUaMismatch();
 
 //  WriteUa クラスを使用するために、require_once します。
 require_once __DIR__ . '/../write-ua.php';
@@ -131,7 +131,7 @@ if (!$row) {
 // 改善例: check() 関数でカウントする
 $passCount = 0;
 $failCount = 0;
-
+// check() 関数を定義します。
 function check(string $label, mixed $actual, mixed $expected): void {
     global $passCount, $failCount;
     if ($actual === $expected) {
@@ -143,15 +143,14 @@ function check(string $label, mixed $actual, mixed $expected): void {
     }
 }
 
-check('session_id',    $row['session_id'],           'abc123');
-check('ip_address',    $row['ip_address'],           '192.168.0.1');
-check('simple_ua',     $row['simple_ua'],            $current_simple_ua);
-check('is_ua_mismatch',(int)$row['is_ua_mismatch'],  0);
+check('session_id',    $row['session_id'],           $session_id_to_db);
+check('ip_address',    $row['ip_address'],           $ip_address_to_db);
+check('simple_ua',     $row['simple_ua'],            $simple_ua_to_db);
+check('is_ua_mismatch',(int)$row['is_ua_mismatch'],  $is_ua_mismatch_to_db);
 
 $access_time = new DateTime($row['access_time']);
 $now = new DateTime();
 $diff = $now->getTimestamp() - $access_time->getTimestamp();
-assert($diff >= 0 && $diff < 5, 'access_time is not recent');
 
 check('access_time', $diff >= 0 && $diff < 5, true  );
 
