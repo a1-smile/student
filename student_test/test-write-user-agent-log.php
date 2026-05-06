@@ -28,133 +28,124 @@ require_once __DIR__ . '/../interface_request_content.php';
 //  RequestContentImplementation クラスの
 //  静的メソッド を使用するために、require_once します。
 require_once __DIR__ . '/../request_content_implementation.php';
-// RequestContentImplementation クラスのインスタンスは使用
-// しません。
-
-//  後述のMockRequestContent1 クラスのコンストラクタに渡すための配列を用意します。
-$contents = [
-        'session_id' => 'abc123',
-        'ip_address' => '192.168.0.1',
-
-        // こちらのsimple_ua は画面遷移前のUAを想定しています。
-        //  現在のsimple_ua は、静的メソッド
-        //  RequestContentImplementation::makeSimpleUa() を
-        // 呼び出して,
-        // $currentSimpleUa を取得するようになっています。
-        // この値は、コンストラクタの引数として渡す必要があります。
-        // DBに保存される値ではありません。
-        'simple_ua' => 'Mozilla/5.0', // previous
-
-
-
-        'is_no_ua' => 0,
-        'is_ua_mismatch' => 0,
-        'recaptcha_solved' => 0,
-        'user_agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    ];  
-
-//  mock_request_content.php
-  require_once __DIR__ . '/../mock_request_content.php';
-
-$mock_request_content = new MockRequestContent1(
-    $contents
-);
-
-$session_id_to_db = $mock_request_content->getSessionId();
-$ip_address_to_db = $mock_request_content->getIpAddress();
-    
-//  interface_ua_repository.php
+require_once __DIR__ . '/../mock_request_content.php';
 require_once __DIR__ . '/../interface_ua_repository.php';
-//  ua_repository_implementation.php
 require_once __DIR__ . '/../ua_repository_implementation.php';
-//  class UaRepositoryImplementation implements UaRepository を new します。
-$ua_repository = new UaRepositoryImplementation(
-    $pdo,
-    $session_id_to_db,
-    $ip_address_to_db
-    );
-
-//  risk_evaluation_result.php
 require_once __DIR__ . '/../risk_evaluation_result.php';
-//  user_agent_risk_evaluator.php
-//  public function __construct(RequestContent $requestContent, UaRepository $uaRepository)
 require_once __DIR__ . '/../user_agent_risk_evaluator.php';
-//  UserAgentRiskEvaluator クラスのインスタンスを作成します。
-$risk_evaluator = new UserAgentRiskEvaluator(
-    $mock_request_content,
-    $ua_repository
-);
-
-//  WriteUaの writeUserAgentLog() が書き込むと期待される値を取得します。
-        // $session_id_to_db    = $mock_request_content->getSessionId();
-        // $ip_address_to_db    = $mock_request_content->getIpAddress();
-        $simple_ua_to_db  = $mock_request_content->getCurrentSimpleUa();
-        $is_ua_mismatch_to_db = $mock_request_content->getIsUaMismatch();
-
-//  WriteUa クラスを使用するために、require_once します。
 require_once __DIR__ . '/../write-ua.php';
 
-//  table user_agent_logs をクリア
-try {
-    $pdo->exec("TRUNCATE TABLE user_agent_logs");
-    echo "Table user_agent_logs truncated successfully.<br><br>";
-} catch (Exception $e) {
-    echo "Error truncating table: " . $e->getMessage() . "<br><br>";
-}
+// 全ケース合計のカウンタ
+$totalPass = 0;
+$totalFail = 0;
 
-$write_ua = new WriteUa(
-    $pdo,
-    $mock_request_content,
-    $ua_repository,
-    $risk_evaluator
-);
-
-$current_simple_ua = RequestContentImplementation::makeSimpleUa($contents['user_agent']);
-$write_ua->writeUserAgentLog();    
-
-// SELECTで取得して期待値と照合する
-try {
-$stmt = $pdo->query("SELECT * FROM user_agent_logs ORDER BY id DESC LIMIT 1");
-
-$row = $stmt->fetch(PDO::FETCH_ASSOC);
-} catch (Exception $e) {
-    echo "Error querying table: " . $e->getMessage() . "<br><br>";
-    $dbManager->disconnect();
-    exit(1);
-}
-if (!$row) {
-    echo "No log entry found in user_agent_logs.<br><br>";
-    $dbManager->disconnect();
-    exit(1);
-}
-
-// 改善例: check() 関数でカウントする
-$passCount = 0;
-$failCount = 0;
 // check() 関数を定義します。
 function check(string $label, mixed $actual, mixed $expected): void {
-    global $passCount, $failCount;
+    global $totalPass, $totalFail;
     if ($actual === $expected) {
-        echo "PASS: {$label}<br>";
-        $passCount++;
+        echo "  PASS: {$label}<br>";
+        $totalPass++;
     } else {
-        echo "FAIL: {$label} ...<br>";
-        $failCount++;
+        echo "  FAIL: {$label}"
+            . " (actual=" . var_export($actual, true)
+            . ", expected=" . var_export($expected, true) . ")<br>";
+        $totalFail++;
     }
 }
 
-check('session_id',    $row['session_id'],           $session_id_to_db);
-check('ip_address',    $row['ip_address'],           $ip_address_to_db);
-check('simple_ua',     $row['simple_ua'],            $simple_ua_to_db);
-check('is_ua_mismatch',(int)$row['is_ua_mismatch'],  $is_ua_mismatch_to_db);
+/**
+ * 1ケース分のテストを実行します。
+ * テーブルをTRUNCATEし、writeUserAgentLog()を呼び出し、
+ * SELECTで取得した値と期待値を照合します。
+ */
+function runTestCase(string $caseLabel, array $contents, PDO $pdo): void {
+    echo "<b>{$caseLabel}</b><br>";
 
-$access_time = new DateTime($row['access_time']);
-$now = new DateTime();
-$diff = $now->getTimestamp() - $access_time->getTimestamp();
+    // table user_agent_logs をクリア
+    try {
+        $pdo->exec("TRUNCATE TABLE user_agent_logs");
+    } catch (Exception $e) {
+        echo "  Error truncating table: " . $e->getMessage() . "<br><br>";
+        return;
+    }
 
-check('access_time', $diff >= 0 && $diff < 5, true  );
+    $mock = new MockRequestContent1($contents);
+    $session_id_to_db = $mock->getSessionId();
+    $ip_address_to_db = $mock->getIpAddress();
 
-echo "Check the user_agent_logs table for the inserted log.<br><br>";
+    $ua_repository  = new UaRepositoryImplementation($pdo, $session_id_to_db, $ip_address_to_db);
+    $risk_evaluator = new UserAgentRiskEvaluator($mock, $ua_repository);
+    $write_ua       = new WriteUa($pdo, $mock, $ua_repository, $risk_evaluator);
+
+    $write_ua->writeUserAgentLog();
+
+    // SELECTで取得して期待値と照合する
+    try {
+        $stmt = $pdo->query("SELECT * FROM user_agent_logs ORDER BY id DESC LIMIT 1");
+        $row  = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        echo "  Error querying table: " . $e->getMessage() . "<br><br>";
+        return;
+    }
+    if (!$row) {
+        echo "  FAIL: No log entry found in user_agent_logs.<br><br>";
+        return;
+    }
+
+    check('session_id',     $row['session_id'],          $mock->getSessionId());
+    check('ip_address',     $row['ip_address'],          $mock->getIpAddress());
+    check('simple_ua',      $row['simple_ua'],           $mock->getCurrentSimpleUa());
+    check('is_ua_mismatch', (int)$row['is_ua_mismatch'], $mock->getIsUaMismatch());
+
+    $access_time = new DateTime($row['access_time']);
+    $now  = new DateTime();
+    $diff = $now->getTimestamp() - $access_time->getTimestamp();
+    check('access_time', $diff >= 0 && $diff < 5, true);
+
+    echo "<br>";
+}
+
+// -------------------------------------------------------
+// Case 1: 正常系（is_ua_mismatch = 0）
+// -------------------------------------------------------
+runTestCase('Case 1: 正常系 (is_ua_mismatch = 0)', [
+    'session_id'      => 'abc123',
+    'ip_address'      => '192.168.0.1',
+    'simple_ua'       => 'Chrome/91',
+    'is_no_ua'        => 0,
+    'is_ua_mismatch'  => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+], $pdo);
+
+// -------------------------------------------------------
+// Case 2: 異常系（is_ua_mismatch = 1）
+//   UA不一致フラグが 1 のとき、DBに 1 で記録されるか確認します。
+// -------------------------------------------------------
+runTestCase('Case 2: 異常系 (is_ua_mismatch = 1)', [
+    'session_id'      => 'abc123',
+    'ip_address'      => '192.168.0.1',
+    'simple_ua'       => 'Chrome/91',   // 前回UA（不一致を想定）
+    'is_no_ua'        => 0,
+    'is_ua_mismatch'  => 1,
+    'recaptcha_solved' => 0,
+    'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
+], $pdo);
+
+// -------------------------------------------------------
+// Case 3: 異常系（session_id が 128 文字の長い文字列）
+//   VARCHAR(128) の境界値で正しくINSERTされるか確認します。
+// -------------------------------------------------------
+runTestCase('Case 3: 異常系 (session_id が 128 文字の長い文字列)', [
+    'session_id'      => str_repeat('s', 128),
+    'ip_address'      => '10.0.0.1',
+    'simple_ua'       => 'Chrome/91',
+    'is_no_ua'        => 0,
+    'is_ua_mismatch'  => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+], $pdo);
+
 //  データベース接続を閉じます。
 $dbManager->disconnect();
-echo "Result: {$passCount} passed, {$failCount} failed.<br>";
+echo "Result: {$totalPass} passed, {$totalFail} failed.<br>";

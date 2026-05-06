@@ -56,3 +56,77 @@ session_id が長い文字列のとき、正しくINSERTされるか
         $isNoAnomalyIp =
           $risk_evaluator->getIsNoAnomalyIp();
 
+
+# student_test\test-write-user-agent-log.php
+を実行した結果、以下のような出力が得られました。
+データベース接続に成功しました。
+
+ケース 1: 正常系 (is_ua_mismatch = 0)
+PASS: session_id
+PASS: ip_address
+PASS: simple_ua
+PASS: is_ua_mismatch
+PASS: access_time
+
+ケース 2: 異常系 (is_ua_mismatch = 1)
+PASS: session_id
+PASS: ip_address
+PASS: simple_ua
+PASS: is_ua_mismatch
+PASS: access_time
+
+ケース 3: 異常系(session_id が 128 文字の長い文字列)
+PASS: session_id
+PASS: ip_address
+PASS: simple_ua
+PASS: is_ua_mismatch
+PASS: access_time
+
+結果: 15 件が成功、0 件が失敗しました。
+
+student/write-ua.php
+に定義されている
+class WriteUaに記述されているwriteUserAgentLog() メソッドの
+改善点を指摘してください。
+
+答え＝＞
+1. 例外処理がない
+
+prepare() や execute() が失敗したとき、
+PDO::ERRMODE_EXCEPTION が設定されていれば
+PDOExceptionが発生しますが、
+それをキャッチしていません。
+他のメソッドや呼び出し元にも catch がなければ、
+エラーが握りつぶされる可能性があります。
+
+<?php
+// 改善例
+try {
+    $stmt = $pdo->prepare($sql);
+    $stmt->bindParam(':session_id',    $sessionId,    PDO::PARAM_STR);
+    $stmt->bindParam(':ip_address',    $ipAddress,    PDO::PARAM_STR);
+    $stmt->bindParam(':simple_ua',     $simpleUa,     PDO::PARAM_STR);
+    $stmt->bindParam(':is_ua_mismatch',$isUaMismatch, PDO::PARAM_INT);
+    $stmt->execute();
+} catch (PDOException $e) {
+    throw new RuntimeException('writeUserAgentLog failed: ' . $e->getMessage(), 0, $e);
+}
+
+2. INSERT 成功の確認をしていない
+
+execute() が成功しても rowCount() が 0 の場合
+（制約違反で INSERT がスキップされるなど）に気づけません。
+<?php
+if ($stmt->rowCount() !== 1) {
+    throw new RuntimeException('writeUserAgentLog: INSERT affected 0 rows.');
+}
+
+3. テストで未検証の境界値がある
+
+Case 3 では 128 文字（VARCHAR(128) の上限）をテストしましたが、129 文字以上のケースがありません。上限超過でDBエラーになるかどうかを確認するテストも追加すべきです。
+
+
+
+
+
+

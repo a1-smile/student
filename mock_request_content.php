@@ -44,7 +44,7 @@
             $this->simpleUa = $content['simple_ua'] ?? '';
             $this->userAgent = $content['user_agent'] ?? '';
 
-            $this->currentSimpleUa = RequestContentImplementation::makeSimpleUa($this->userAgent); // ここでは currentSimpleUa を simpleUa と同じ値に設定しています。
+            $this->currentSimpleUa = RequestContentImplementation::makeSimpleUa($this->userAgent); 
 
         }
 
