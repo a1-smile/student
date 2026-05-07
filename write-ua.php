@@ -128,13 +128,21 @@ class WriteUa{
                 NOW())";
       $stmt = $pdo->prepare($sql);
       //  パラメーターの型を指定してバインドする
-      $stmt->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
-      $stmt->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
-      $stmt->bindParam(':simple_ua', $simpleUa, PDO::PARAM_STR);
-      $stmt->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
-      $stmt->execute();
-
-
+      try{
+          $stmt->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
+          $stmt->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
+          $stmt->bindParam(':simple_ua', $simpleUa, PDO::PARAM_STR);
+          $stmt->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
+          $stmt->execute();
+          if ($stmt->rowCount() !== 1) {
+              throw new RuntimeException('writeUserAgentLog: INSERT affected 0 rows.');
+          }
+        }catch(PDOException $e){
+        throw new RuntimeException('writeUserAgentLog failed: ' . $e->getMessage(),
+                                  0, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
+                                  $e //  再スローする例外の前の例外のインスタンス。
+                                  ); 
+        } // END TRY CATCH
     } // END FUNCTION
   /**
   * ua_anomaly_events テーブルにデータを記録する処理

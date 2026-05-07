@@ -99,7 +99,7 @@ PDOExceptionが発生しますが、
 他のメソッドや呼び出し元にも catch がなければ、
 エラーが握りつぶされる可能性があります。
 
-<?php
+
 // 改善例
 try {
     $stmt = $pdo->prepare($sql);
@@ -111,6 +111,40 @@ try {
 } catch (PDOException $e) {
     throw new RuntimeException('writeUserAgentLog failed: ' . $e->getMessage(), 0, $e);
 }
+この処理はPDOExceptionをRuntimeExceptionに
+  ラップして再スロー、その後、
+  writeUserAgentLogを呼び出す側で
+  RuntimeExceptionをキャッチして適切に処理することを想定していますか？
+たとえば、以下のように記述することができますか？
+try {
+    $writeUa->writeUserAgentLog();
+} catch (RuntimeException $e) {
+    // ログ出力失敗の処理（例: エラーログに記録、ユーザーへの通知など）
+    error_log('Failed to write user agent log: ' . $e->getMessage());
+    //  ../error_page.php にリダイレクトする。
+    //  ステイタスコード 500 を返す。
+    http_response_code(500);
+    header('Location: ../db-error-page.php');
+    exit;
+}
+例外を catch してステータスコード 500 をつけて
+エラーページにリダイレクトしようと考えます。
+error_page.php は、
+もう一つ役割がありまして、
+疑わしいアクセスをリダイレクトして、
+連続アクセスをやりにくくする役割を想定しています。
+もう一つファイルを追加して、
+db-error-page.php として、DBエラー専用のエラーページを作成するほうが
+適切ですか？
+答え
+=>
+はい、db-error-page.php を作成して、
+DBエラー専用のエラーページにリダイレクトするのが適切です。
+これにより、ユーザーに対してより具体的なエラーメッセージを提供でき、
+システムの問題を明確に伝えることができます。
+また、疑わしいアクセスを処理する error_page.php と
+役割を分けることで、コードの責任範囲が明確になり、
+保守性も向上します。
 
 2. INSERT 成功の確認をしていない
 
