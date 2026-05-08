@@ -100,9 +100,6 @@ class WriteUa{
           $this->userAgentRiskEvaluator->getIsNoAnomalySession();
         $this->isNoAnomalyIp =
           $this->userAgentRiskEvaluator->getIsNoAnomalyIp();
-
-
-
     } // END CONSTRUCT
 
     public function writeUserAgentLog(): void {
@@ -126,24 +123,26 @@ class WriteUa{
                 :simple_ua,
                 :is_ua_mismatch,
                 NOW())";
-      $stmt = $pdo->prepare($sql);
-      //  パラメーターの型を指定してバインドする
       try{
+          $stmt = $pdo->prepare($sql);
+          
+          //  パラメーターの型を指定してバインドする
           $stmt->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
           $stmt->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
           $stmt->bindParam(':simple_ua', $simpleUa, PDO::PARAM_STR);
           $stmt->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
           $stmt->execute();
+          //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
           if ($stmt->rowCount() !== 1) {
               throw new RuntimeException('writeUserAgentLog: INSERT affected 0 rows.');
-          }
+          } // END IF
         }catch(PDOException $e){
         throw new RuntimeException('writeUserAgentLog failed: ' . $e->getMessage(),
                                   0, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
                                   $e //  再スローする例外の前の例外のインスタンス。
                                   ); 
         } // END TRY CATCH
-    } // END FUNCTION
+    } // END FUNCTION writeUserAgentLog()
   /**
   * ua_anomaly_events テーブルにデータを記録する処理
   *  CREATE TABLE ua_anomaly_events (
@@ -209,17 +208,27 @@ class WriteUa{
               :is_over_threshold_session,
               :is_over_threshold_ip,
               NOW())";
-    $stmt = $this->pdo->prepare($sql);
-    // パラメーターの型を指定してバインドする
-    $stmt->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
-    $stmt->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
-    $stmt->bindParam(':is_no_ua', $isNoUa, PDO::PARAM_INT);
-    $stmt->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
-    $stmt->bindParam(':is_over_threshold_session', $isOverThresholdSession, PDO::PARAM_INT);
-    $stmt->bindParam(':is_over_threshold_ip', $isOverThresholdIp, PDO::PARAM_INT);
-    $stmt->execute();
-
-  } // END FUNCTION writeUaAnomalyEvents
+    try{
+      $stmt = $this->pdo->prepare($sql);
+      // パラメーターの型を指定してバインドする
+      $stmt->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
+      $stmt->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
+      $stmt->bindParam(':is_no_ua', $isNoUa, PDO::PARAM_INT);
+      $stmt->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
+      $stmt->bindParam(':is_over_threshold_session', $isOverThresholdSession, PDO::PARAM_INT);
+      $stmt->bindParam(':is_over_threshold_ip', $isOverThresholdIp, PDO::PARAM_INT);
+      $stmt->execute();
+      //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
+      if ($stmt->rowCount() !== 1) {
+          throw new RuntimeException('writeUaAnomalyEvents: INSERT affected 0 rows.');
+      } // END IF
+    }catch(PDOException $e){
+        throw new RuntimeException('writeUaAnomalyEvents failed: ' . $e->getMessage(),
+                                  0, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
+                                  $e //  再スローする例外の前の例外のインスタンス。
+                                  ); 
+    } // END TRY CATCH
+  } // END FUNCTION writeUaAnomalyEvents()
 
 
   /**
@@ -255,19 +264,41 @@ class WriteUa{
     $sqlSession = "INSERT INTO ua_scores (subject_type, subject_key, score, updated_at)
                    VALUES ('session', :session_id, :score_session, NOW())
                    ON DUPLICATE KEY UPDATE score = :score_session, updated_at = NOW()";
-    $stmtSession = $pdo->prepare($sqlSession);
-    $stmtSession->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
-    $stmtSession->bindParam(':score_session', $scoreSession, PDO::PARAM_INT);
-    $stmtSession->execute();
+    try{
+      $stmtSession = $pdo->prepare($sqlSession);
+      $stmtSession->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
+      $stmtSession->bindParam(':score_session', $scoreSession, PDO::PARAM_INT);
+      $stmtSession->execute();
+      //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
+      if ($stmtSession->rowCount() !== 1) {
+          throw new RuntimeException('writeUaScores (session): INSERT affected 0 rows.');
+      } // END IF
+    }catch(PDOException $e){
+        throw new RuntimeException('writeUaScores (session) failed: ' . $e->getMessage(),
+                                  0,
+                                  $e
+                                  );
+    } // END TRY CATCH
 
     // IPベースのスコアを記録
     $sqlIp = "INSERT INTO ua_scores (subject_type, subject_key, score, updated_at)
               VALUES ('ip', :ip_address, :score_ip, NOW())
               ON DUPLICATE KEY UPDATE score = :score_ip, updated_at = NOW()";
-    $stmtIp = $pdo->prepare($sqlIp);
-    $stmtIp->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
-    $stmtIp->bindParam(':score_ip', $scoreIp, PDO::PARAM_INT);
-    $stmtIp->execute();
+    try{
+      $stmtIp = $pdo->prepare($sqlIp);
+      $stmtIp->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
+      $stmtIp->bindParam(':score_ip', $scoreIp, PDO::PARAM_INT);
+      $stmtIp->execute();
+      //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
+      if ($stmtIp->rowCount() !== 1) {
+          throw new RuntimeException('writeUaScores (ip): INSERT affected 0 rows.');
+      } // END IF
+    }catch(PDOException $e){
+        throw new RuntimeException('writeUaScores (ip) failed: ' . $e->getMessage(),
+                                  0,
+                                  $e
+                                  );
+    } // END TRY CATCH
   } // END FUNCTION writeUaScores()
 
 
@@ -352,16 +383,26 @@ class WriteUa{
                     'session', :session_id, :is_no_ua, :is_ua_mismatch, 
                     :is_over_threshold_session, :is_no_anomaly_session, 
                     :recaptcha_solved, :is_decreased_session, NOW())";
-    $stmtSession = $pdo->prepare($sqlSession);
-    $stmtSession->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
-    $stmtSession->bindParam(':is_no_ua', $isNoUa, PDO::PARAM_INT);
-    $stmtSession->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
-    $stmtSession->bindParam(':is_over_threshold_session', $isOverThresholdSession, PDO::PARAM_INT);
-    $stmtSession->bindParam(':is_no_anomaly_session', $isNoAnomalySession, PDO::PARAM_INT);
-    $stmtSession->bindParam(':recaptcha_solved', $recaptchaSolved, PDO::PARAM_INT);
-    $stmtSession->bindParam(':is_decreased_session', $isDecreasedSession, PDO::PARAM_INT);
-    $stmtSession->execute();
-
+    try{
+        $stmtSession = $pdo->prepare($sqlSession);
+        $stmtSession->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
+        $stmtSession->bindParam(':is_no_ua', $isNoUa, PDO::PARAM_INT);
+        $stmtSession->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
+        $stmtSession->bindParam(':is_over_threshold_session', $isOverThresholdSession, PDO::PARAM_INT);
+        $stmtSession->bindParam(':is_no_anomaly_session', $isNoAnomalySession, PDO::PARAM_INT);
+        $stmtSession->bindParam(':recaptcha_solved', $recaptchaSolved, PDO::PARAM_INT);
+        $stmtSession->bindParam(':is_decreased_session', $isDecreasedSession, PDO::PARAM_INT);
+        $stmtSession->execute();
+        //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
+        if ($stmtSession->rowCount() !== 1) {
+            throw new RuntimeException('writeUaScoreHistory (session): INSERT affected 0 rows.');
+        } // END IF
+    }catch(PDOException $e){
+        throw new RuntimeException('writeUaScoreHistory (session) failed: ' . $e->getMessage(),
+                                  0,
+                                  $e
+                                  ); 
+    } // END TRY CATCH
     // ip base のスコア履歴を記録
     $sqlIp = "INSERT INTO ua_score_history (
                 subject_type, subject_key, is_no_ua, is_ua_mismatch, 
@@ -372,15 +413,26 @@ class WriteUa{
                 :is_over_threshold_ip, :is_no_anomaly_ip,
                 :recaptcha_solved, :is_decreased_ip, NOW())";
     // パラメーターの型を指定してバインドする
-    $stmtIp = $pdo->prepare($sqlIp);
-    $stmtIp->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
-    $stmtIp->bindParam(':is_no_ua', $isNoUa, PDO::PARAM_INT);
-    $stmtIp->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
-    $stmtIp->bindParam(':is_over_threshold_ip', $isOverThresholdIp, PDO::PARAM_INT);
-    $stmtIp->bindParam(':is_no_anomaly_ip', $isNoAnomalyIp, PDO::PARAM_INT);
-    $stmtIp->bindParam(':recaptcha_solved', $recaptchaSolved, PDO::PARAM_INT);
-    $stmtIp->bindParam(':is_decreased_ip', $isDecreasedIp, PDO::PARAM_INT);
-    $stmtIp->execute();                                                             
+    try{
+        $stmtIp = $pdo->prepare($sqlIp);
+        $stmtIp->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
+        $stmtIp->bindParam(':is_no_ua', $isNoUa, PDO::PARAM_INT);
+        $stmtIp->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
+        $stmtIp->bindParam(':is_over_threshold_ip', $isOverThresholdIp, PDO::PARAM_INT);
+        $stmtIp->bindParam(':is_no_anomaly_ip', $isNoAnomalyIp, PDO::PARAM_INT);
+        $stmtIp->bindParam(':recaptcha_solved', $recaptchaSolved, PDO::PARAM_INT);
+        $stmtIp->bindParam(':is_decreased_ip', $isDecreasedIp, PDO::PARAM_INT);
+        $stmtIp->execute();                                                             
+        //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
+        if ($stmtIp->rowCount() !== 1) {
+            throw new RuntimeException('writeUaScoreHistory (ip): INSERT affected 0 rows.');
+        } // END IF
+    }catch(PDOException $e){
+        throw new RuntimeException('writeUaScoreHistory (ip) failed: ' . $e->getMessage(),
+                                  0,
+                                  $e
+                                  ); 
+    } // END TRY CATCH
   } // END FUNCTION writeUaScoreHistory()
 
 } // END CLASS

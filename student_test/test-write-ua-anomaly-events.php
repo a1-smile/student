@@ -1,10 +1,10 @@
 <?php
 /*
-student/student_test/test-write-user-agent-log.php
+student/student_test/test-write-ua-anomaly-events.php
 では、
 student/write-ua.php
 に定義されている
-class WriteUaのwriteUserAgentLog() メソッドをテストします。
+class WriteUaのwriteUaAnomalyEvents() メソッドをテストします。
 */
 //  タイムゾーンを明示的に設定します。
 date_default_timezone_set('Asia/Tokyo');
@@ -30,6 +30,7 @@ require_once __DIR__ . '/../interface_request_content.php';
 require_once __DIR__ . '/../request_content_implementation.php';
 require_once __DIR__ . '/../mock_request_content.php';
 require_once __DIR__ . '/../interface_ua_repository.php';
+require_once __DIR__ . '/../mock_ua_repository.php';
 require_once __DIR__ . '/../ua_repository_implementation.php';
 require_once __DIR__ . '/../risk_evaluation_result.php';
 require_once __DIR__ . '/../user_agent_risk_evaluator.php';
@@ -55,48 +56,53 @@ function check(string $label, mixed $actual, mixed $expected): void {
 
 /**
  * 1ケース分のテストを実行します。
- * テーブルをTRUNCATEし、writeUserAgentLog()を呼び出し、
+ * テーブルをTRUNCATEし、writeUaAnomalyEvents()を呼び出し、
  * SELECTで取得した値と期待値を照合します。
  */
 
-function runTestCase(string $caseLabel, array $contents, PDO $pdo): void {
+function runTestCase(
+            string $caseLabel,
+            array $contents,
+            array $uaData,
+            PDO $pdo
+    ): void {
     echo "<b>{$caseLabel}</b><br>";
 
-    // table user_agent_logs をクリア
+    // table ua_anomaly_events をクリア
     try {
-        $pdo->exec("TRUNCATE TABLE user_agent_logs");
+        $pdo->exec("TRUNCATE TABLE ua_anomaly_events");
     } catch (Exception $e) {
         echo "  Error truncating table: " . $e->getMessage() . "<br><br>";
         return;
     }
 
     $mock = new MockRequestContent1($contents);
-    $session_id_to_db = $mock->getSessionId();
-    $ip_address_to_db = $mock->getIpAddress();
 
-    $ua_repository  = new UaRepositoryImplementation($pdo, $session_id_to_db, $ip_address_to_db);
-    $risk_evaluator = new UserAgentRiskEvaluator($mock, $ua_repository);
-    $write_ua       = new WriteUa($pdo, $mock, $ua_repository, $risk_evaluator);
+    $mock_ua_repository  = new MockUaRepository($uaData);
+    $risk_evaluator = new UserAgentRiskEvaluator($mock, $mock_ua_repository);
+    $write_ua       = new WriteUa($pdo, $mock, $mock_ua_repository, $risk_evaluator);
 
-    $write_ua->writeUserAgentLog();
+    $write_ua->writeUaAnomalyEvents();
 
     // SELECTで取得して期待値と照合する
     try {
-        $stmt = $pdo->query("SELECT * FROM user_agent_logs ORDER BY id DESC LIMIT 1");
+        $stmt = $pdo->query("SELECT * FROM ua_anomaly_events ORDER BY id DESC LIMIT 1");
         $row  = $stmt->fetch(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         echo "  Error querying table: " . $e->getMessage() . "<br><br>";
         return;
     }
-    if (!$row) {
-        echo "  FAIL: No log entry found in user_agent_logs.<br><br>";
+    if ($row === false) {
+        echo "  FAIL: No log entry found in ua_anomaly_events.<br><br>";
         return;
     }
 
     check('session_id',     $row['session_id'],          $mock->getSessionId());
     check('ip_address',     $row['ip_address'],          $mock->getIpAddress());
-    check('simple_ua',      $row['simple_ua'],           $mock->getCurrentSimpleUa());
+    check('is_no_ua',       (int)$row['is_no_ua'],       $mock->getIsNoUa());
     check('is_ua_mismatch', (int)$row['is_ua_mismatch'], $mock->getIsUaMismatch());
+    check('is_over_threshold_session', (int)$row['is_over_threshold_session'], $risk_evaluator->getIsOverThresholdSession());
+    check('is_over_threshold_ip', (int)$row['is_over_threshold_ip'], $risk_evaluator->getIsOverThresholdIp());
 
     $access_time = new DateTime($row['access_time']);
     $now  = new DateTime();
@@ -107,27 +113,30 @@ function runTestCase(string $caseLabel, array $contents, PDO $pdo): void {
 }
 
 
-function runTestCaseError(string $caseLabel, array $contents, PDO $pdo): void {
+function runTestCaseError(
+            string $caseLabel,
+            array $contents,
+            array $uaData,
+            PDO $pdo
+    ): void {
     echo "<b>{$caseLabel}</b><br>";
 
-    // table user_agent_logs をクリア
+    // table ua_anomaly_events をクリア
     try {
-        $pdo->exec("TRUNCATE TABLE user_agent_logs");
+        $pdo->exec("TRUNCATE TABLE ua_anomaly_events");
     } catch (Exception $e) {
         echo "  Error truncating table: " . $e->getMessage() . "<br><br>";
         return;
     }
 
     $mock = new MockRequestContent1($contents);
-    $session_id_to_db = $mock->getSessionId();
-    $ip_address_to_db = $mock->getIpAddress();
 
-    $ua_repository  = new UaRepositoryImplementation($pdo, $session_id_to_db, $ip_address_to_db);
-    $risk_evaluator = new UserAgentRiskEvaluator($mock, $ua_repository);
-    $write_ua       = new WriteUa($pdo, $mock, $ua_repository, $risk_evaluator);
+    $mock_ua_repository  = new MockUaRepository($uaData);
+    $risk_evaluator = new UserAgentRiskEvaluator($mock, $mock_ua_repository);
+    $write_ua       = new WriteUa($pdo, $mock, $mock_ua_repository, $risk_evaluator);
 
     try {
-        $write_ua->writeUserAgentLog();
+        $write_ua->writeUaAnomalyEvents();
         echo " FAIL: 例外が発生しませんでした。<br><br>";
     } catch (RuntimeException $e) {
         echo "  PASS: 例外が発生しました: " . $e->getMessage() . "<br><br>";
@@ -136,22 +145,24 @@ function runTestCaseError(string $caseLabel, array $contents, PDO $pdo): void {
 
     // SELECTで取得して期待値と照合する
     try {
-        $stmt = $pdo->query("SELECT * FROM user_agent_logs ORDER BY id DESC LIMIT 1");
+        $stmt = $pdo->query("SELECT * FROM ua_anomaly_events ORDER BY id DESC LIMIT 1");
         $row  = $stmt->fetch(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         echo "  Error querying table: " . $e->getMessage() . "<br><br>";
         return;
     }
-    if (!$row) {
-        echo "  FAIL: No log entry found in user_agent_logs.<br><br>";
+    if ($row === false) {
+        echo "  FAIL: No log entry found in ua_anomaly_events.<br><br>";
         return;
     }
 
     check('session_id',     $row['session_id'],          $mock->getSessionId());
     check('ip_address',     $row['ip_address'],          $mock->getIpAddress());
+    check('is_no_ua',       (int)$row['is_no_ua'],       $mock->getIsNoUa());
     check('simple_ua',      $row['simple_ua'],           $mock->getCurrentSimpleUa());
     check('is_ua_mismatch', (int)$row['is_ua_mismatch'], $mock->getIsUaMismatch());
-
+    check('is_over_threshold_session', (int)$row['is_over_threshold_session'], $risk_evaluator->getIsOverThresholdSession());
+    check('is_over_threshold_ip', (int)$row['is_over_threshold_ip'], $risk_evaluator->getIsOverThresholdIp());
     $access_time = new DateTime($row['access_time']);
     $now  = new DateTime();
     $diff = $now->getTimestamp() - $access_time->getTimestamp();
@@ -162,9 +173,9 @@ function runTestCaseError(string $caseLabel, array $contents, PDO $pdo): void {
 
 
 // -------------------------------------------------------
-// Case 1: 正常系（is_ua_mismatch = 0）
+// Case 1: 正常系（閾値以下）
 // -------------------------------------------------------
-runTestCase('Case 1: 正常系 (is_ua_mismatch = 0)', [
+$contents = [
     'session_id'      => 'abc123',
     'ip_address'      => '192.168.0.1',
     'simple_ua'       => 'Chrome/91',
@@ -172,7 +183,22 @@ runTestCase('Case 1: 正常系 (is_ua_mismatch = 0)', [
     'is_ua_mismatch'  => 0,
     'recaptcha_solved' => 0,
     'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-], $pdo);
+];
+$uaData = [
+    'score_session' => 0,
+    'score_ip' => 0,
+    'access_count_session' => 0,// 閾値 60
+    'access_count_ip' => 0, // 閾値 600
+    'is_decreased_session' => 0,
+    'is_decreased_ip' => 0,
+    'is_no_anomaly_session' => 1, // 異常なし
+    'is_no_anomaly_ip' => 1       // 異常なし
+];
+runTestCase(
+    'Case 1: 正常系（閾値以下）',
+    $contents,
+    $uaData,
+    $pdo);
 
 // -------------------------------------------------------
 // Case 2: 異常系（is_ua_mismatch = 1）
@@ -181,7 +207,7 @@ runTestCase('Case 1: 正常系 (is_ua_mismatch = 0)', [
 runTestCase('Case 2: 異常系 (is_ua_mismatch = 1)', [
     'session_id'      => 'abc123',
     'ip_address'      => '192.168.0.1',
-    'simple_ua'       => 'Chrome/91',   // 前回UA（不一致を想定）
+    'simple_ua'       => 'Chrome/91',   // 前回UA
     'is_no_ua'        => 0,
     'is_ua_mismatch'  => 1,
     'recaptcha_solved' => 0,

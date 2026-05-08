@@ -121,7 +121,7 @@ try {
 } catch (RuntimeException $e) {
     // ログ出力失敗の処理（例: エラーログに記録、ユーザーへの通知など）
     error_log('Failed to write user agent log: ' . $e->getMessage());
-    //  ../error_page.php にリダイレクトする。
+    //  ../db-error-page.php にリダイレクトする。
     //  ステイタスコード 500 を返す。
     http_response_code(500);
     header('Location: ../db-error-page.php');
@@ -157,10 +157,43 @@ if ($stmt->rowCount() !== 1) {
 
 3. テストで未検証の境界値がある
 
-Case 3 では 128 文字（VARCHAR(128) の上限）をテストしましたが、129 文字以上のケースがありません。上限超過でDBエラーになるかどうかを確認するテストも追加すべきです。
+Case 3 では 128 文字（VARCHAR(128) の上限）をテストしましたが、
+129 文字以上のケースがありません。上限超過でDBエラーになるかどうかを確認するテストも追加すべきです。
 
+# session id が 128 文字より長い場合はエラーになることを
+確認しました。
+session id に対しては、
+hash('sha256', $sessionId)
+  でハッシュ化して保存しますので、
+  session id を DBに保存する際に問題はないと思います。
+  また、
+VARCHAR(128)が機能しています。
+テストのブラウザー表示は以下に
+なります。
+Database connection successful.
 
+Case 1: 正常系 (is_ua_mismatch = 0)
+PASS: session_id
+PASS: ip_address
+PASS: simple_ua
+PASS: is_ua_mismatch
+PASS: access_time
 
+Case 2: 異常系 (is_ua_mismatch = 1)
+PASS: session_id
+PASS: ip_address
+PASS: simple_ua
+PASS: is_ua_mismatch
+PASS: access_time
 
+Case 3: 異常系 (session_id が 128 文字の長い文字列)
+PASS: session_id
+PASS: ip_address
+PASS: simple_ua
+PASS: is_ua_mismatch
+PASS: access_time
 
+Case 4: 異常系 (session_id が 129 文字の長い文字列)
+
+Fatal error: Uncaught PDOException: SQLSTATE[22001]: String data, right truncated: 1406 Data too long for column 'session_id' at row 1 in C:\dev\student\write-ua.php:134 Stack trace: #0 C:\dev\student\write-ua.php(134): PDOStatement->execute() #1 C:\dev\student\student_test\test-write-user-agent-log.php(80): WriteUa->writeUserAgentLog() #2 C:\dev\student\student_test\test-write-user-agent-log.php(162): runTestCase('Case 4: \xE7\x95\xB0\xE5\xB8\xB8\xE7...', Array, Object(PDO)) #3 {main} Next RuntimeException: writeUserAgentLog failed: SQLSTATE[22001]: String data, right truncated: 1406 Data too long for column 'session_id' at row 1 in C:\dev\student\write-ua.php:140 Stack trace: #0 C:\dev\student\student_test\test-write-user-agent-log.php(80): WriteUa->writeUserAgentLog() #1 C:\dev\student\student_test\test-write-user-agent-log.php(162): runTestCase('Case 4: \xE7\x95\xB0\xE5\xB8\xB8\xE7...', Array, Object(PDO)) #2 {main} thrown in C:\dev\student\write-ua.php on line 140
 

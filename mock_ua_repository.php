@@ -27,6 +27,8 @@ class MockUaRepository implements UaRepository {
     private int $isNoAnomalySession;
     private int $isNoAnomalyIp;
 
+
+    
     public function __construct(array $data) {
         $this->scoreSession = $data['score_session'];
         $this->scoreIp = $data['score_ip'];
