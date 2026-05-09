@@ -81,12 +81,25 @@ function runTestCase(
     $mock_ua_repository  = new MockUaRepository($uaData);
     $risk_evaluator = new UserAgentRiskEvaluator($mock, $mock_ua_repository);
     $write_ua       = new WriteUa($pdo, $mock, $mock_ua_repository, $risk_evaluator);
-
-    $write_ua->writeUaAnomalyEvents();
+    try {
+        $write_ua->writeUaAnomalyEvents();
+    } catch (RuntimeException $e) {
+        echo "  Error writing anomaly events: " . $e->getMessage() . "<br><br>";
+         http_response_code(500); // 500 Internal Server Error を返す場合
+         return;
+    } catch (Exception $e) {
+        echo "  Unexpected error: " . $e->getMessage() . "<br><br>";
+        return;
+    }  // END try-catch
+    
+    // 追加されたidを取得。
+    $id = (int)$pdo->lastInsertId();
 
     // SELECTで取得して期待値と照合する
     try {
-        $stmt = $pdo->query("SELECT * FROM ua_anomaly_events ORDER BY id DESC LIMIT 1");
+        $stmt = $pdo->prepare("SELECT * FROM ua_anomaly_events WHERE id = :id");
+        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+        $stmt->execute();
         $row  = $stmt->fetch(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         echo "  Error querying table: " . $e->getMessage() . "<br><br>";
