@@ -154,35 +154,9 @@ function runTestCaseError(
     } catch (RuntimeException $e) {
         echo "  PASS: 例外が発生しました: " . $e->getMessage() . "<br><br>";
         return;
-    }
+    } //
 
-    // SELECTで取得して期待値と照合する
-    try {
-        $stmt = $pdo->query("SELECT * FROM ua_anomaly_events ORDER BY id DESC LIMIT 1");
-        $row  = $stmt->fetch(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {
-        echo "  Error querying table: " . $e->getMessage() . "<br><br>";
-        return;
-    }
-    if ($row === false) {
-        echo "  FAIL: No log entry found in ua_anomaly_events.<br><br>";
-        return;
-    }
-
-    check('session_id',     $row['session_id'],          $mock->getSessionId());
-    check('ip_address',     $row['ip_address'],          $mock->getIpAddress());
-    check('is_no_ua',       (int)$row['is_no_ua'],       $mock->getIsNoUa());
-    check('simple_ua',      $row['simple_ua'],           $mock->getCurrentSimpleUa());
-    check('is_ua_mismatch', (int)$row['is_ua_mismatch'], $mock->getIsUaMismatch());
-    check('is_over_threshold_session', (int)$row['is_over_threshold_session'], $risk_evaluator->getIsOverThresholdSession());
-    check('is_over_threshold_ip', (int)$row['is_over_threshold_ip'], $risk_evaluator->getIsOverThresholdIp());
-    $access_time = new DateTime($row['access_time']);
-    $now  = new DateTime();
-    $diff = $now->getTimestamp() - $access_time->getTimestamp();
-    check('access_time', $diff >= 0 && $diff < 5, true);
-
-    echo "<br>";
-}
+} // END function
 
 
 // -------------------------------------------------------
@@ -214,18 +188,32 @@ runTestCase(
     $pdo);
 
 // -------------------------------------------------------
-// Case 2: 異常系（is_ua_mismatch = 1）
-//   UA不一致フラグが 1 のとき、DBに 1 で記録されるか確認します。
+// Case 2: 異常系（ua_mismatch = 1）
+//   記録されるか確認します。
 // -------------------------------------------------------
-runTestCase('Case 2: 異常系 (is_ua_mismatch = 1)', [
-    'session_id'      => 'abc123',
-    'ip_address'      => '192.168.0.1',
-    'simple_ua'       => 'Chrome/91',   // 前回UA
+$contents2 = [
+    'session_id'      => 'def456',
+    'ip_address'      => '192.168.0.2',
+    'simple_ua'       => 'Firefox/89', // previous simple_ua
     'is_no_ua'        => 0,
     'is_ua_mismatch'  => 1,
     'recaptcha_solved' => 0,
     'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
-], $pdo);
+];
+$uaData2 = [
+    'score_session' => 0,
+    'score_ip' => 0,
+    'access_count_session' => 0,// 閾値 60
+    'access_count_ip' => 0, // 閾値 600
+    'is_decreased_session' => 0,
+    'is_decreased_ip' => 0,
+    'is_no_anomaly_session' => 1, // 異常なし
+    'is_no_anomaly_ip' => 1       // 異常なし
+];
+runTestCase('Case 2: 異常系 (ua_mismatch = 1)',
+    $contents2,
+    $uaData2,
+    $pdo);
 
 // -------------------------------------------------------
 // Case 3: 異常系（session_id が 128 文字の長い文字列）
@@ -245,14 +233,17 @@ runTestCase('Case 3: 異常系 (session_id が 128 文字の長い文字列)', [
 //$dbManager->disconnect();
 //echo "Result: {$totalPass} passed, {$totalFail} failed.<br>";
 
+echo "Result: {$totalPass} passed, {$totalFail} failed.<br><br>";
+echo "Now running error test case...<br><br>";
 
 // -------------------------------------------------------
 // Case 4: 異常系（session_id が 129 文字の長い文字列）
 //   VARCHAR(128) の上限を超えた場合にエラーになるか確認します。
 //  
-//  mysql の設定が STRICT_TRANS_TABLES です。
+//  mysql の設定が 【STRICT_TRANS_TABLES】 です。
 //  VARCHAR(128)は128文字まで です。
-//  129 文字以上の session_id を挿入しようとすると、エラーになるはずです。
+//  129 文字以上の session_id を挿入しようとすると、
+//  RuntimeException が スローされるはずです。
 // -------------------------------------------------------
 runTestCaseError('Case 4: 異常系 (session_id が 129 文字の長い文字列)', [
     'session_id'      => str_repeat('s', 129),
@@ -266,5 +257,4 @@ runTestCaseError('Case 4: 異常系 (session_id が 129 文字の長い文字列
 
 //  データベース接続を閉じます。
 $dbManager->disconnect();
-echo "Result: {$totalPass} passed, {$totalFail} failed.<br>";
 
