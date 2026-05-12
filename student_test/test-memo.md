@@ -197,3 +197,74 @@ Case 4: 異常系 (session_id が 129 文字の長い文字列)
 
 Fatal error: Uncaught PDOException: SQLSTATE[22001]: String data, right truncated: 1406 Data too long for column 'session_id' at row 1 in C:\dev\student\write-ua.php:134 Stack trace: #0 C:\dev\student\write-ua.php(134): PDOStatement->execute() #1 C:\dev\student\student_test\test-write-user-agent-log.php(80): WriteUa->writeUserAgentLog() #2 C:\dev\student\student_test\test-write-user-agent-log.php(162): runTestCase('Case 4: \xE7\x95\xB0\xE5\xB8\xB8\xE7...', Array, Object(PDO)) #3 {main} Next RuntimeException: writeUserAgentLog failed: SQLSTATE[22001]: String data, right truncated: 1406 Data too long for column 'session_id' at row 1 in C:\dev\student\write-ua.php:140 Stack trace: #0 C:\dev\student\student_test\test-write-user-agent-log.php(80): WriteUa->writeUserAgentLog() #1 C:\dev\student\student_test\test-write-user-agent-log.php(162): runTestCase('Case 4: \xE7\x95\xB0\xE5\xB8\xB8\xE7...', Array, Object(PDO)) #2 {main} thrown in C:\dev\student\write-ua.php on line 140
 
+#write-ua.php
+のメソッドで 
+  public function writeUaAnomalyEvents()
+では、
+try catch 構文のブロックの
+中で、RuntimeException をスローするようにしました。
+-catch ブロックでキャッチしするのは、
+PDOExceptionです。
+-PDOException をキャッチして、RuntimeException にラップして再スローします。
+-メソッドの呼び出し元で、2つの意味の RuntimeException をキャッチして、処理することは
+可能ですか？
+コードは、以下にようになります。
+public function writeUaAnomalyEvents(): void {
+    $pdo = $this->pdo;
+    $sessionId = $this->sessionId;
+    $ipAddress = $this->ipAddress;
+    $isNoUa = $this->isNoUa;
+    $isUaMismatch = $this->isUaMismatch;
+    $isOverThresholdSession = $this->isOverThresholdSession;
+    $isOverThresholdIp = $this->isOverThresholdIp;
+    // UAに異常がない場合は何もせずに return
+    if (
+        $isNoUa === 0 
+            && 
+        $isUaMismatch === 0 
+            && 
+        $isOverThresholdSession === 0 
+            && 
+        $isOverThresholdIp === 0
+        ) {
+        return;
+    }
+
+    // ua_anomaly_events テーブルにデータを記録する処理
+    $sql = "INSERT INTO ua_anomaly_events (
+              session_id,
+              ip_address,
+              is_no_ua,
+              is_ua_mismatch,
+              is_over_threshold_session,
+              is_over_threshold_ip,
+              access_time
+            ) VALUES (
+              :session_id,
+              :ip_address,
+              :is_no_ua,
+              :is_ua_mismatch,
+              :is_over_threshold_session,
+              :is_over_threshold_ip,
+              NOW())";
+    try{
+      $stmt = $this->pdo->prepare($sql);
+      // パラメーターの型を指定してバインドする
+      $stmt->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
+      $stmt->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
+      $stmt->bindParam(':is_no_ua', $isNoUa, PDO::PARAM_INT);
+      $stmt->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
+      $stmt->bindParam(':is_over_threshold_session', $isOverThresholdSession, PDO::PARAM_INT);
+      $stmt->bindParam(':is_over_threshold_ip', $isOverThresholdIp, PDO::PARAM_INT);
+      $stmt->execute();
+      //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
+      if ($stmt->rowCount() !== 1) {
+          throw new RuntimeException('writeUaAnomalyEvents: INSERT affected 0 rows.');
+      } // END IF
+    }catch(PDOException $e){
+        throw new RuntimeException('writeUaAnomalyEvents failed: ' . $e->getMessage(),
+                                  self::DEFAULT_ERROR_CODE, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
+                                  $e //  再スローする例外の前の例外のインスタンス。
+                                  ); 
+    } // END TRY CATCH
+  } // END FUNCTION writeUaAnomalyEvents()

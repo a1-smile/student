@@ -27,6 +27,8 @@
  */
 
 class WriteUa{
+  //  default error_code
+  const DEFAULT_ERROR_CODE = 0;
   private PDO $pdo;
   private RequestContent $requestContent;
   private UaRepository $uaRepository; 
@@ -134,11 +136,11 @@ class WriteUa{
           $stmt->execute();
           //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
           if ($stmt->rowCount() !== 1) {
-              throw new RuntimeException('writeUserAgentLog: INSERT affected 0 rows.');
+              throw new DbRowCountException('writeUserAgentLog: INSERT affected 0 rows.');
           } // END IF
         }catch(PDOException $e){
-        throw new RuntimeException('writeUserAgentLog failed: ' . $e->getMessage(),
-                                  0, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
+        throw new DbWriteException('writeUserAgentLog failed: ' . $e->getMessage(),
+                                  self::DEFAULT_ERROR_CODE, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
                                   $e //  再スローする例外の前の例外のインスタンス。
                                   ); 
         } // END TRY CATCH
@@ -220,11 +222,11 @@ class WriteUa{
       $stmt->execute();
       //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
       if ($stmt->rowCount() !== 1) {
-          throw new RuntimeException('writeUaAnomalyEvents: INSERT affected 0 rows.');
+          throw new DbRowCountException('writeUaAnomalyEvents: INSERT affected 0 rows.');
       } // END IF
     }catch(PDOException $e){
-        throw new RuntimeException('writeUaAnomalyEvents failed: ' . $e->getMessage(),
-                                  0, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
+        throw new DbWriteException('writeUaAnomalyEvents failed: ' . $e->getMessage(),
+                                  self::DEFAULT_ERROR_CODE, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
                                   $e //  再スローする例外の前の例外のインスタンス。
                                   ); 
     } // END TRY CATCH
@@ -271,11 +273,11 @@ class WriteUa{
       $stmtSession->execute();
       //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
       if ($stmtSession->rowCount() !== 1) {
-          throw new RuntimeException('writeUaScores (session): INSERT affected 0 rows.');
+          throw new DbRowCountException('writeUaScores (session): INSERT affected 0 rows.');
       } // END IF
     }catch(PDOException $e){
-        throw new RuntimeException('writeUaScores (session) failed: ' . $e->getMessage(),
-                                  0,
+        throw new DbWriteException('writeUaScores (session) failed: ' . $e->getMessage(),
+                                  self::DEFAULT_ERROR_CODE,
                                   $e
                                   );
     } // END TRY CATCH
@@ -291,11 +293,11 @@ class WriteUa{
       $stmtIp->execute();
       //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
       if ($stmtIp->rowCount() !== 1) {
-          throw new RuntimeException('writeUaScores (ip): INSERT affected 0 rows.');
+          throw new DbRowCountException('writeUaScores (ip): INSERT affected 0 rows.');
       } // END IF
     }catch(PDOException $e){
-        throw new RuntimeException('writeUaScores (ip) failed: ' . $e->getMessage(),
-                                  0,
+        throw new DbWriteException('writeUaScores (ip) failed: ' . $e->getMessage(),
+                                  self::DEFAULT_ERROR_CODE,
                                   $e
                                   );
     } // END TRY CATCH
@@ -395,11 +397,11 @@ class WriteUa{
         $stmtSession->execute();
         //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
         if ($stmtSession->rowCount() !== 1) {
-            throw new RuntimeException('writeUaScoreHistory (session): INSERT affected 0 rows.');
+            throw new DbRowCountException('writeUaScoreHistory (session): INSERT affected 0 rows.');
         } // END IF
     }catch(PDOException $e){
-        throw new RuntimeException('writeUaScoreHistory (session) failed: ' . $e->getMessage(),
-                                  0,
+        throw new DbWriteException('writeUaScoreHistory (session) failed: ' . $e->getMessage(),
+                                  self::DEFAULT_ERROR_CODE,
                                   $e
                                   ); 
     } // END TRY CATCH
@@ -425,11 +427,11 @@ class WriteUa{
         $stmtIp->execute();                                                             
         //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
         if ($stmtIp->rowCount() !== 1) {
-            throw new RuntimeException('writeUaScoreHistory (ip): INSERT affected 0 rows.');
+            throw new DbRowCountException('writeUaScoreHistory (ip): INSERT affected 0 rows.');
         } // END IF
     }catch(PDOException $e){
-        throw new RuntimeException('writeUaScoreHistory (ip) failed: ' . $e->getMessage(),
-                                  0,
+        throw new DbWriteException('writeUaScoreHistory (ip) failed: ' . $e->getMessage(),
+                                  self::DEFAULT_ERROR_CODE,
                                   $e
                                   ); 
     } // END TRY CATCH

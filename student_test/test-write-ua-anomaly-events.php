@@ -45,6 +45,7 @@ require_once __DIR__ . '/../ua_repository_implementation.php';
 require_once __DIR__ . '/../risk_evaluation_result.php';
 require_once __DIR__ . '/../user_agent_risk_evaluator.php';
 require_once __DIR__ . '/../write-ua.php';
+require_once __DIR__ . '/../exceptions.php';
 
 // 全ケース合計のカウンタ
 $totalPass = 0;
@@ -93,7 +94,11 @@ function runTestCase(
     $write_ua       = new WriteUa($pdo, $mock, $mock_ua_repository, $risk_evaluator);
     try {
         $write_ua->writeUaAnomalyEvents();
-    } catch (RuntimeException $e) {
+    } catch (DbWriteException $e) {
+        echo "  Error writing anomaly events: " . $e->getMessage() . "<br><br>";
+         http_response_code(500); // 500 Internal Server Error を返す場合
+         return;
+    } catch (DbRowCountException $e) {
         echo "  Error writing anomaly events: " . $e->getMessage() . "<br><br>";
          http_response_code(500); // 500 Internal Server Error を返す場合
          return;
@@ -176,7 +181,7 @@ $contents = [
     'session_id'      => 'abc123',
     'ip_address'      => '192.168.0.1',
     'simple_ua'       => 'Chrome/91',
-    'is_no_ua'        => 0,
+    'is_no_ua'        => 1,
     'is_ua_mismatch'  => 0,
     'recaptcha_solved' => 0,
     'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -241,7 +246,7 @@ runTestCase('Case 2: 異常系 (ua_mismatch = 1)',
     $uaData3 = [
         'score_session' => 0,
         'score_ip' => 0,
-        'access_count_session' => 0,// 閾値 60
+        'access_count_session' => ACCESS_COUNT_THRESHOLD_SESSION,// 閾値 60
         'access_count_ip' => 0, // 閾値 600
         'is_decreased_session' => 0,
         'is_decreased_ip' => 0,
@@ -271,7 +276,7 @@ runTestCase('Case 3: 異常系 (session_id が 128 文字の長い文字列)',
         'score_session' => 0,
         'score_ip' => 0,
         'access_count_session' => SESSION_UNDER_THRESHOLD,// 閾値 60
-        'access_count_ip' => 0, // 閾値 600
+        'access_count_ip' => ACCESS_COUNT_THRESHOLD_IP, // 閾値 600
         'is_decreased_session' => 0,
         'is_decreased_ip' => 0,
         'is_no_anomaly_session' => 1, // 異常なし
@@ -353,7 +358,7 @@ runTestCase('Case 6: SESSION OVER THRESHOLD (61)',
     'ip_address'       => '10.0.0.1',
     'simple_ua'        => 'Chrome/91',
     'is_no_ua'         => 0,
-    'is_ua_mismatch'   => 0,
+    'is_ua_mismatch'   => 1,
     'recaptcha_solved' => 0,
     'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
     ];
@@ -451,7 +456,7 @@ echo "Now running error test case...<br><br>";
     'session_id'      => str_repeat('s', 129),
     'ip_address'      => '10.0.0.1',
     'simple_ua'       => 'Chrome/91',
-    'is_no_ua'        => 0,
+    'is_no_ua'        => 1,
     'is_ua_mismatch'  => 0,
     'recaptcha_solved' => 0,
     'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -471,6 +476,188 @@ runTestCaseError('Case error: 異常系 (session_id が 129 文字の長い文�
     $uaDataError,
     $pdo);
 
+//  writeUaAnomalyEvents()のコードは以下のようになっています。
+//  public function writeUaAnomalyEvents(): void {
+//     $pdo = $this->pdo;
+//     $sessionId = $this->sessionId;
+//     $ipAddress = $this->ipAddress;
+//     $isNoUa = $this->isNoUa;
+//     $isUaMismatch = $this->isUaMismatch;
+//     $isOverThresholdSession = $this->isOverThresholdSession;
+//     $isOverThresholdIp = $this->isOverThresholdIp;
+//     // UAに異常がない場合は何もせずに return
+//     if (
+//         $isNoUa === 0 
+//             && 
+//         $isUaMismatch === 0 
+//             && 
+//         $isOverThresholdSession === 0 
+//             && 
+//         $isOverThresholdIp === 0
+//         ) {
+//         return;
+//     }
+
+//     // ua_anomaly_events テーブルにデータを記録する処理
+//     $sql = "INSERT INTO ua_anomaly_events (
+//               session_id,
+//               ip_address,
+//               is_no_ua,
+//               is_ua_mismatch,
+//               is_over_threshold_session,
+//               is_over_threshold_ip,
+//               access_time
+//             ) VALUES (
+//               :session_id,
+//               :ip_address,
+//               :is_no_ua,
+//               :is_ua_mismatch,
+//               :is_over_threshold_session,
+//               :is_over_threshold_ip,
+//               NOW())";
+//     try{
+//       $stmt = $this->pdo->prepare($sql);
+//       // パラメーターの型を指定してバインドする
+//       $stmt->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
+//       $stmt->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
+//       $stmt->bindParam(':is_no_ua', $isNoUa, PDO::PARAM_INT);
+//       $stmt->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
+//       $stmt->bindParam(':is_over_threshold_session', $isOverThresholdSession, PDO::PARAM_INT);
+//       $stmt->bindParam(':is_over_threshold_ip', $isOverThresholdIp, PDO::PARAM_INT);
+//       $stmt->execute();
+//       //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
+//       if ($stmt->rowCount() !== 1) {
+//           throw new RuntimeException('writeUaAnomalyEvents: INSERT affected 0 rows.');
+//       } // END IF
+//     }catch(PDOException $e){
+//         throw new RuntimeException('writeUaAnomalyEvents failed: ' . $e->getMessage(),
+//                                   self::DEFAULT_ERROR_CODE, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
+//                                   $e //  再スローする例外の前の例外のインスタンス。
+//                                   ); 
+//     } // END TRY CATCH
+//   } // END FUNCTION writeUaAnomalyEvents()
+
+/*  writeUaAnomalyEvents()
+が 
+UAに異常がない場合は何もせずに return
+することをテストするには
+１．テーブル ua_anomaly_events のレコード
+数を数える。
+２．writeUaAnomalyEvents() を呼び出す。
+３．再度テーブル ua_anomaly_events レコード数を数える。
+４．呼び出し前後でレコード数が変わらないことを確認する。
+５．DbWriteException や DbRowCountException がスローされないことを確認する。
+という処理で適切ですか？ */
+function testCaseNoAnomaly(
+            string $caseLabel,
+            array $contents,
+            array $uaData,
+            PDO $pdo
+    ): void {
+    echo "<b>{$caseLabel}</b><br>";
+
+    
+    $mock = new MockRequestContent1($contents);
+
+    $mock_ua_repository  = new MockUaRepository($uaData);
+    $risk_evaluator = new UserAgentRiskEvaluator($mock, $mock_ua_repository);
+    $write_ua       = new WriteUa($pdo, $mock, $mock_ua_repository, $risk_evaluator);
+
+    //  ua_anomaly_events テーブルのレコード数を数える
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM ua_anomaly_events");
+        $countBefore = (int)$stmt->fetchColumn();
+    } catch (Exception $e) {
+        echo "  Error counting records before: " . $e->getMessage() . "<br><br>";
+        return;
+    } //  END try-catch
+
+
+    try {
+        $write_ua->writeUaAnomalyEvents();
+        echo "  PASS: writeUaAnomalyEvents() executed without exceptions.<br>";
+    } catch (DbWriteException $e) {
+        echo "  Error writing anomaly events: " . $e->getMessage() . "<br><br>";
+         http_response_code(500); // 500 Internal Server Error を返す場合
+         return;
+    } catch (DbRowCountException $e) {
+        echo "  Error writing anomaly events: " . $e->getMessage() . "<br><br>";
+         http_response_code(500); // 500 Internal Server Error を返す場合
+         return;
+    } catch (Exception $e) {
+        echo "  Unexpected error: " . $e->getMessage() . "<br><br>";
+        return;
+    }  // END try-catch
+
+    //  ua_anomaly_events テーブルのレコード数を再度数える
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM ua_anomaly_events");
+        $countAfter = (int)$stmt->fetchColumn();
+    } catch (Exception $e) {
+        echo "  Error counting records after: " . $e->getMessage() . "<br><br>";
+        return;
+    }
+
+    // レコード数が変わらないことを確認
+    if ($countBefore !== $countAfter) {
+        echo "  FAIL: Record count changed. Before: {$countBefore}, After: {$countAfter}<br><br>";
+        return;
+    }
+    echo
+    "  PASS: Record count did not change. Before: {$countBefore}, After: {$countAfter}<br>";
+    echo "<br>";
+}
+//  Case 10: UAに異常がない場合は何もせずに return することを確認します。
+$contents10 = [
+    'session_id'       => 'abc123',
+    'ip_address'       => '192.168.0.1',
+    'simple_ua'        => 'Chrome/91',
+    'is_no_ua'         => 0,
+    'is_ua_mismatch'   => 0,
+    'is_over_threshold_session' => 0,
+    'is_over_threshold_ip' => 0,
+];
+
+$uaData10 = [
+    'score_session' => 0,
+    'score_ip' => 0,
+    'access_count_session' => 0,// 閾値 60
+    'access_count_ip' => 0, // 閾値 600
+    'is_decreased_session' => 0,
+    'is_decreased_ip' => 0,
+    'is_no_anomaly_session' => 1, // 異常なし
+    'is_no_anomaly_ip' => 1       // 異常なし
+];
+testCaseNoAnomaly('Case 10: UAに異常がない場合は何もせずに return することを確認します。',
+    $contents10,
+    $uaData10,
+    $pdo);
+
+    // is_no_ua = 1 の場合も同様にテストします。
+$contents11 = [
+    'session_id'       => 'abc123',
+    'ip_address'       => '192.168.0.1',
+    'simple_ua'        => 'Chrome/91',
+    'is_no_ua'         => 1,
+    'is_ua_mismatch'   => 0,
+    'is_over_threshold_session' => 0,
+    'is_over_threshold_ip' => 0,
+];
+
+$uaData11 = [
+    'score_session' => 0,
+    'score_ip' => 0,
+    'access_count_session' => 0,// 閾値 60
+    'access_count_ip' => 0, // 閾値 600
+    'is_decreased_session' => 0,
+    'is_decreased_ip' => 0,
+    'is_no_anomaly_session' => 1, // 異常なし
+    'is_no_anomaly_ip' => 1       // 異常なし
+];
+testCaseNoAnomaly('Case 11: is_no_ua = 1 の場合FALSEであることを確認します。',
+    $contents11,
+    $uaData11,
+    $pdo);
+
 //  データベース接続を閉じます。
 $dbManager->disconnect();
-

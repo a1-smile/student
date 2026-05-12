@@ -1,4 +1,7 @@
 <?php
+// カスタム例外クラスを定義
+class DbWriteException extends RuntimeException {}
+class DbRowCountException extends RuntimeException {}
 //  ベース例外クラス
 
 /**
