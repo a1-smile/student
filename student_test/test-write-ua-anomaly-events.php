@@ -8,6 +8,16 @@ class WriteUaのwriteUaAnomalyEvents() メソッドをテストします。
 */
 //  タイムゾーンを明示的に設定します。
 date_default_timezone_set('Asia/Tokyo');
+
+//  $accessCount の
+//  閾値を定数として定義します。
+const UNDER_THRESHOLD_SESSION = 59;
+const ACCESS_COUNT_THRESHOLD_SESSION = 60;
+const OVER_THRESHOLD_SESSION = 61;
+const UNDER_THRESHOLD_IP = 599;
+const ACCESS_COUNT_THRESHOLD_IP = 600;
+const OVER_THRESHOLD_IP = 601;
+
 //  DBManager クラスを使用するために、require_once します。
 require_once __DIR__ . '/../common/dbmanager.php';
 //  DBManager を new します。
@@ -219,7 +229,7 @@ runTestCase('Case 2: 異常系 (ua_mismatch = 1)',
 // Case 3: 異常系（session_id が 128 文字の長い文字列）
 //   VARCHAR(128) の境界値で正しくINSERTされるか確認します。
 // -------------------------------------------------------
-runTestCase('Case 3: 異常系 (session_id が 128 文字の長い文字列)', [
+    $contents3 = [
     'session_id'      => str_repeat('s', 128),
     'ip_address'      => '10.0.0.1',
     'simple_ua'       => 'Chrome/91',
@@ -227,25 +237,217 @@ runTestCase('Case 3: 異常系 (session_id が 128 文字の長い文字列)', [
     'is_ua_mismatch'  => 0,
     'recaptcha_solved' => 0,
     'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-], $pdo);
+    ];
+    $uaData3 = [
+        'score_session' => 0,
+        'score_ip' => 0,
+        'access_count_session' => 0,// 閾値 60
+        'access_count_ip' => 0, // 閾値 600
+        'is_decreased_session' => 0,
+        'is_decreased_ip' => 0,
+        'is_no_anomaly_session' => 1, // 異常なし
+        'is_no_anomaly_ip' => 1       // 異常なし
+    ];
+runTestCase('Case 3: 異常系 (session_id が 128 文字の長い文字列)', 
+    $contents3,
+    $uaData3,
+    $pdo);
 
-//  データベース接続を閉じます。
-//$dbManager->disconnect();
-//echo "Result: {$totalPass} passed, {$totalFail} failed.<br>";
+// -------------------------------------------------------
+// Case 4: SESSION UNDER THRESHOLD
+//  (59) 
+//  ($accessCount >= 60) ===  false であることを確認します。
+// -------------------------------------------------------
+    $contents4 = [
+        'session_id'       => 'def456',
+        'ip_address'       => '10.0.0.1',
+        'simple_ua'        => 'Chrome/91',
+        'is_no_ua'         => 0,
+        'is_ua_mismatch'   => 0,
+        'recaptcha_solved' => 0,
+        'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    ];
+    $uaData4 = [
+        'score_session' => 0,
+        'score_ip' => 0,
+        'access_count_session' => SESSION_UNDER_THRESHOLD,// 閾値 60
+        'access_count_ip' => 0, // 閾値 600
+        'is_decreased_session' => 0,
+        'is_decreased_ip' => 0,
+        'is_no_anomaly_session' => 1, // 異常なし
+        'is_no_anomaly_ip' => 1       // 異常なし
+    ];
+runTestCase('Case 4: SESSION UNDER THRESHOLD (59)', 
+    $contents4,
+    $uaData4,
+    $pdo);
+
+// -------------------------------------------------------
+// Case 5: SESSION THRESHOLD
+//  (60) 
+//  ($accessCount >= 60) ===  true であることを確認します。
+// -------------------------------------------------------
+    $contents5 = [
+        'session_id'       => 'def456',
+        'ip_address'       => '10.0.0.1',
+        'simple_ua'        => 'Chrome/91',
+        'is_no_ua'         => 0,
+        'is_ua_mismatch'   => 0,
+        'recaptcha_solved' => 0,
+        'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    ];
+    $uaData5 = [
+        'score_session' => 0,
+        'score_ip' => 0,
+        'access_count_session' => SESSION_THRESHOLD,// 閾値 60
+        'access_count_ip' => 0, // 閾値 600
+        'is_decreased_session' => 0,
+        'is_decreased_ip' => 0,
+        'is_no_anomaly_session' => 1, // 異常なし
+        'is_no_anomaly_ip' => 1       // 異常なし
+    ];
+runTestCase('Case 5: SESSION THRESHOLD (60)', 
+    $contents5,
+    $uaData5,
+    $pdo);
+
+
+// -------------------------------------------------------
+// Case 6: SESSION OVER THRESHOLD
+//  (61) 
+//  ($accessCount >= 60) ===  true であることを確認します。
+// -------------------------------------------------------
+    $contents6 = [
+    'session_id'       => 'def456',
+    'ip_address'       => '10.0.0.1',
+    'simple_ua'        => 'Chrome/91',
+    'is_no_ua'         => 0,
+    'is_ua_mismatch'   => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    ];
+    $uaData6 = [
+        'score_session' => 0,
+        'score_ip' => 0,
+        'access_count_session' => SESSION_OVER_THRESHOLD,// 閾値 60
+        'access_count_ip' => 0, // 閾値 600
+        'is_decreased_session' => 0,
+        'is_decreased_ip' => 0,
+        'is_no_anomaly_session' => 1, // 異常なし
+        'is_no_anomaly_ip' => 1       // 異常なし
+    ];
+runTestCase('Case 6: SESSION OVER THRESHOLD (61)', 
+    $contents6,
+    $uaData6,
+    $pdo);
+
+
+// -------------------------------------------------------
+// Case 7: IP UNDER THRESHOLD
+//  (599)
+//  ($accessCount >= 600) ===  false であることを確認します。
+//   
+// -------------------------------------------------------
+    $contents7 = [
+    'session_id'       => 'def456',
+    'ip_address'       => '10.0.0.1',
+    'simple_ua'        => 'Chrome/91',
+    'is_no_ua'         => 0,
+    'is_ua_mismatch'   => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    ];
+    $uaData7 = [
+        'score_session' => 0,
+        'score_ip' => 0,
+        'access_count_session' => 0,// 閾値 60
+        'access_count_ip' => IP_UNDER_THRESHOLD, // 閾値 600
+        'is_decreased_session' => 0,
+        'is_decreased_ip' => 0,
+        'is_no_anomaly_session' => 1, // 異常なし
+        'is_no_anomaly_ip' => 1       // 異常なし
+    ];
+runTestCase('Case 7: IP UNDER THRESHOLD (599)', 
+    $contents7,
+    $uaData7,
+    $pdo);
+// -------------------------------------------------------
+// Case 8: IP THRESHOLD
+//  (600)
+//  ($accessCount >= 600) ===  true であることを確認します。
+//   
+// -------------------------------------------------------
+    $contents8 = [
+    'session_id'       => 'def456',
+    'ip_address'       => '10.0.0.1',
+    'simple_ua'        => 'Chrome/91',
+    'is_no_ua'         => 0,
+    'is_ua_mismatch'   => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    ];
+    $uaData8 = [
+        'score_session' => 0,
+        'score_ip' => 0,
+        'access_count_session' => 0,// 閾値 60
+        'access_count_ip' => IP_THRESHOLD, // 閾値 600
+        'is_decreased_session' => 0,
+        'is_decreased_ip' => 0,
+        'is_no_anomaly_session' => 1, // 異常なし
+        'is_no_anomaly_ip' => 1       // 異常なし
+    ];
+runTestCase('Case 8: IP THRESHOLD (600)', 
+    $contents8,
+    $uaData8,
+    $pdo);
+
+
+// -------------------------------------------------------
+// Case 9: IP OVER THRESHOLD
+//  (601)
+//  ($accessCount >= 600) ===  true であることを確認します。
+//   
+// -------------------------------------------------------
+    $contents9 = [
+    'session_id'       => 'def456',
+    'ip_address'       => '10.0.0.1',
+    'simple_ua'        => 'Chrome/91',
+    'is_no_ua'         => 0,
+    'is_ua_mismatch'   => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    ];
+    $uaData9 = [
+        'score_session' => 0,
+        'score_ip' => 0,
+        'access_count_session' => 0,// 閾値 60
+        'access_count_ip' => IP_OVER_THRESHOLD, // 閾値 600
+        'is_decreased_session' => 0,
+        'is_decreased_ip' => 0,
+        'is_no_anomaly_session' => 1, // 異常なし
+        'is_no_anomaly_ip' => 1       // 異常なし
+    ];
+runTestCase('Case 9: IP OVER THRESHOLD (601)', 
+    $contents9,
+    $uaData9,
+    $pdo);
 
 echo "Result: {$totalPass} passed, {$totalFail} failed.<br><br>";
 echo "Now running error test case...<br><br>";
 
 // -------------------------------------------------------
-// Case 4: 異常系（session_id が 129 文字の長い文字列）
+// Case error: 異常系（session_id が 129 文字の長い文字列）
 //   VARCHAR(128) の上限を超えた場合にエラーになるか確認します。
 //  
 //  mysql の設定が 【STRICT_TRANS_TABLES】 です。
 //  VARCHAR(128)は128文字まで です。
 //  129 文字以上の session_id を挿入しようとすると、
+//  PDOException がスローされるはずです。
+//  これがラップされて、再スローされ、
+//  その結果、
 //  RuntimeException が スローされるはずです。
 // -------------------------------------------------------
-runTestCaseError('Case 4: 異常系 (session_id が 129 文字の長い文字列)', [
+    $contents_error = [
     'session_id'      => str_repeat('s', 129),
     'ip_address'      => '10.0.0.1',
     'simple_ua'       => 'Chrome/91',
@@ -253,7 +455,21 @@ runTestCaseError('Case 4: 異常系 (session_id が 129 文字の長い文字列
     'is_ua_mismatch'  => 0,
     'recaptcha_solved' => 0,
     'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-], $pdo);
+    ];
+    $uaDataError = [
+        'score_session' => 0,
+        'score_ip' => 0,
+        'access_count_session' => 0,// 閾値 60
+        'access_count_ip' => 0, // 閾値 600
+        'is_decreased_session' => 0,
+        'is_decreased_ip' => 0,
+        'is_no_anomaly_session' => 1, // 異常なし
+        'is_no_anomaly_ip' => 1       // 異常なし
+    ];
+runTestCaseError('Case error: 異常系 (session_id が 129 文字の長い文字列)',
+    $contents_error,
+    $uaDataError,
+    $pdo);
 
 //  データベース接続を閉じます。
 $dbManager->disconnect();
