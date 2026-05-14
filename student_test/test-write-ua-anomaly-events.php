@@ -6,6 +6,42 @@ student/write-ua.php
 に定義されている
 class WriteUaのwriteUaAnomalyEvents() メソッドをテストします。
 */
+/* 1. 怪しい動きがあるときに、レコードが追加されて、
+データが正しく保存されることを確認します。
+使用する関数は、check() と runTestCase() です。
+1-1. anomaly event があり、
+データが通常の範囲内。
+1-2. anomaly event があり、
+データが境界値。
+(session_id が 128 文字の長い文字列)
+
+2. 異常がないときに、
+レコードが追加されないことを確認します。
+使用する関数は、testCaseNoAnomaly() です。
+
+2-1. 異常がなく、過去のアクセスがゼロのとき。
+（閾値以内）
+
+また、過去1分間のアクセス数が
+閾値の前後で適切に条件分岐されていることを確認します。
+2-2. UNDER_THRESHOLD_SESSION (59)
+2-3. ACCESS_COUNT_THRESHOLD_SESSION (60)
+2-4. OVER_THRESHOLD_SESSION (61)
+2-5. UNDER_THRESHOLD_IP (599) 
+2-6. ACCESS_COUNT_THRESHOLD_IP (600)
+2-7. OVER_THRESHOLD_IP (601)
+
+3. 異常があり、記入を依頼したが、
+データが適切ではないために、
+例外がスローされることを確認します。
+使用する関数は、runTestCaseError() です。
+3-1. session_id が 129 文字の長い文字列
+
+異常をテストします。
+*/
+
+
+
 //  タイムゾーンを明示的に設定します。
 date_default_timezone_set('Asia/Tokyo');
 
@@ -175,7 +211,8 @@ function runTestCaseError(
 
 
 // -------------------------------------------------------
-// Case 1: 正常系（閾値以下）
+// Case 1-1.: anomaly event があるときに
+// データが正しく記録されることを確認します。
 // -------------------------------------------------------
 $contents = [
     'session_id'      => 'abc123',
@@ -197,14 +234,14 @@ $uaData = [
     'is_no_anomaly_ip' => 1       // 異常なし
 ];
 runTestCase(
-    'Case 1: 正常系（閾値以下）',
+    'Case 1-1: anomaly event があるときにデータが正しく記録されることを確認します。',
     $contents,
     $uaData,
     $pdo);
 
 // -------------------------------------------------------
-// Case 2: 異常系（ua_mismatch = 1）
-//   記録されるか確認します。
+// Case 1-1-2: anomaly event があるときに（ua_mismatch = 1）
+//   データが正しく記録されるか確認します。
 // -------------------------------------------------------
 $contents2 = [
     'session_id'      => 'def456',
@@ -225,13 +262,13 @@ $uaData2 = [
     'is_no_anomaly_session' => 1, // 異常なし
     'is_no_anomaly_ip' => 1       // 異常なし
 ];
-runTestCase('Case 2: 異常系 (ua_mismatch = 1)',
+runTestCase('Case 1-1-2: anomaly event があるときに（ua_mismatch = 1）データが正しく記録されることを確認し正しく記録されることを確認します。',
     $contents2,
     $uaData2,
     $pdo);
 
 // -------------------------------------------------------
-// Case 3: 異常系（session_id が 128 文字の長い文字列）
+// Case 1-2: 異常系（session_id が 128 文字の長い文字列）
 //   VARCHAR(128) の境界値で正しくINSERTされるか確認します。
 // -------------------------------------------------------
     $contents3 = [
@@ -253,10 +290,52 @@ runTestCase('Case 2: 異常系 (ua_mismatch = 1)',
         'is_no_anomaly_session' => 1, // 異常なし
         'is_no_anomaly_ip' => 1       // 異常なし
     ];
-runTestCase('Case 3: 異常系 (session_id が 128 文字の長い文字列)', 
+runTestCase('Case 1-2: 境界値 (session_id が 128 文字の長い文字列)', 
     $contents3,
     $uaData3,
     $pdo);
+
+// -------------------------------------------------------
+// Case 2-1:  異常がないときに、レコードが追加されないことを確認します
+// 過去のアクセスがゼロのとき（閾値以内）
+//  ($accessCount >= 60) ===  false であることを確認します。
+// -------------------------------------------------------
+    $contents4a = [
+        'session_id'       => 'def456',
+        'ip_address'       => '10.0.0.1',
+        'simple_ua'        => 'Chrome/91',
+        'is_no_ua'         => 0,
+        'is_ua_mismatch'   => 0,
+        'recaptcha_solved' => 0,
+        'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    ];
+    $uaData4a = [
+        'score_session' => 0,
+        'score_ip' => 0,
+        'access_count_session' => 0,// 閾値 60
+        'access_count_ip' => 0, // 閾値 600
+        'is_decreased_session' => 0,
+        'is_decreased_ip' => 0,
+        'is_no_anomaly_session' => 1, // 異常なし
+        'is_no_anomaly_ip' => 1       // 異常なし
+    ];
+testCaseNoAnomaly('Case 2-1: 異常がないときに、レコードが追加されないことを確認します。<br>
+過去のアクセスがゼロのとき（閾値以内）<br>
+expecting PASS: Record count did not change.
+<br>', 
+    $contents4a,
+    $uaData4a,
+    $pdo);
+
+
+
+
+
+
+
+
+
+
 
 // -------------------------------------------------------
 // Case 4: SESSION UNDER THRESHOLD
@@ -275,14 +354,14 @@ runTestCase('Case 3: 異常系 (session_id が 128 文字の長い文字列)',
     $uaData4 = [
         'score_session' => 0,
         'score_ip' => 0,
-        'access_count_session' => SESSION_UNDER_THRESHOLD,// 閾値 60
-        'access_count_ip' => ACCESS_COUNT_THRESHOLD_IP, // 閾値 600
+        'access_count_session' => UNDER_THRESHOLD_SESSION,// 閾値 60
+        'access_count_ip' => 0, // 閾値 600
         'is_decreased_session' => 0,
         'is_decreased_ip' => 0,
         'is_no_anomaly_session' => 1, // 異常なし
         'is_no_anomaly_ip' => 1       // 異常なし
     ];
-runTestCase('Case 4: SESSION UNDER THRESHOLD (59)', 
+testCaseNoAnomaly('Case 4: SESSION UNDER THRESHOLD (59) expecting FALSE', 
     $contents4,
     $uaData4,
     $pdo);
@@ -304,7 +383,7 @@ runTestCase('Case 4: SESSION UNDER THRESHOLD (59)',
     $uaData5 = [
         'score_session' => 0,
         'score_ip' => 0,
-        'access_count_session' => SESSION_THRESHOLD,// 閾値 60
+        'access_count_session' => ACCESS_COUNT_THRESHOLD_SESSION,// 閾値 60
         'access_count_ip' => 0, // 閾値 600
         'is_decreased_session' => 0,
         'is_decreased_ip' => 0,
@@ -334,7 +413,7 @@ runTestCase('Case 5: SESSION THRESHOLD (60)',
     $uaData6 = [
         'score_session' => 0,
         'score_ip' => 0,
-        'access_count_session' => SESSION_OVER_THRESHOLD,// 閾値 60
+        'access_count_session' => OVER_THRESHOLD_SESSION,// 閾値 60
         'access_count_ip' => 0, // 閾値 600
         'is_decreased_session' => 0,
         'is_decreased_ip' => 0,
@@ -366,7 +445,7 @@ runTestCase('Case 6: SESSION OVER THRESHOLD (61)',
         'score_session' => 0,
         'score_ip' => 0,
         'access_count_session' => 0,// 閾値 60
-        'access_count_ip' => IP_UNDER_THRESHOLD, // 閾値 600
+        'access_count_ip' => UNDER_THRESHOLD_IP, // 閾値 600
         'is_decreased_session' => 0,
         'is_decreased_ip' => 0,
         'is_no_anomaly_session' => 1, // 異常なし
@@ -395,7 +474,7 @@ runTestCase('Case 7: IP UNDER THRESHOLD (599)',
         'score_session' => 0,
         'score_ip' => 0,
         'access_count_session' => 0,// 閾値 60
-        'access_count_ip' => IP_THRESHOLD, // 閾値 600
+        'access_count_ip' => ACCESS_COUNT_THRESHOLD_IP, // 閾値 600
         'is_decreased_session' => 0,
         'is_decreased_ip' => 0,
         'is_no_anomaly_session' => 1, // 異常なし
@@ -426,7 +505,7 @@ runTestCase('Case 8: IP THRESHOLD (600)',
         'score_session' => 0,
         'score_ip' => 0,
         'access_count_session' => 0,// 閾値 60
-        'access_count_ip' => IP_OVER_THRESHOLD, // 閾値 600
+        'access_count_ip' => OVER_THRESHOLD_IP, // 閾値 600
         'is_decreased_session' => 0,
         'is_decreased_ip' => 0,
         'is_no_anomaly_session' => 1, // 異常なし
@@ -634,6 +713,7 @@ testCaseNoAnomaly('Case 10: UAに異常がない場合は何もせずに return 
     $pdo);
 
     // is_no_ua = 1 の場合も同様にテストします。
+    // レコードか書き込まれてレコード数が変化することを確認します。
 $contents11 = [
     'session_id'       => 'abc123',
     'ip_address'       => '192.168.0.1',
@@ -658,6 +738,34 @@ testCaseNoAnomaly('Case 11: is_no_ua = 1 の場合FALSEであることを確認�
     $contents11,
     $uaData11,
     $pdo);
+
+    // is_ua_mismatch = 1 の場合も同様にテストします。
+    // レコードか書き込まれてレコード数が変化することを確認します。
+$contents12 = [
+    'session_id'       => 'abc123',
+    'ip_address'       => '192.168.0.1',
+    'simple_ua'        => 'Chrome/91',
+    'is_no_ua'         => 0,
+    'is_ua_mismatch'   => 1,
+    'is_over_threshold_session' => 0,
+    'is_over_threshold_ip' => 0,
+];
+
+$uaData12 = [
+    'score_session' => 0,
+    'score_ip' => 0,
+    'access_count_session' => 0,// 閾値 60
+    'access_count_ip' => 0, // 閾値 600
+    'is_decreased_session' => 0,
+    'is_decreased_ip' => 0,
+    'is_no_anomaly_session' => 1, // 異常なし
+    'is_no_anomaly_ip' => 1       // 異常なし
+];
+testCaseNoAnomaly('Case 12: is_ua_mismatch = 1 の場合FALSEであることを確認します。',
+    $contents12,
+    $uaData12,
+    $pdo);
+
 
 //  データベース接続を閉じます。
 $dbManager->disconnect();
