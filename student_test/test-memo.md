@@ -268,3 +268,113 @@ public function writeUaAnomalyEvents(): void {
                                   ); 
     } // END TRY CATCH
   } // END FUNCTION writeUaAnomalyEvents()
+
+テスト結果
+Database connection successful.
+
+Case 1-1: anomaly event があるときにデータが正しく記録されることを確認します。
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+Case 1-1-2: anomaly event があるときに（ua_mismatch = 1）データが正しく記録されることを確認し正しく記録されることを確認します。
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+Case 1-1-3: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_SESSION）データが正しく記録されることを確認し正しく記録されることを確認します。
+
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+Case 1-1-4: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_IP）データが正しく記録されることを確認し正しく記録されることを確認します。
+
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+Case 1-2: 境界値 (session_id が 128 文字の長い文字列)
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+Case 2-1: 異常がないときに、レコードが追加されないことを確認します。
+過去のアクセスがゼロのとき（閾値以内）
+expecting PASS: Record count did not change.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+PASS: Record count did not change. Before: 1, After: 1
+
+Case 4: SESSION UNDER THRESHOLD (59) expecting PASS: Record count did not change.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+PASS: Record count did not change. Before: 1, After: 1
+
+Case 5: SESSION THRESHOLD (60) expecting FAIL: Record count changed.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+FAIL: Record count changed. Before: 1, After: 2
+
+Case 6: SESSION OVER THRESHOLD (61) expecting FAIL: Record count changed.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+FAIL: Record count changed. Before: 2, After: 3
+
+Case 7: IP UNDER THRESHOLD (599) expecting PASS: Record count did not change.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+FAIL: Record count changed. Before: 3, After: 4
+
+Case 8: IP THRESHOLD (600) expecting FAIL: Record count changed.
+
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+Case 9: IP OVER THRESHOLD (601) expecting FAIL: Record count changed.
+
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+Result: 49 passed, 0 failed.
+
+Now running error test case...
+
+Case error: 異常系 (session_id が 129 文字の長い文字列)
+PASS: 例外が発生しました: writeUaAnomalyEvents failed: SQLSTATE[22001]: String data, right truncated: 1406 Data too long for column 'session_id' at row 1
+
+Case 10: UAに異常がない場合は何もせずに return することを確認します。
+
+Warning: Undefined array key "recaptcha_solved" in C:\dev\student\mock_request_content.php on line 41
+
+Fatal error: Uncaught TypeError: Cannot assign null to property MockRequestContent1::$recaptchaSolved of type int in C:\dev\student\mock_request_content.php:41 Stack trace: #0 C:\dev\student\student_test\test-write-ua-anomaly-events.php(700): MockRequestContent1->__construct(Array) #1 C:\dev\student\student_test\test-write-ua-anomaly-events.php(771): testCaseNoAnomaly('Case 10: UA\xE3\x81\xAB\xE7...', Array, Array, Object(PDO)) #2 {main} thrown in C:\dev\student\mock_request_content.php on line 41

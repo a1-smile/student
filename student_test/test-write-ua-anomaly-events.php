@@ -37,7 +37,7 @@ class WriteUaのwriteUaAnomalyEvents() メソッドをテストします。
 使用する関数は、runTestCaseError() です。
 3-1. session_id が 129 文字の長い文字列
 
-異常をテストします。
+以上をテストします。
 */
 
 
@@ -268,6 +268,63 @@ runTestCase('Case 1-1-2: anomaly event があるときに（ua_mismatch = 1）�
     $pdo);
 
 // -------------------------------------------------------
+// Case 1-1-3: anomaly event があるときに（over threshold session）
+//   データが正しく記録されるか確認します。
+// -------------------------------------------------------
+$contents2a = [
+    'session_id'      => 'def456',
+    'ip_address'      => '192.168.0.2',
+    'simple_ua'       => 'Firefox/89', // previous simple_ua
+    'is_no_ua'        => 0,
+    'is_ua_mismatch'  => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
+];
+$uaData2a = [
+    'score_session' => 0,
+    'score_ip' => 0,
+    'access_count_session' => ACCESS_COUNT_THRESHOLD_SESSION,// 閾値 60
+    'access_count_ip' => 0, // 閾値 600
+    'is_decreased_session' => 0,
+    'is_decreased_ip' => 0,
+    'is_no_anomaly_session' => 1, // 異常なし
+    'is_no_anomaly_ip' => 1       // 異常なし
+];
+runTestCase('Case 1-1-3: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_SESSION）データが正しく記録されることを確認し正しく記録されることを確認します。<br>',
+    $contents2a,
+    $uaData2a,
+    $pdo);
+
+
+// -------------------------------------------------------
+// Case 1-1-4: anomaly event があるときに（ua_mismatch = 1）
+//   データが正しく記録されるか確認します。
+// -------------------------------------------------------
+$contents2b = [
+    'session_id'      => 'def456',
+    'ip_address'      => '192.168.0.2',
+    'simple_ua'       => 'Firefox/89', // previous simple_ua
+    'is_no_ua'        => 0,
+    'is_ua_mismatch'  => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
+];
+$uaData2b = [
+    'score_session' => 0,
+    'score_ip' => 0,
+    'access_count_session' => 0,// 閾値 60
+    'access_count_ip' => ACCESS_COUNT_THRESHOLD_IP, // 閾値 600
+    'is_decreased_session' => 0,
+    'is_decreased_ip' => 0,
+    'is_no_anomaly_session' => 1, // 異常なし
+    'is_no_anomaly_ip' => 1       // 異常なし
+];
+runTestCase('Case 1-1-4: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_IP）データが正しく記録されることを確認し正しく記録されることを確認します。<br>',
+    $contents2b,
+    $uaData2b,
+    $pdo);
+
+// -------------------------------------------------------
 // Case 1-2: 異常系（session_id が 128 文字の長い文字列）
 //   VARCHAR(128) の境界値で正しくINSERTされるか確認します。
 // -------------------------------------------------------
@@ -361,7 +418,8 @@ expecting PASS: Record count did not change.
         'is_no_anomaly_session' => 1, // 異常なし
         'is_no_anomaly_ip' => 1       // 異常なし
     ];
-testCaseNoAnomaly('Case 4: SESSION UNDER THRESHOLD (59) expecting FALSE', 
+testCaseNoAnomaly('Case 4: SESSION UNDER THRESHOLD (59) expecting PASS: Record count did not change.
+<br>', 
     $contents4,
     $uaData4,
     $pdo);
@@ -390,7 +448,8 @@ testCaseNoAnomaly('Case 4: SESSION UNDER THRESHOLD (59) expecting FALSE',
         'is_no_anomaly_session' => 1, // 異常なし
         'is_no_anomaly_ip' => 1       // 異常なし
     ];
-runTestCase('Case 5: SESSION THRESHOLD (60)', 
+testCaseNoAnomaly('Case 5: SESSION THRESHOLD (60) expecting FAIL: Record count changed.
+<br>', 
     $contents5,
     $uaData5,
     $pdo);
@@ -420,7 +479,8 @@ runTestCase('Case 5: SESSION THRESHOLD (60)',
         'is_no_anomaly_session' => 1, // 異常なし
         'is_no_anomaly_ip' => 1       // 異常なし
     ];
-runTestCase('Case 6: SESSION OVER THRESHOLD (61)', 
+testCaseNoAnomaly('Case 6: SESSION OVER THRESHOLD (61) expecting FAIL: Record count changed.
+<br>', 
     $contents6,
     $uaData6,
     $pdo);
@@ -451,7 +511,8 @@ runTestCase('Case 6: SESSION OVER THRESHOLD (61)',
         'is_no_anomaly_session' => 1, // 異常なし
         'is_no_anomaly_ip' => 1       // 異常なし
     ];
-runTestCase('Case 7: IP UNDER THRESHOLD (599)', 
+testCaseNoAnomaly('Case 7: IP UNDER THRESHOLD (599) expecting PASS: Record count did not change.
+<br>', 
     $contents7,
     $uaData7,
     $pdo);
@@ -480,7 +541,7 @@ runTestCase('Case 7: IP UNDER THRESHOLD (599)',
         'is_no_anomaly_session' => 1, // 異常なし
         'is_no_anomaly_ip' => 1       // 異常なし
     ];
-runTestCase('Case 8: IP THRESHOLD (600)', 
+runTestCase('Case 8: IP THRESHOLD (600) expecting FAIL: Record count changed.<br>', 
     $contents8,
     $uaData8,
     $pdo);
@@ -511,7 +572,7 @@ runTestCase('Case 8: IP THRESHOLD (600)',
         'is_no_anomaly_session' => 1, // 異常なし
         'is_no_anomaly_ip' => 1       // 異常なし
     ];
-runTestCase('Case 9: IP OVER THRESHOLD (601)', 
+runTestCase('Case 9: IP OVER THRESHOLD (601) expecting FAIL: Record count changed.<br>', 
     $contents9,
     $uaData9,
     $pdo);
