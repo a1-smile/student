@@ -210,9 +210,65 @@ function runTestCaseError(
 } // END function
 
 
+function testCaseNoAnomaly(
+            string $caseLabel,
+            array $contents,
+            array $uaData,
+            PDO $pdo
+    ): void {
+    echo "<b>{$caseLabel}</b><br>";
+
+    
+    $mock = new MockRequestContent1($contents);
+
+    $mock_ua_repository  = new MockUaRepository($uaData);
+    $risk_evaluator = new UserAgentRiskEvaluator($mock, $mock_ua_repository);
+    $write_ua       = new WriteUa($pdo, $mock, $mock_ua_repository, $risk_evaluator);
+
+    //  ua_anomaly_events テーブルのレコード数を数える
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM ua_anomaly_events");
+        $countBefore = (int)$stmt->fetchColumn();
+    } catch (Exception $e) {
+        echo "  Error counting records before: " . $e->getMessage() . "<br><br>";
+        return;
+    } //  END try-catch
 
 
+    try {
+        $write_ua->writeUaAnomalyEvents();
+        echo "  PASS: writeUaAnomalyEvents() executed without exceptions.<br>";
+    } catch (DbWriteException $e) {
+        echo "  Error writing anomaly events: " . $e->getMessage() . "<br><br>";
+         http_response_code(500); // 500 Internal Server Error を返す場合
+         return;
+    } catch (DbRowCountException $e) {
+        echo "  Error writing anomaly events: " . $e->getMessage() . "<br><br>";
+         http_response_code(500); // 500 Internal Server Error を返す場合
+         return;
+    } catch (Exception $e) {
+        echo "  Unexpected error: " . $e->getMessage() . "<br><br>";
+        return;
+    }  // END try-catch
 
+    //  ua_anomaly_events テーブルのレコード数を再度数える
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM ua_anomaly_events");
+        $countAfter = (int)$stmt->fetchColumn();
+    } catch (Exception $e) {
+        echo "  Error counting records after: " . $e->getMessage() . "<br><br>";
+        return;
+    }
+
+    // レコード数が変わらないことを確認
+    if ($countBefore !== $countAfter) {
+        echo "  FAIL: Record count changed. Before: {$countBefore}, After: {$countAfter}<br><br>";
+        return;
+    }
+    echo
+    "  PASS: Record count did not change. Before: {$countBefore}, After: {$countAfter}<br>";
+    echo "<br>";
+}  // END function
 
 // -------------------------------------------------------
 // Case 1-1.: anomaly event があるときに
@@ -357,6 +413,11 @@ runTestCase('Case 1-2: 境界値 (session_id が 128 文字の長い文字列)',
     $uaData3,
     $pdo);
 
+echo "Result: {$totalPass} passed, {$totalFail} failed.<br><br>";
+
+echo '異常がないときに、レコードが追加されないことを確認します。<br>
+また、異常があるときはレコードが追加されることを確認します。<br>
+そして、境界値で適切に条件分岐されていることを確認します。<br><br>';
 // -------------------------------------------------------
 // Case 2-1:  異常がないときに、レコードが追加されないことを確認します
 // 過去のアクセスがゼロのとき（閾値以内）
@@ -388,16 +449,6 @@ expecting PASS: Record count did not change.
     $contents4a,
     $uaData4a,
     $pdo);
-
-
-
-
-
-
-
-
-
-
 
 // -------------------------------------------------------
 // Case 4: SESSION UNDER THRESHOLD
@@ -582,105 +633,8 @@ testCaseNoAnomaly('Case 9: IP OVER THRESHOLD (601) expecting FAIL: Record count 
     $uaData9,
     $pdo);
 
-echo "Result: {$totalPass} passed, {$totalFail} failed.<br><br>";
-echo "Now running error test case...<br><br>";
 
-// -------------------------------------------------------
-// Case error: 異常系（session_id が 129 文字の長い文字列）
-//   VARCHAR(128) の上限を超えた場合にエラーになるか確認します。
-//  
-//  mysql の設定が 【STRICT_TRANS_TABLES】 です。
-//  VARCHAR(128)は128文字まで です。
-//  129 文字以上の session_id を挿入しようとすると、
-//  PDOException がスローされるはずです。
-//  これがラップされて、再スローされ、
-//  その結果、
-//  RuntimeException が スローされるはずです。
-// -------------------------------------------------------
-    $contents_error = [
-    'session_id'      => str_repeat('s', 129),
-    'ip_address'      => '10.0.0.1',
-    'simple_ua'       => 'Chrome/91',
-    'is_no_ua'        => 1,
-    'is_ua_mismatch'  => 0,
-    'recaptcha_solved' => 0,
-    'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    ];
-    $uaDataError = [
-        'score_session' => 0,
-        'score_ip' => 0,
-        'access_count_session' => 0,// 閾値 60
-        'access_count_ip' => 0, // 閾値 600
-        'is_decreased_session' => 0,
-        'is_decreased_ip' => 0,
-        'is_no_anomaly_session' => 1, // 異常なし
-        'is_no_anomaly_ip' => 1       // 異常なし
-    ];
-runTestCaseError('Case error: 異常系 (session_id が 129 文字の長い文字列)',
-    $contents_error,
-    $uaDataError,
-    $pdo);
 
-//  writeUaAnomalyEvents()のコードは以下のようになっています。
-//  public function writeUaAnomalyEvents(): void {
-//     $pdo = $this->pdo;
-//     $sessionId = $this->sessionId;
-//     $ipAddress = $this->ipAddress;
-//     $isNoUa = $this->isNoUa;
-//     $isUaMismatch = $this->isUaMismatch;
-//     $isOverThresholdSession = $this->isOverThresholdSession;
-//     $isOverThresholdIp = $this->isOverThresholdIp;
-//     // UAに異常がない場合は何もせずに return
-//     if (
-//         $isNoUa === 0 
-//             && 
-//         $isUaMismatch === 0 
-//             && 
-//         $isOverThresholdSession === 0 
-//             && 
-//         $isOverThresholdIp === 0
-//         ) {
-//         return;
-//     }
-
-//     // ua_anomaly_events テーブルにデータを記録する処理
-//     $sql = "INSERT INTO ua_anomaly_events (
-//               session_id,
-//               ip_address,
-//               is_no_ua,
-//               is_ua_mismatch,
-//               is_over_threshold_session,
-//               is_over_threshold_ip,
-//               access_time
-//             ) VALUES (
-//               :session_id,
-//               :ip_address,
-//               :is_no_ua,
-//               :is_ua_mismatch,
-//               :is_over_threshold_session,
-//               :is_over_threshold_ip,
-//               NOW())";
-//     try{
-//       $stmt = $this->pdo->prepare($sql);
-//       // パラメーターの型を指定してバインドする
-//       $stmt->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
-//       $stmt->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
-//       $stmt->bindParam(':is_no_ua', $isNoUa, PDO::PARAM_INT);
-//       $stmt->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
-//       $stmt->bindParam(':is_over_threshold_session', $isOverThresholdSession, PDO::PARAM_INT);
-//       $stmt->bindParam(':is_over_threshold_ip', $isOverThresholdIp, PDO::PARAM_INT);
-//       $stmt->execute();
-//       //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
-//       if ($stmt->rowCount() !== 1) {
-//           throw new RuntimeException('writeUaAnomalyEvents: INSERT affected 0 rows.');
-//       } // END IF
-//     }catch(PDOException $e){
-//         throw new RuntimeException('writeUaAnomalyEvents failed: ' . $e->getMessage(),
-//                                   self::DEFAULT_ERROR_CODE, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
-//                                   $e //  再スローする例外の前の例外のインスタンス。
-//                                   ); 
-//     } // END TRY CATCH
-//   } // END FUNCTION writeUaAnomalyEvents()
 
 /*  writeUaAnomalyEvents()
 が 
@@ -692,66 +646,7 @@ UAに異常がない場合は何もせずに return
 ３．再度テーブル ua_anomaly_events レコード数を数える。
 ４．呼び出し前後でレコード数が変わらないことを確認する。
 ５．DbWriteException や DbRowCountException がスローされないことを確認する。
-という処理で適切ですか？ */
-function testCaseNoAnomaly(
-            string $caseLabel,
-            array $contents,
-            array $uaData,
-            PDO $pdo
-    ): void {
-    echo "<b>{$caseLabel}</b><br>";
-
-    
-    $mock = new MockRequestContent1($contents);
-
-    $mock_ua_repository  = new MockUaRepository($uaData);
-    $risk_evaluator = new UserAgentRiskEvaluator($mock, $mock_ua_repository);
-    $write_ua       = new WriteUa($pdo, $mock, $mock_ua_repository, $risk_evaluator);
-
-    //  ua_anomaly_events テーブルのレコード数を数える
-    try {
-        $stmt = $pdo->query("SELECT COUNT(*) FROM ua_anomaly_events");
-        $countBefore = (int)$stmt->fetchColumn();
-    } catch (Exception $e) {
-        echo "  Error counting records before: " . $e->getMessage() . "<br><br>";
-        return;
-    } //  END try-catch
-
-
-    try {
-        $write_ua->writeUaAnomalyEvents();
-        echo "  PASS: writeUaAnomalyEvents() executed without exceptions.<br>";
-    } catch (DbWriteException $e) {
-        echo "  Error writing anomaly events: " . $e->getMessage() . "<br><br>";
-         http_response_code(500); // 500 Internal Server Error を返す場合
-         return;
-    } catch (DbRowCountException $e) {
-        echo "  Error writing anomaly events: " . $e->getMessage() . "<br><br>";
-         http_response_code(500); // 500 Internal Server Error を返す場合
-         return;
-    } catch (Exception $e) {
-        echo "  Unexpected error: " . $e->getMessage() . "<br><br>";
-        return;
-    }  // END try-catch
-
-    //  ua_anomaly_events テーブルのレコード数を再度数える
-    try {
-        $stmt = $pdo->query("SELECT COUNT(*) FROM ua_anomaly_events");
-        $countAfter = (int)$stmt->fetchColumn();
-    } catch (Exception $e) {
-        echo "  Error counting records after: " . $e->getMessage() . "<br><br>";
-        return;
-    }
-
-    // レコード数が変わらないことを確認
-    if ($countBefore !== $countAfter) {
-        echo "  FAIL: Record count changed. Before: {$countBefore}, After: {$countAfter}<br><br>";
-        return;
-    }
-    echo
-    "  PASS: Record count did not change. Before: {$countBefore}, After: {$countAfter}<br>";
-    echo "<br>";
-}
+という処理で確認します。 */
 
     // is_no_ua = 1 の場合のテストを行います。
     // レコードが書き込まれてレコード数が変化することを確認します。
@@ -808,6 +703,44 @@ testCaseNoAnomaly('Case 12: is_ua_mismatch = 1 の場合FAILであることを�
     $uaData12,
     $pdo);
 
+// -------------------------------------------------------
+// Case error: 異常系（session_id が 129 文字の長い文字列）
+//   VARCHAR(128) の上限を超えた場合にエラーになるか確認します。
+//  
+//  mysql の設定が 【STRICT_TRANS_TABLES】 です。
+//  VARCHAR(128)は128文字まで です。
+//  129 文字以上の session_id を挿入しようとすると、
+//  PDOException がスローされるはずです。
+//  これがラップされて、再スローされ、
+//  その結果、
+//  RuntimeException が スローされるはずです。
+// -------------------------------------------------------
+
+echo "Now running error test case...<br><br>";
+
+    $contents_error = [
+    'session_id'      => str_repeat('s', 129),
+    'ip_address'      => '10.0.0.1',
+    'simple_ua'       => 'Chrome/91',
+    'is_no_ua'        => 1,
+    'is_ua_mismatch'  => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    ];
+    $uaDataError = [
+        'score_session' => 0,
+        'score_ip' => 0,
+        'access_count_session' => 0,// 閾値 60
+        'access_count_ip' => 0, // 閾値 600
+        'is_decreased_session' => 0,
+        'is_decreased_ip' => 0,
+        'is_no_anomaly_session' => 1, // 異常なし
+        'is_no_anomaly_ip' => 1       // 異常なし
+    ];
+runTestCaseError('Case error: 異常系 (session_id が 129 文字の長い文字列)',
+    $contents_error,
+    $uaDataError,
+    $pdo);
 
 //  データベース接続を閉じます。
 $dbManager->disconnect();
