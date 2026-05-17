@@ -80,7 +80,7 @@ require_once __DIR__ . '/../mock_ua_repository.php';
 require_once __DIR__ . '/../ua_repository_implementation.php';
 require_once __DIR__ . '/../risk_evaluation_result.php';
 require_once __DIR__ . '/../user_agent_risk_evaluator.php';
-require_once __DIR__ . '/../write-ua.php';
+require_once __DIR__ . '/../write-ua-debug.php';
 require_once __DIR__ . '/../exceptions.php';
 
 // 全ケース合計のカウンタ
@@ -156,7 +156,7 @@ function runTestCase(
         echo "  Error querying table: " . $e->getMessage() . "<br><br>";
         return;
     }
-    if ($row === FAIL) {
+    if ($row === false) {
         echo "  FAIL: No log entry found in ua_anomaly_events.<br><br>";
         return;
     }
@@ -210,14 +210,9 @@ function runTestCaseError(
 } // END function
 
 
-
-
-
-
 // -------------------------------------------------------
 // Case 1-1.: anomaly event があるときに
 // データが正しく記録されることを確認します。
-//  is_no_ua = 1, // 異常あり
 // -------------------------------------------------------
 $contents = [
     'session_id'      => 'abc123',
@@ -239,7 +234,7 @@ $uaData = [
     'is_no_anomaly_ip' => 1       // 異常なし
 ];
 runTestCase(
-    'Case 1-1: anomaly event があるときにデータが正しく記録されることを確認します。<br>is_no_ua = 1, // 異常あり',
+    'Case 1-1: anomaly event があるときにデータが正しく記録されることを確認します。',
     $contents,
     $uaData,
     $pdo);
@@ -302,7 +297,7 @@ runTestCase('Case 1-1-3: anomaly event があるときに（ACCESS_COUNT_THRESHO
 
 
 // -------------------------------------------------------
-// Case 1-1-4: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_IP）
+// Case 1-1-4: anomaly event があるときに（ua_mismatch = 1）
 //   データが正しく記録されるか確認します。
 // -------------------------------------------------------
 $contents2b = [
@@ -360,7 +355,7 @@ runTestCase('Case 1-2: 境界値 (session_id が 128 文字の長い文字列)',
 // -------------------------------------------------------
 // Case 2-1:  異常がないときに、レコードが追加されないことを確認します
 // 過去のアクセスがゼロのとき（閾値以内）
-//  ($accessCount >= 60) ===  FAIL であることを確認します。
+//  ($accessCount >= 60) ===  false であることを確認します。
 // -------------------------------------------------------
     $contents4a = [
         'session_id'       => 'def456',
@@ -402,7 +397,7 @@ expecting PASS: Record count did not change.
 // -------------------------------------------------------
 // Case 4: SESSION UNDER THRESHOLD
 //  (59) 
-//  ($accessCount >= 60) ===  FAIL であることを確認します。
+//  ($accessCount >= 60) ===  false であることを確認します。
 // -------------------------------------------------------
     $contents4 = [
         'session_id'       => 'def456',
@@ -494,7 +489,7 @@ testCaseNoAnomaly('Case 6: SESSION OVER THRESHOLD (61) expecting FAIL: Record co
 // -------------------------------------------------------
 // Case 7: IP UNDER THRESHOLD
 //  (599)
-//  ($accessCount >= 600) ===  FAIL であることを確認します。
+//  ($accessCount >= 600) ===  false であることを確認します。
 //   
 // -------------------------------------------------------
     $contents7 = [
@@ -752,9 +747,35 @@ function testCaseNoAnomaly(
     "  PASS: Record count did not change. Before: {$countBefore}, After: {$countAfter}<br>";
     echo "<br>";
 }
+//  Case 10: UAに異常がない場合は何もせずに return することを確認します。
+$contents10 = [
+    'session_id'       => 'abc123',
+    'ip_address'       => '192.168.0.1',
+    'simple_ua'        => 'Chrome/91',
+    'is_no_ua'         => 0,
+    'is_ua_mismatch'   => 0,
+    'recaptcha_solved' => 0,
+    'is_over_threshold_session' => 0,
+    'is_over_threshold_ip' => 0,
+];
 
-    // is_no_ua = 1 の場合のテストを行います。
-    // レコードが書き込まれてレコード数が変化することを確認します。
+$uaData10 = [
+    'score_session' => 0,
+    'score_ip' => 0,
+    'access_count_session' => 0,// 閾値 60
+    'access_count_ip' => 0, // 閾値 600
+    'is_decreased_session' => 0,
+    'is_decreased_ip' => 0,
+    'is_no_anomaly_session' => 1, // 異常なし
+    'is_no_anomaly_ip' => 1       // 異常なし
+];
+testCaseNoAnomaly('Case 10: UAに異常がない場合は何もせずに return することを確認します。',
+    $contents10,
+    $uaData10,
+    $pdo);
+
+    // is_no_ua = 1 の場合も同様にテストします。
+    // レコードか書き込まれてレコード数が変化することを確認します。
 $contents11 = [
     'session_id'       => 'abc123',
     'ip_address'       => '192.168.0.1',
@@ -762,8 +783,9 @@ $contents11 = [
     'is_no_ua'         => 1,
     'is_ua_mismatch'   => 0,
     'recaptcha_solved' => 0,
-    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    ];
+    'is_over_threshold_session' => 0,
+    'is_over_threshold_ip' => 0,
+];
 
 $uaData11 = [
     'score_session' => 0,
@@ -775,7 +797,7 @@ $uaData11 = [
     'is_no_anomaly_session' => 1, // 異常なし
     'is_no_anomaly_ip' => 1       // 異常なし
 ];
-testCaseNoAnomaly('Case 11: is_no_ua = 1 の場合FAILであることを確認します。',
+testCaseNoAnomaly('Case 11: is_no_ua = 1 の場合FALSEであることを確認します。',
     $contents11,
     $uaData11,
     $pdo);
@@ -789,8 +811,8 @@ $contents12 = [
     'is_no_ua'         => 0,
     'is_ua_mismatch'   => 1,
     'recaptcha_solved' => 0,
-    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-
+    'is_over_threshold_session' => 0,
+    'is_over_threshold_ip' => 0,
 ];
 
 $uaData12 = [
@@ -803,7 +825,7 @@ $uaData12 = [
     'is_no_anomaly_session' => 1, // 異常なし
     'is_no_anomaly_ip' => 1       // 異常なし
 ];
-testCaseNoAnomaly('Case 12: is_ua_mismatch = 1 の場合FAILであることを確認します。',
+testCaseNoAnomaly('Case 12: is_ua_mismatch = 1 の場合FALSEであることを確認します。',
     $contents12,
     $uaData12,
     $pdo);

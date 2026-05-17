@@ -239,6 +239,10 @@ class UserAgentRiskEvaluator {
         }
         return 0;
     }
+
+    public function getIsSuspiciousAccessFlag(): int {
+        return $this->isSuspiciousAccess;
+    }
     //  リスク評価が重複して行われることを防ぐために、
     //  evaluate() を呼び出すのはコンストラクタ内で一度だけにし、
     //  その結果をプロパティに保持するようにしています。
