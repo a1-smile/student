@@ -11,6 +11,20 @@ class WriteUaのwriteUaAnomalyEvents() メソッドをテストします。
 使用する関数は、check() と runTestCase() です。
 1-1. anomaly event があり、
 データが通常の範囲内。
+is_no_ua = 1 のとき
+
+1-1-2. anomaly event があり、
+データが通常の範囲内。
+is_ua_mismatch = 1 のとき
+
+1-1-3. anomaly event があり、
+データが通常の範囲内。
+ACCESS_COUNT_THRESHOLD_SESSION (access_count_session が 60)
+
+1-1-4. anomaly event があり、
+データが通常の範囲内。
+ACCESS_COUNT_THRESHOLD_IP (access_count_ip が 600)
+
 1-2. anomaly event があり、
 データが境界値。
 (session_id が 128 文字の長い文字列)
@@ -25,10 +39,17 @@ class WriteUaのwriteUaAnomalyEvents() メソッドをテストします。
 また、過去1分間のアクセス数が
 閾値の前後で適切に条件分岐されていることを確認します。
 2-2. UNDER_THRESHOLD_SESSION (59)
-2-3. ACCESS_COUNT_THRESHOLD_SESSION (60)
+
+ ACCESS_COUNT_THRESHOLD_SESSION (60)
+は確認済です。
+
 2-4. OVER_THRESHOLD_SESSION (61)
+
+
 2-5. UNDER_THRESHOLD_IP (599) 
-2-6. ACCESS_COUNT_THRESHOLD_IP (600)
+ACCESS_COUNT_THRESHOLD_IP (600)
+は確認済です。
+
 2-7. OVER_THRESHOLD_IP (601)
 
 3. 異常があり、記入を依頼したが、
@@ -102,7 +123,7 @@ function check(string $label, mixed $actual, mixed $expected): void {
 }
 
 /**
- * 1ケース分のテストを実行します。
+ * テストを実行します。
  * テーブルをTRUNCATEし、writeUaAnomalyEvents()を呼び出し、
  * SELECTで取得した値と期待値を照合します。
  */
@@ -156,7 +177,7 @@ function runTestCase(
         echo "  Error querying table: " . $e->getMessage() . "<br><br>";
         return;
     }
-    if ($row === FAIL) {
+    if ($row === false) {
         echo "  FAIL: No log entry found in ua_anomaly_events.<br><br>";
         return;
     }
@@ -185,6 +206,8 @@ function runTestCaseError(
     ): void {
     echo "<b>{$caseLabel}</b><br>";
 
+    global $totalPass, $totalFail;
+
     // table ua_anomaly_events をクリア
     try {
         $pdo->exec("TRUNCATE TABLE ua_anomaly_events");
@@ -201,8 +224,10 @@ function runTestCaseError(
 
     try {
         $write_ua->writeUaAnomalyEvents();
+        $totalFail++;
         echo " FAIL: 例外が発生しませんでした。<br><br>";
     } catch (RuntimeException $e) {
+        $totalPass++;
         echo "  PASS: 例外が発生しました: " . $e->getMessage() . "<br><br>";
         return;
     } //
@@ -218,6 +243,15 @@ function testCaseNoAnomaly(
     ): void {
     echo "<b>{$caseLabel}</b><br>";
 
+    global $totalPass, $totalFail;
+
+    // table ua_anomaly_events をクリア
+    try {
+        $pdo->exec("TRUNCATE TABLE ua_anomaly_events");
+    } catch (Exception $e) {
+        echo "  Error truncating table: " . $e->getMessage() . "<br><br>";
+        return;
+    }
     
     $mock = new MockRequestContent1($contents);
 
@@ -238,7 +272,7 @@ function testCaseNoAnomaly(
     try {
         $write_ua->writeUaAnomalyEvents();
         echo "  PASS: writeUaAnomalyEvents() executed without exceptions.<br>";
-    } catch (DbWriteException $e) {
+    } catch (DbWriteException $e) {    
         echo "  Error writing anomaly events: " . $e->getMessage() . "<br><br>";
          http_response_code(500); // 500 Internal Server Error を返す場合
          return;
@@ -262,9 +296,11 @@ function testCaseNoAnomaly(
 
     // レコード数が変わらないことを確認
     if ($countBefore !== $countAfter) {
+        $totalFail++;
         echo "  FAIL: Record count changed. Before: {$countBefore}, After: {$countAfter}<br><br>";
         return;
     }
+    $totalPass++;
     echo
     "  PASS: Record count did not change. Before: {$countBefore}, After: {$countAfter}<br>";
     echo "<br>";
@@ -301,7 +337,7 @@ runTestCase(
     $pdo);
 
 // -------------------------------------------------------
-// Case 1-1-2: anomaly event があるときに（ua_mismatch = 1）
+// Case 1-1-2: anomaly event があるときに（is_ua_mismatch = 1）
 //   データが正しく記録されるか確認します。
 // -------------------------------------------------------
 $contents2 = [
@@ -323,13 +359,13 @@ $uaData2 = [
     'is_no_anomaly_session' => 1, // 異常なし
     'is_no_anomaly_ip' => 1       // 異常なし
 ];
-runTestCase('Case 1-1-2: anomaly event があるときに（ua_mismatch = 1）データが正しく記録されることを確認し正しく記録されることを確認します。',
+runTestCase('Case 1-1-2: anomaly event があるときに（is_ua_mismatch = 1）データが正しく記録されることを確認し正しく記録されることを確認します。',
     $contents2,
     $uaData2,
     $pdo);
 
 // -------------------------------------------------------
-// Case 1-1-3: anomaly event があるときに（over threshold session）
+// Case 1-1-3: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_SESSION）
 //   データが正しく記録されるか確認します。
 // -------------------------------------------------------
 $contents2a = [
@@ -413,7 +449,6 @@ runTestCase('Case 1-2: 境界値 (session_id が 128 文字の長い文字列)',
     $uaData3,
     $pdo);
 
-echo "Result: {$totalPass} passed, {$totalFail} failed.<br><br>";
 
 echo '異常がないときに、レコードが追加されないことを確認します。<br>
 また、異常があるときはレコードが追加されることを確認します。<br>
@@ -421,7 +456,7 @@ echo '異常がないときに、レコードが追加されないことを確�
 // -------------------------------------------------------
 // Case 2-1:  異常がないときに、レコードが追加されないことを確認します
 // 過去のアクセスがゼロのとき（閾値以内）
-//  ($accessCount >= 60) ===  FAIL であることを確認します。
+//  ($accessCount >= 60) ===  false であることを確認します。
 // -------------------------------------------------------
     $contents4a = [
         'session_id'       => 'def456',
@@ -453,7 +488,7 @@ expecting PASS: Record count did not change.
 // -------------------------------------------------------
 // Case 4: SESSION UNDER THRESHOLD
 //  (59) 
-//  ($accessCount >= 60) ===  FAIL であることを確認します。
+//  ($accessCount >= 60) ===  false であることを確認します。
 // -------------------------------------------------------
     $contents4 = [
         'session_id'       => 'def456',
@@ -483,7 +518,7 @@ testCaseNoAnomaly('Case 4: SESSION UNDER THRESHOLD (59) expecting PASS: Record c
 // -------------------------------------------------------
 // Case 5: SESSION THRESHOLD
 //  (60) 
-//  ($accessCount >= 60) ===  true であることを確認します。
+//  でデータが書き込まれることを確認します。
 // -------------------------------------------------------
     $contents5 = [
         'session_id'       => 'def456',
@@ -545,7 +580,7 @@ testCaseNoAnomaly('Case 6: SESSION OVER THRESHOLD (61) expecting FAIL: Record co
 // -------------------------------------------------------
 // Case 7: IP UNDER THRESHOLD
 //  (599)
-//  ($accessCount >= 600) ===  FAIL であることを確認します。
+//  ($accessCount >= 600) ===  false であることを確認します。
 //   
 // -------------------------------------------------------
     $contents7 = [
@@ -744,3 +779,5 @@ runTestCaseError('Case error: 異常系 (session_id が 129 文字の長い文�
 
 //  データベース接続を閉じます。
 $dbManager->disconnect();
+echo "Result: {$totalPass} passed, {$totalFail} failed.<br><br>";
+

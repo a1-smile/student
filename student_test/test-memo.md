@@ -378,3 +378,167 @@ Case 10: UAに異常がない場合は何もせずに return することを確�
 Warning: Undefined array key "recaptcha_solved" in C:\dev\student\mock_request_content.php on line 41
 
 Fatal error: Uncaught TypeError: Cannot assign null to property MockRequestContent1::$recaptchaSolved of type int in C:\dev\student\mock_request_content.php:41 Stack trace: #0 C:\dev\student\student_test\test-write-ua-anomaly-events.php(700): MockRequestContent1->__construct(Array) #1 C:\dev\student\student_test\test-write-ua-anomaly-events.php(771): testCaseNoAnomaly('Case 10: UA\xE3\x81\xAB\xE7...', Array, Array, Object(PDO)) #2 {main} thrown in C:\dev\student\mock_request_content.php on line 41
+
+
+
+# student_test\test-write-ua-anomaly-events.php
+をブラウザで実行した結果、以下のような出力が得られました。
+テストの改善点を指摘してください。
+
+Database connection successful.
+
+Case 1-1: anomaly event があるときにデータが正しく記録されることを確認します。
+is_no_ua = 1, // 異常あり
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+Case 1-1-2: anomaly event があるときに（ua_mismatch = 1）データが正しく記録されることを確認し正しく記録されることを確認します。
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+Case 1-1-3: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_SESSION）データが正しく記録されることを確認し正しく記録されることを確認します。
+
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+Case 1-1-4: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_IP）データが正しく記録されることを確認し正しく記録されることを確認します。
+
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+Case 1-2: 境界値 (session_id が 128 文字の長い文字列)
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+Result: 35 passed, 0 failed.
+
+異常がないときに、レコードが追加されないことを確認します。
+また、異常があるときはレコードが追加されることを確認します。
+そして、境界値で適切に条件分岐されていることを確認します。
+
+Case 2-1: 異常がないときに、レコードが追加されないことを確認します。
+過去のアクセスがゼロのとき（閾値以内）
+expecting PASS: Record count did not change.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+PASS: Record count did not change. Before: 1, After: 1
+
+Case 4: SESSION UNDER THRESHOLD (59) expecting PASS: Record count did not change.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+PASS: Record count did not change. Before: 1, After: 1
+
+Case 5: SESSION THRESHOLD (60) expecting FAIL: Record count changed.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+FAIL: Record count changed. Before: 1, After: 2
+
+Case 6: SESSION OVER THRESHOLD (61) expecting FAIL: Record count changed.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+FAIL: Record count changed. Before: 2, After: 3
+
+Case 7: IP UNDER THRESHOLD (599) expecting PASS: Record count did not change.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+PASS: Record count did not change. Before: 3, After: 3
+
+Case 8: IP THRESHOLD (600) expecting FAIL: Record count changed.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+FAIL: Record count changed. Before: 3, After: 4
+
+Case 9: IP OVER THRESHOLD (601) expecting FAIL: Record count changed.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+FAIL: Record count changed. Before: 4, After: 5
+
+Case 11: is_no_ua = 1 の場合FAILであることを確認します。
+PASS: writeUaAnomalyEvents() executed without exceptions.
+FAIL: Record count changed. Before: 5, After: 6
+
+Case 12: is_ua_mismatch = 1 の場合FAILであることを確認します。
+PASS: writeUaAnomalyEvents() executed without exceptions.
+FAIL: Record count changed. Before: 6, After: 7
+
+Now running error test case...
+
+Case error: 異常系 (session_id が 129 文字の長い文字列)
+PASS: 例外が発生しました: writeUaAnomalyEvents failed: SQLSTATE[22001]: String data, right truncated: 1406 Data too long for column 'session_id' at row 1
+
+
+
+
+1. testCaseNoAnomaly を誤ったケースに流用している（最重要）
+Case 5, 6, 8, 9, 11, 12 は「異常があるのでレコードが増えること」を確認したいのに、testCaseNoAnomaly（レコードが変わらないことを PASS とする関数）を使っています。
+
+その結果、出力が FAIL: Record count changed. になるが、これは実際には期待通りの動作です。テストの設計と実装が矛盾しています。
+
+Case 5, 6 は runTestCase（データ内容を検証）を使うか、「レコードが1件増えることを確認する」専用関数 testCaseHasAnomaly を作るべきです。
+
+
+Case 11, 12 も同様で、現状は「PASS と見える FAIL」と「FAIL と見える PASS」が混在しています。
+
+
+2. グローバルカウンタ $totalPass / $totalFail が一部の関数で更新されない
+testCaseNoAnomaly と runTestCaseError 内の PASS/FAIL は check() を呼ばないため $totalPass/$totalFail に反映されません。
+
+出力の Result: 35 passed, 0 failed. は Case 1-1 〜 1-2 の check() 呼び出し分のみで、Case 2-1 以降は集計されていません。
+
+
+3. testCaseNoAnomaly でテーブルをTRUNCATEしていないためテストが独立していない
+Case 2-1 の Before: 1 は、直前の Case 1-2 のレコードが残っているためです。その後も Before: 1, 2, 3... と累積します。
+
+各テストケースは前のテストの状態に依存すべきでなく、testCaseNoAnomaly の冒頭でも TRUNCATE するか、差分（After - Before === 0）で判定するようにすべきです
+
+
+
+Case ラベルの "expecting FAIL" という表現が誤解を招く
+「FAIL が出ることを期待する」という記述ですが、テストフレームワークとして見ると FAIL は「テストが失敗」を意味します。
+正しくは「レコードが増えることを確認する（これが PASS）」という表現にすべきです。
+
+
+
+. テストケース番号に欠番がある
+ファイル冒頭のコメントでは 2-1 〜 2-7 と記載していますが、実際の実装は 2-1, 4, 5, 6, 7, 8, 9 となっており 3 と 10 が欠番です。
+コメントと実装を一致させてください。
+
+
+
+runTestCaseError でもカウンタが更新されない
+check() を直接呼ぶか、$totalPass++ / $totalFail++ を明示的に追加すべきです。
+
+
+改善の優先順位まとめ
+優先度	問題
+高	testCaseNoAnomaly を「異常あり→増加確認」に誤用している
+高	グローバルカウンタが集計されておらず Result が不正確
+中	テーブル状態がテスト間で独立していない
+中	"expecting FAIL" という誤解を招くラベル
+低	ケース番号の欠番
+
