@@ -14,6 +14,7 @@ class WriteUaのwriteUaAnomalyEvents() メソッドをテストします。
 is_no_ua = 1 のとき
 
 1-1-2. anomaly event があり、
+
 データが通常の範囲内。
 is_ua_mismatch = 1 のとき
 
@@ -34,29 +35,37 @@ ACCESS_COUNT_THRESHOLD_IP (access_count_ip が 600)
 使用する関数は、testCaseNoAnomaly() です。
 
 2-1. 異常がなく、過去のアクセスがゼロのとき。
-（閾値以内）
+（ゼロは閾値以内です。）
+DB にレコードが追加されないことを確認します。
 
 また、過去1分間のアクセス数が
 閾値の前後で適切に条件分岐されていることを確認します。
 2-2. UNDER_THRESHOLD_SESSION (59)
+閾値-1のときは、レコードが追加されないことを確認します。
 
- ACCESS_COUNT_THRESHOLD_SESSION (60)
-は確認済です。
+ACCESS_COUNT_THRESHOLD_SESSION (60)は
+Case 1-1-3で、
+runTestCase() を使用して確認済です。
 
-2-4. OVER_THRESHOLD_SESSION (61)
+2-3. OVER_THRESHOLD_SESSION (61)
+閾値+1のときは、レコードが正確に追加されることを確認します。
 
 
-2-5. UNDER_THRESHOLD_IP (599) 
-ACCESS_COUNT_THRESHOLD_IP (600)
-は確認済です。
+2-4. UNDER_THRESHOLD_IP (599) 
+閾値-1のときは、レコードが追加されないことを確認します。
 
-2-7. OVER_THRESHOLD_IP (601)
+ACCESS_COUNT_THRESHOLD_IP (600)は
+Case 1-1-4で、
+runTestCase() を使用して確認済です。
 
-3. 異常があり、記入を依頼したが、
+2-5. OVER_THRESHOLD_IP (601)
+閾値+1のときは、レコードが正確に追加されることを確認します。
+
+error. 異常があり、記入を依頼したが、
 データが適切ではないために、
 例外がスローされることを確認します。
 使用する関数は、runTestCaseError() です。
-3-1. session_id が 129 文字の長い文字列
+ session_id が 129 文字の長い文字列
 
 以上をテストします。
 */
@@ -123,7 +132,7 @@ function check(string $label, mixed $actual, mixed $expected): void {
 }
 
 /**
- * テストを実行します。
+ * runTestCase() 関数を定義します。
  * テーブルをTRUNCATEし、writeUaAnomalyEvents()を呼び出し、
  * SELECTで取得した値と期待値を照合します。
  */
@@ -187,6 +196,83 @@ function runTestCase(
     check('is_no_ua',       (int)$row['is_no_ua'],       $mock->getIsNoUa());
     check('is_ua_mismatch', (int)$row['is_ua_mismatch'], $mock->getIsUaMismatch());
     check('is_over_threshold_session', (int)$row['is_over_threshold_session'], $risk_evaluator->getIsOverThresholdSession());
+
+
+    check('is_over_threshold_ip', (int)$row['is_over_threshold_ip'], $risk_evaluator->getIsOverThresholdIp());
+
+
+    $access_time = new DateTime($row['access_time']);
+    $now  = new DateTime();
+    $diff = $now->getTimestamp() - $access_time->getTimestamp();
+    check('access_time', $diff >= 0 && $diff < 5, true);
+
+    echo "<br>";
+}
+
+function runTestCaseSessionThreshold(
+            string $caseLabel,
+            array $contents,
+            array $uaData,
+            PDO $pdo
+    ): void {
+    echo "<b>{$caseLabel}</b><br>";
+
+    // table ua_anomaly_events をクリア
+    try {
+        $pdo->exec("TRUNCATE TABLE ua_anomaly_events");
+    } catch (Exception $e) {
+        echo "  Error truncating table: " . $e->getMessage() . "<br><br>";
+        return;
+    }
+
+    $mock = new MockRequestContent1($contents);
+
+    $mock_ua_repository  = new MockUaRepository($uaData);
+    $risk_evaluator = new UserAgentRiskEvaluator($mock, $mock_ua_repository);
+    $write_ua       = new WriteUa($pdo, $mock, $mock_ua_repository, $risk_evaluator);
+    try {
+        $write_ua->writeUaAnomalyEvents();
+    } catch (DbWriteException $e) {
+        echo "  Error writing anomaly events: " . $e->getMessage() . "<br><br>";
+         http_response_code(500); // 500 Internal Server Error を返す場合
+         return;
+    } catch (DbRowCountException $e) {
+        echo "  Error writing anomaly events: " . $e->getMessage() . "<br><br>";
+         http_response_code(500); // 500 Internal Server Error を返す場合
+         return;
+    } catch (Exception $e) {
+        echo "  Unexpected error: " . $e->getMessage() . "<br><br>";
+        return;
+    }  // END try-catch
+    
+    // 追加されたidを取得。
+    $id = (int)$pdo->lastInsertId();
+
+    // SELECTで取得して期待値と照合する
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM ua_anomaly_events WHERE id = :id");
+        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+        $stmt->execute();
+        $row  = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        echo "  Error querying table: " . $e->getMessage() . "<br><br>";
+        return;
+    }
+    if ($row === false) {
+        echo "  FAIL: No log entry found in ua_anomaly_events.<br><br>";
+        return;
+    }
+
+    check('session_id',     $row['session_id'],          $mock->getSessionId());
+    check('ip_address',     $row['ip_address'],          $mock->getIpAddress());
+    check('is_no_ua',       (int)$row['is_no_ua'],       $mock->getIsNoUa());
+    check('is_ua_mismatch', (int)$row['is_ua_mismatch'], $mock->getIsUaMismatch());
+    check('is_over_threshold_session', (int)$row['is_over_threshold_session'], $risk_evaluator->getIsOverThresholdSession());
+
+// 明示的なアサートを追加
+    check('is_over_threshold_session(evaluator) === 1', $risk_evaluator->getIsOverThresholdSession(), 1);
+    check('is_over_threshold_session (DB) === 1', (int)$row['is_over_threshold_session'], 1);
+
     check('is_over_threshold_ip', (int)$row['is_over_threshold_ip'], $risk_evaluator->getIsOverThresholdIp());
 
     $access_time = new DateTime($row['access_time']);
@@ -196,6 +282,82 @@ function runTestCase(
 
     echo "<br>";
 }
+
+function runTestCaseIpThreshold(
+            string $caseLabel,
+            array $contents,
+            array $uaData,
+            PDO $pdo
+    ): void {
+    echo "<b>{$caseLabel}</b><br>";
+
+    // table ua_anomaly_events をクリア
+    try {
+        $pdo->exec("TRUNCATE TABLE ua_anomaly_events");
+    } catch (Exception $e) {
+        echo "  Error truncating table: " . $e->getMessage() . "<br><br>";
+        return;
+    }
+
+    $mock = new MockRequestContent1($contents);
+
+    $mock_ua_repository  = new MockUaRepository($uaData);
+    $risk_evaluator = new UserAgentRiskEvaluator($mock, $mock_ua_repository);
+    $write_ua       = new WriteUa($pdo, $mock, $mock_ua_repository, $risk_evaluator);
+    try {
+        $write_ua->writeUaAnomalyEvents();
+    } catch (DbWriteException $e) {
+        echo "  Error writing anomaly events: " . $e->getMessage() . "<br><br>";
+         http_response_code(500); // 500 Internal Server Error を返す場合
+         return;
+    } catch (DbRowCountException $e) {
+        echo "  Error writing anomaly events: " . $e->getMessage() . "<br><br>";
+         http_response_code(500); // 500 Internal Server Error を返す場合
+         return;
+    } catch (Exception $e) {
+        echo "  Unexpected error: " . $e->getMessage() . "<br><br>";
+        return;
+    }  // END try-catch
+    
+    // 追加されたidを取得。
+    $id = (int)$pdo->lastInsertId();
+
+    // SELECTで取得して期待値と照合する
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM ua_anomaly_events WHERE id = :id");
+        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+        $stmt->execute();
+        $row  = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        echo "  Error querying table: " . $e->getMessage() . "<br><br>";
+        return;
+    }
+    if ($row === false) {
+        echo "  FAIL: No log entry found in ua_anomaly_events.<br><br>";
+        return;
+    }
+
+    check('session_id',     $row['session_id'],          $mock->getSessionId());
+    check('ip_address',     $row['ip_address'],          $mock->getIpAddress());
+    check('is_no_ua',       (int)$row['is_no_ua'],       $mock->getIsNoUa());
+    check('is_ua_mismatch', (int)$row['is_ua_mismatch'], $mock->getIsUaMismatch());
+    check('is_over_threshold_session', (int)$row['is_over_threshold_session'], $risk_evaluator->getIsOverThresholdSession());
+
+    check('is_over_threshold_ip', (int)$row['is_over_threshold_ip'], $risk_evaluator->getIsOverThresholdIp());
+
+// 明示的なアサートを追加
+    check('is_over_threshold_ip(evaluator) === 1', $risk_evaluator->getIsOverThresholdIp(), 1);
+    check('is_over_threshold_ip (DB) === 1', (int)$row['is_over_threshold_ip'], 1);
+
+    $access_time = new DateTime($row['access_time']);
+    $now  = new DateTime();
+    $diff = $now->getTimestamp() - $access_time->getTimestamp();
+    check('access_time', $diff >= 0 && $diff < 5, true);
+
+    echo "<br>";
+}
+
+
 
 
 function runTestCaseError(
@@ -235,6 +397,18 @@ function runTestCaseError(
 } // END function
 
 
+/*  writeUaAnomalyEvents()
+が 
+UAに異常がない場合は何もせずに return
+することをテストするには
+１．テーブル ua_anomaly_events のレコード
+数を数える。
+２．writeUaAnomalyEvents() を呼び出す。
+３．再度テーブル ua_anomaly_events レコード数を数える。
+４．呼び出し前後でレコード数が変わらないことを確認する。
+５．DbWriteException や DbRowCountException がスローされないことを確認する。
+という処理で確認します。 */
+
 function testCaseNoAnomaly(
             string $caseLabel,
             array $contents,
@@ -271,6 +445,7 @@ function testCaseNoAnomaly(
 
     try {
         $write_ua->writeUaAnomalyEvents();
+        $totalPass++;
         echo "  PASS: writeUaAnomalyEvents() executed without exceptions.<br>";
     } catch (DbWriteException $e) {    
         echo "  Error writing anomaly events: " . $e->getMessage() . "<br><br>";
@@ -387,7 +562,7 @@ $uaData2a = [
     'is_no_anomaly_session' => 1, // 異常なし
     'is_no_anomaly_ip' => 1       // 異常なし
 ];
-runTestCase('Case 1-1-3: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_SESSION）データが正しく記録されることを確認し正しく記録されることを確認します。<br>',
+runTestCaseSessionThreshold('Case 1-1-3: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_SESSION）データが正しく記録されることを確認し正しく記録されることを確認します。<br>',
     $contents2a,
     $uaData2a,
     $pdo);
@@ -416,7 +591,7 @@ $uaData2b = [
     'is_no_anomaly_session' => 1, // 異常なし
     'is_no_anomaly_ip' => 1       // 異常なし
 ];
-runTestCase('Case 1-1-4: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_IP）データが正しく記録されることを確認し正しく記録されることを確認します。<br>',
+runTestCaseIpThreshold('Case 1-1-4: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_IP）データが正しく記録されることを確認し正しく記録されることを確認します。<br>',
     $contents2b,
     $uaData2b,
     $pdo);
@@ -478,7 +653,8 @@ echo '異常がないときに、レコードが追加されないことを確�
         'is_no_anomaly_ip' => 1       // 異常なし
     ];
 testCaseNoAnomaly('Case 2-1: 異常がないときに、レコードが追加されないことを確認します。<br>
-過去のアクセスがゼロのとき（閾値以内）<br>
+過去のアクセスがゼロのとき（ゼロは閾値以内です。）<br>
+DB にレコードが追加されないことを確認します。<br>
 expecting PASS: Record count did not change.
 <br>', 
     $contents4a,
@@ -486,9 +662,9 @@ expecting PASS: Record count did not change.
     $pdo);
 
 // -------------------------------------------------------
-// Case 4: SESSION UNDER THRESHOLD
+// Case 2-2: SESSION UNDER THRESHOLD
 //  (59) 
-//  ($accessCount >= 60) ===  false であることを確認します。
+//  閾値-1のときは、レコードが追加されないことを確認します。
 // -------------------------------------------------------
     $contents4 = [
         'session_id'       => 'def456',
@@ -509,45 +685,21 @@ expecting PASS: Record count did not change.
         'is_no_anomaly_session' => 1, // 異常なし
         'is_no_anomaly_ip' => 1       // 異常なし
     ];
-testCaseNoAnomaly('Case 4: SESSION UNDER THRESHOLD (59) expecting PASS: Record count did not change.
+testCaseNoAnomaly('Case 2-2: SESSION UNDER THRESHOLD (59)<br>
+閾値-1のときは、レコードが追加されないことを確認します。<br>
+expecting PASS: Record count did not change.
 <br>', 
     $contents4,
     $uaData4,
     $pdo);
 
-// -------------------------------------------------------
-// Case 5: SESSION THRESHOLD
-//  (60) 
-//  でデータが書き込まれることを確認します。
-// -------------------------------------------------------
-    $contents5 = [
-        'session_id'       => 'def456',
-        'ip_address'       => '10.0.0.1',
-        'simple_ua'        => 'Chrome/91',
-        'is_no_ua'         => 0,
-        'is_ua_mismatch'   => 0,
-        'recaptcha_solved' => 0,
-        'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    ];
-    $uaData5 = [
-        'score_session' => 0,
-        'score_ip' => 0,
-        'access_count_session' => ACCESS_COUNT_THRESHOLD_SESSION,// 閾値 60
-        'access_count_ip' => 0, // 閾値 600
-        'is_decreased_session' => 0,
-        'is_decreased_ip' => 0,
-        'is_no_anomaly_session' => 1, // 異常なし
-        'is_no_anomaly_ip' => 1       // 異常なし
-    ];
-testCaseNoAnomaly('Case 5: SESSION THRESHOLD (60) expecting FAIL: Record count changed.
-<br>', 
-    $contents5,
-    $uaData5,
-    $pdo);
 
+echo 'ACCESS_COUNT_THRESHOLD_SESSION (60)の場合は<br>
+Case 1-1-3で、<br>
+runTestCaseSessionThreshold() を使用して確認済です。<br><br>';
 
 // -------------------------------------------------------
-// Case 6: SESSION OVER THRESHOLD
+// Case 2-3: SESSION OVER THRESHOLD
 //  (61) 
 //  ($accessCount >= 60) ===  true であることを確認します。
 // -------------------------------------------------------
@@ -570,7 +722,9 @@ testCaseNoAnomaly('Case 5: SESSION THRESHOLD (60) expecting FAIL: Record count c
         'is_no_anomaly_session' => 1, // 異常なし
         'is_no_anomaly_ip' => 1       // 異常なし
     ];
-testCaseNoAnomaly('Case 6: SESSION OVER THRESHOLD (61) expecting FAIL: Record count changed.
+runTestCaseSessionThreshold('Case 2-3: SESSION OVER THRESHOLD (61)<br>
+閾値を超えたときは、レコードが正確に追加されることを確認します。<br>
+expecting PASS
 <br>', 
     $contents6,
     $uaData6,
@@ -578,9 +732,9 @@ testCaseNoAnomaly('Case 6: SESSION OVER THRESHOLD (61) expecting FAIL: Record co
 
 
 // -------------------------------------------------------
-// Case 7: IP UNDER THRESHOLD
+// Case 2-4: IP UNDER THRESHOLD
 //  (599)
-//  ($accessCount >= 600) ===  false であることを確認します。
+//  閾値-1のときは、レコードが追加されないことを確認します。
 //   
 // -------------------------------------------------------
     $contents7 = [
@@ -602,46 +756,21 @@ testCaseNoAnomaly('Case 6: SESSION OVER THRESHOLD (61) expecting FAIL: Record co
         'is_no_anomaly_session' => 1, // 異常なし
         'is_no_anomaly_ip' => 1       // 異常なし
     ];
-testCaseNoAnomaly('Case 7: IP UNDER THRESHOLD (599) expecting PASS: Record count did not change.
+testCaseNoAnomaly('Case 2-4: IP UNDER THRESHOLD (599)<br>
+閾値-1のときは、レコードが追加されないことを確認します。<br>
+expecting PASS: Record count did not change.
 <br>', 
     $contents7,
     $uaData7,
     $pdo);
-// -------------------------------------------------------
-// Case 8: IP THRESHOLD
-//  (600)
-//  ($accessCount >= 600) ===  true であることを確認します。
-//   
-// -------------------------------------------------------
-    $contents8 = [
-    'session_id'       => 'def456',
-    'ip_address'       => '10.0.0.1',
-    'simple_ua'        => 'Chrome/91',
-    'is_no_ua'         => 0,
-    'is_ua_mismatch'   => 0,
-    'recaptcha_solved' => 0,
-    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    ];
-    $uaData8 = [
-        'score_session' => 0,
-        'score_ip' => 0,
-        'access_count_session' => 0,// 閾値 60
-        'access_count_ip' => ACCESS_COUNT_THRESHOLD_IP, // 閾値 600
-        'is_decreased_session' => 0,
-        'is_decreased_ip' => 0,
-        'is_no_anomaly_session' => 1, // 異常なし
-        'is_no_anomaly_ip' => 1       // 異常なし
-    ];
-testCaseNoAnomaly('Case 8: IP THRESHOLD (600) expecting FAIL: Record count changed.<br>', 
-    $contents8,
-    $uaData8,
-    $pdo);
 
-
+echo 'ACCESS_COUNT_THRESHOLD_IP (600)の場合は<br>
+Case 1-1-4で、<br>
+runTestCaseIpThreshold() を使用して確認済です。<br><br>';
 // -------------------------------------------------------
-// Case 9: IP OVER THRESHOLD
+// Case 2-5: IP OVER THRESHOLD
 //  (601)
-//  ($accessCount >= 600) ===  true であることを確認します。
+//  閾値+1のときは、レコードが正確に追加されることを確認します。
 //   
 // -------------------------------------------------------
     $contents9 = [
@@ -663,79 +792,12 @@ testCaseNoAnomaly('Case 8: IP THRESHOLD (600) expecting FAIL: Record count chang
         'is_no_anomaly_session' => 1, // 異常なし
         'is_no_anomaly_ip' => 1       // 異常なし
     ];
-testCaseNoAnomaly('Case 9: IP OVER THRESHOLD (601) expecting FAIL: Record count changed.<br>', 
+runTestCaseIpThreshold('Case 2-5: IP OVER THRESHOLD (601)<br>
+閾値+1のときは、レコードが正確に追加されることを確認します。<br>
+expecting PASS
+<br>', 
     $contents9,
     $uaData9,
-    $pdo);
-
-
-
-
-/*  writeUaAnomalyEvents()
-が 
-UAに異常がない場合は何もせずに return
-することをテストするには
-１．テーブル ua_anomaly_events のレコード
-数を数える。
-２．writeUaAnomalyEvents() を呼び出す。
-３．再度テーブル ua_anomaly_events レコード数を数える。
-４．呼び出し前後でレコード数が変わらないことを確認する。
-５．DbWriteException や DbRowCountException がスローされないことを確認する。
-という処理で確認します。 */
-
-    // is_no_ua = 1 の場合のテストを行います。
-    // レコードが書き込まれてレコード数が変化することを確認します。
-$contents11 = [
-    'session_id'       => 'abc123',
-    'ip_address'       => '192.168.0.1',
-    'simple_ua'        => 'Chrome/91',
-    'is_no_ua'         => 1,
-    'is_ua_mismatch'   => 0,
-    'recaptcha_solved' => 0,
-    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    ];
-
-$uaData11 = [
-    'score_session' => 0,
-    'score_ip' => 0,
-    'access_count_session' => 0,// 閾値 60
-    'access_count_ip' => 0, // 閾値 600
-    'is_decreased_session' => 0,
-    'is_decreased_ip' => 0,
-    'is_no_anomaly_session' => 1, // 異常なし
-    'is_no_anomaly_ip' => 1       // 異常なし
-];
-testCaseNoAnomaly('Case 11: is_no_ua = 1 の場合FAILであることを確認します。',
-    $contents11,
-    $uaData11,
-    $pdo);
-
-    // is_ua_mismatch = 1 の場合も同様にテストします。
-    // レコードか書き込まれてレコード数が変化することを確認します。
-$contents12 = [
-    'session_id'       => 'abc123',
-    'ip_address'       => '192.168.0.1',
-    'simple_ua'        => 'Chrome/91',
-    'is_no_ua'         => 0,
-    'is_ua_mismatch'   => 1,
-    'recaptcha_solved' => 0,
-    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-
-];
-
-$uaData12 = [
-    'score_session' => 0,
-    'score_ip' => 0,
-    'access_count_session' => 0,// 閾値 60
-    'access_count_ip' => 0, // 閾値 600
-    'is_decreased_session' => 0,
-    'is_decreased_ip' => 0,
-    'is_no_anomaly_session' => 1, // 異常なし
-    'is_no_anomaly_ip' => 1       // 異常なし
-];
-testCaseNoAnomaly('Case 12: is_ua_mismatch = 1 の場合FAILであることを確認します。',
-    $contents12,
-    $uaData12,
     $pdo);
 
 // -------------------------------------------------------
@@ -772,7 +834,8 @@ echo "Now running error test case...<br><br>";
         'is_no_anomaly_session' => 1, // 異常なし
         'is_no_anomaly_ip' => 1       // 異常なし
     ];
-runTestCaseError('Case error: 異常系 (session_id が 129 文字の長い文字列)',
+runTestCaseError('Case error: 異常系 (session_id が 129 文字の長い文字列)<br>
+expecting PASS:例外が発生しました:<br>',
     $contents_error,
     $uaDataError,
     $pdo);
