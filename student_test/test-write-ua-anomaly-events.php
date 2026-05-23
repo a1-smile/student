@@ -139,9 +139,11 @@ function check(string $label, mixed $actual, mixed $expected): void {
 
 function runTestCase(
             string $caseLabel,
-            array $contents,
-            array $uaData,
-            PDO $pdo
+            array  $contents,
+            array  $uaData,
+            PDO    $pdo,
+            bool   $assertSessionThreshold = false,
+            bool   $assertIpThreshold = false
     ): void {
     echo "<b>{$caseLabel}</b><br>";
 
@@ -205,6 +207,18 @@ function runTestCase(
     $now  = new DateTime();
     $diff = $now->getTimestamp() - $access_time->getTimestamp();
     check('access_time', $diff >= 0 && $diff < 5, true);
+
+
+
+    if ($assertSessionThreshold) {
+        check('is_over_threshold_session(evaluator) === 1', $risk_evaluator->getIsOverThresholdSession(), 1);
+        check('is_over_threshold_session (DB) === 1', (int)$row['is_over_threshold_session'], 1);
+    }
+
+    if ($assertIpThreshold) {
+        check('is_over_threshold_ip(evaluator) === 1', $risk_evaluator->getIsOverThresholdIp(), 1);
+        check('is_over_threshold_ip (DB) === 1', (int)$row['is_over_threshold_ip'], 1);
+    }
 
     echo "<br>";
 }
