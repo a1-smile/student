@@ -246,7 +246,7 @@ function runTestCaseError(
     } catch (Exception $e) {
         echo "  Error truncating table: " . $e->getMessage() . "<br><br>";
         return;
-    }
+}
 
     $mock = new MockRequestContent1($contents);
 

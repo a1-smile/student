@@ -27,8 +27,8 @@
  */
 
 class WriteUa{
-  //  default error_code
-  const DEFAULT_ERROR_CODE = 0;
+  // error_code
+  const   DB_WRITE_ERROR = 1;
   private PDO $pdo;
   private RequestContent $requestContent;
   private UaRepository $uaRepository; 
@@ -140,7 +140,7 @@ class WriteUa{
           } // END IF
         }catch(PDOException $e){
         throw new DbWriteException('writeUserAgentLog failed: ' . $e->getMessage(),
-                                  self::DEFAULT_ERROR_CODE, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
+                                  self::DB_WRITE_ERROR, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
                                   $e //  再スローする例外の前の例外のインスタンス。
                                   ); 
         } // END TRY CATCH
@@ -169,8 +169,24 @@ class WriteUa{
   *のときは、UAに異常がないと判断して、
   *ua_anomaly_events テーブルには記録しない。
   *何もせずに returnする。
-
-
+  *
+  *@throws DbWriteException PDO失敗時
+  * PDOExceptionをキャッチして、
+  * DbWriteExceptionにラップしてスローする。
+  * 書き込みに失敗した場合にスローされる例外です。
+  *
+  *@throws DbRowCountException ０行INSERT時
+  *期待した行数が影響を受けなかった場合にスローされる例外
+  *この二つの例外を組み合わせることによって、
+  *DBでのエラーは発生しなかったが、
+  *ロジックエラーなどで正しく
+  *データが記録されなかった場合も検知できるようにする。
+  * 要するに、DBに書きこみがあった場合は、
+  * 必ず1行が影響を受けるということを確認しています。
+  * 0行だった場合は、何らかの問題があったと判断して例外をスローする。
+  * no anomaly で早期リターンの場合と、
+  * エラーでレコードが挿入されない場合を
+  * 区別することができます。
   */
   public function writeUaAnomalyEvents(): void {
     $pdo = $this->pdo;
@@ -211,7 +227,7 @@ class WriteUa{
               :is_over_threshold_ip,
               NOW())";
     try{
-      $stmt = $this->pdo->prepare($sql);
+      $stmt = $pdo->prepare($sql);
       // パラメーターの型を指定してバインドする
       $stmt->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
       $stmt->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
@@ -220,16 +236,18 @@ class WriteUa{
       $stmt->bindParam(':is_over_threshold_session', $isOverThresholdSession, PDO::PARAM_INT);
       $stmt->bindParam(':is_over_threshold_ip', $isOverThresholdIp, PDO::PARAM_INT);
       $stmt->execute();
-      //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
-      if ($stmt->rowCount() !== 1) {
-          throw new DbRowCountException('writeUaAnomalyEvents: INSERT affected 0 rows.');
-      } // END IF
-    }catch(PDOException $e){
+      }catch(PDOException $e){
         throw new DbWriteException('writeUaAnomalyEvents failed: ' . $e->getMessage(),
-                                  self::DEFAULT_ERROR_CODE, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
-                                  $e //  再スローする例外の前の例外のインスタンス。
-                                  ); 
-    } // END TRY CATCH
+        self::DB_WRITE_ERROR, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
+        $e //  再スローする例外の前の例外のインスタンス。
+        ); 
+        } // END TRY CATCH
+
+        //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
+        if ($stmt->rowCount() !== 1) {
+            throw new DbRowCountException('writeUaAnomalyEvents: INSERT affected 0 rows.');
+        } // END IF
+
   } // END FUNCTION writeUaAnomalyEvents()
 
 
@@ -277,7 +295,7 @@ class WriteUa{
       } // END IF
     }catch(PDOException $e){
         throw new DbWriteException('writeUaScores (session) failed: ' . $e->getMessage(),
-                                  self::DEFAULT_ERROR_CODE,
+                                  self::DB_WRITE_ERROR,
                                   $e
                                   );
     } // END TRY CATCH
@@ -297,7 +315,7 @@ class WriteUa{
       } // END IF
     }catch(PDOException $e){
         throw new DbWriteException('writeUaScores (ip) failed: ' . $e->getMessage(),
-                                  self::DEFAULT_ERROR_CODE,
+                                  self::DB_WRITE_ERROR,
                                   $e
                                   );
     } // END TRY CATCH
@@ -401,7 +419,7 @@ class WriteUa{
         } // END IF
     }catch(PDOException $e){
         throw new DbWriteException('writeUaScoreHistory (session) failed: ' . $e->getMessage(),
-                                  self::DEFAULT_ERROR_CODE,
+                                  self::DB_WRITE_ERROR,
                                   $e
                                   ); 
     } // END TRY CATCH
@@ -431,7 +449,7 @@ class WriteUa{
         } // END IF
     }catch(PDOException $e){
         throw new DbWriteException('writeUaScoreHistory (ip) failed: ' . $e->getMessage(),
-                                  self::DEFAULT_ERROR_CODE,
+                                  self::DB_WRITE_ERROR,
                                   $e
                                   ); 
     } // END TRY CATCH
