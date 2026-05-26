@@ -864,3 +864,193 @@ function runTestCase(
               (int)$row['is_over_threshold_ip'], 1);
     }
 }
+
+
+# student/student_test/test-write-ua-anomaly-events.php
+を実行した結果、以下のようなブラウザ表示が得られました。
+student/student_test/test-write-ua-anomaly-events.php
+は、
+write-ua.php に定義した class WriteUa の
+メソッド writeUaAnomalyEvents() をテストするコードです。
+
+writeUaAnomalyEvents() の改善点を指摘してください。
+Database connection successful.
+
+Case 1-1: anomaly event があるときにデータが正しく記録されることを確認します。
+is_no_ua = 1, // 異常あり
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+Case 1-1-2: anomaly event があるときに（is_ua_mismatch = 1）データが正しく記録されることを確認し正しく記録されることを確認します。
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+Case 1-1-3: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_SESSION）データが正しく記録されることを確認し正しく記録されることを確認します。
+
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_session(evaluator) === 1
+PASS: is_over_threshold_session (DB) === 1
+
+Case 1-1-4: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_IP）データが正しく記録されることを確認し正しく記録されることを確認します。
+
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_ip(evaluator) === 1
+PASS: is_over_threshold_ip (DB) === 1
+
+Case 1-2: 境界値 (session_id が 128 文字の長い文字列)
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+異常がないときに、レコードが追加されないことを確認します。
+また、異常があるときはレコードが追加されることを確認します。
+そして、境界値で適切に条件分岐されていることを確認します。
+
+Case 2-1: 異常がないときに、レコードが追加されないことを確認します。
+過去のアクセスがゼロのとき（ゼロは閾値以内です。）
+DB にレコードが追加されないことを確認します。
+expecting PASS: Record count did not change.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+PASS: Record count did not change. Before: 0, After: 0
+
+Case 2-2: SESSION UNDER THRESHOLD (59)
+閾値-1のときは、レコードが追加されないことを確認します。
+expecting PASS: Record count did not change.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+PASS: Record count did not change. Before: 0, After: 0
+
+ACCESS_COUNT_THRESHOLD_SESSION (60)の場合は
+Case 1-1-3で、
+runTestCase() を使用して確認済です。
+
+Case 2-3: SESSION OVER THRESHOLD (61)
+閾値を超えたときは、レコードが正確に追加されることを確認します。
+expecting PASS
+
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_session(evaluator) === 1
+PASS: is_over_threshold_session (DB) === 1
+
+Case 2-4: IP UNDER THRESHOLD (599)
+閾値-1のときは、レコードが追加されないことを確認します。
+expecting PASS: Record count did not change.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+PASS: Record count did not change. Before: 0, After: 0
+
+ACCESS_COUNT_THRESHOLD_IP (600)の場合は
+Case 1-1-4で、
+runTestCase() を使用して確認済です。
+
+Case 2-5: IP OVER THRESHOLD (601)
+閾値+1のときは、レコードが正確に追加されることを確認します。
+expecting PASS
+
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_ip(evaluator) === 1
+PASS: is_over_threshold_ip (DB) === 1
+
+Now running error test case...
+
+Case error: 異常系 (session_id が 129 文字の長い文字列)
+expecting PASS:例外が発生しました:
+
+PASS: 例外が発生しました: writeUaAnomalyEvents failed: SQLSTATE[22001]: String data, right truncated: 1406 Data too long for column 'session_id' at row 1
+
+Result: 64 passed, 0 failed.
+
+
+答え＝＞
+
+ ローカル変数 $pdo がデッドコード（最重要）
+$pdo に代入しているのにメソッド内で一切使われていません。
+writeUserAgentLog() は $pdo->prepare() を使っているのと不整合です。
+$pdo->prepare($sql) に統一してください。
+<?php
+
+$pdo = $this->pdo;  // ← ここで代入しているが…
+// ...
+$stmt = $this->pdo->prepare($sql);  // ← $this->pdo を直接使っている
+
+
+2. @throws アノテーションがない
+このメソッドは DbWriteException（PDO失敗時）と
+DbRowCountException（0行INSERT時）の
+2種類をスローしますが、docblock にその記載がありません。
+呼び出し元が何を catch 
+
+<?php
+/**
+ * @throws DbWriteException   PDO操作が失敗したとき
+ * @throws DbRowCountException INSERTが0件のとき
+ */
+
+3. DbRowCountException が
+catch ブロックを素通りする設計が暗黙的
+rowCount() !== 1 のとき
+DbRowCountException をスローしていますが、
+catch(PDOException $e) には引っかかりません。
+そのため上位に DbRowCountException が直接伝播します。
+これは意図的な設計ですが、コードを読む人には分かりにくいです。
+
+改善案：rowCount() チェックを
+try ブロックの外（catch の後）に移すか、コメントで明示する。 
+
+<?php
+    try {
+        $stmt = $pdo->prepare($sql);
+        // ... bindParam, execute ...
+    } catch (PDOException $e) {
+        throw new DbWriteException(...);
+    }
+    // PDOException以外はここで検証する
+    if ($stmt->rowCount() !== 1) {
+        throw new DbRowCountException('writeUaAnomalyEvents: INSERT affected 0 rows.');
+    }
+
+
+4. DEFAULT_ERROR_CODE = 0 の意味が薄い
+例外コード 0 はPHPの Exception のデフォルト値と同じです。
+self::DEFAULT_ERROR_CODE という定数名で包んでも区別がつかないため、エラーの種別を表す意味のある値（例：1、DB_WRITE_ERROR など）にするか、コメントで用途を明記すべきです。
+
+
