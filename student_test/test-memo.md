@@ -1054,3 +1054,180 @@ try ブロックの外（catch の後）に移すか、コメントで明示す�
 self::DEFAULT_ERROR_CODE という定数名で包んでも区別がつかないため、エラーの種別を表す意味のある値（例：1、DB_WRITE_ERROR など）にするか、コメントで用途を明記すべきです。
 
 
+# student_test\test-write-ua-anomaly-events.php
+をブラウザで実行した結果、以下のような出力が得られました。
+test code のレビューをお願いします。
+Database connection successful.
+
+Case 1-1: anomaly event があるときにデータが正しく記録されることを確認します。
+is_no_ua = 1, // 異常あり
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+Case 1-1-2: anomaly event があるときに（is_ua_mismatch = 1）データが正しく記録されることを確認し正しく記録されることを確認します。
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+Case 1-1-3: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_SESSION）データが正しく記録されることを確認し正しく記録されることを確認します。
+
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_session(evaluator) === 1
+PASS: is_over_threshold_session (DB) === 1
+
+Case 1-1-4: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_IP）データが正しく記録されることを確認し正しく記録されることを確認します。
+
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_ip(evaluator) === 1
+PASS: is_over_threshold_ip (DB) === 1
+
+Case 1-2: 境界値 (session_id が 128 文字の長い文字列)
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+
+異常がないときに、レコードが追加されないことを確認します。
+また、異常があるときはレコードが追加されることを確認します。
+そして、境界値で適切に条件分岐されていることを確認します。
+
+Case 2-1: 異常がないときに、レコードが追加されないことを確認します。
+過去のアクセスがゼロのとき（ゼロは閾値以内です。）
+DB にレコードが追加されないことを確認します。
+expecting PASS: Record count did not change.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+PASS: Record count did not change. Before: 0, After: 0
+
+Case 2-2: SESSION UNDER THRESHOLD (59)
+閾値-1のときは、レコードが追加されないことを確認します。
+expecting PASS: Record count did not change.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+PASS: Record count did not change. Before: 0, After: 0
+
+ACCESS_COUNT_THRESHOLD_SESSION (60)の場合は
+Case 1-1-3で、
+runTestCase() を使用して確認済です。
+
+Case 2-3: SESSION OVER THRESHOLD (61)
+閾値を超えたときは、レコードが正確に追加されることを確認します。
+expecting PASS
+
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_session(evaluator) === 1
+PASS: is_over_threshold_session (DB) === 1
+
+Case 2-4: IP UNDER THRESHOLD (599)
+閾値-1のときは、レコードが追加されないことを確認します。
+expecting PASS: Record count did not change.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+PASS: Record count did not change. Before: 0, After: 0
+
+ACCESS_COUNT_THRESHOLD_IP (600)の場合は
+Case 1-1-4で、
+runTestCase() を使用して確認済です。
+
+Case 2-5: IP OVER THRESHOLD (601)
+閾値+1のときは、レコードが正確に追加されることを確認します。
+expecting PASS
+
+PASS: session_id
+PASS: ip_address
+PASS: is_no_ua
+PASS: is_ua_mismatch
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_ip(evaluator) === 1
+PASS: is_over_threshold_ip (DB) === 1
+
+Now running error test case...
+
+Case error: 異常系 (session_id が 129 文字の長い文字列)
+expecting PASS:例外が発生しました:
+
+PASS: 例外が発生しました: writeUaAnomalyEvents failed: SQLSTATE[22001]: String data, right truncated: 1406 Data too long for column 'session_id' at row 1
+
+Result: 64 passed, 0 failed.
+
+残っている改善点
+1. 一般チェックの期待値が
+「評価器自身の値」になっている（重要）
+runTestCase() 内の以下の行：
+
+<?php
+check('is_over_threshold_session',
+      (int)$row['is_over_threshold_session'],
+      $risk_evaluator->getIsOverThresholdSession()); // ← 評価器の値を期待値に使っている
+
+評価器がバグで誤った値を返しても、
+DB にその誤った値が書かれれば
+「DB == 評価器」で PASS になります。
+
+
+assertSessionThreshold フラグが 
+false のケース（Case 1-1, 1-1-2, 1-2）では、
+期待値をリテラルで明示すると安全です。
+<?php
+// Case 1-1 など、閾値を超えていないケースでは 0 を明示する
+check('is_over_threshold_session', (int)$row['is_over_threshold_session'], 0);
+check('is_over_threshold_ip',      (int)$row['is_over_threshold_ip'],      0);
+
+
+2. 複合条件のテストがない（中優先度）
+現在のテストは
+「1つの異常フラグだけが立っている
+ケースしかありません。
+
+未テストのケース	                             説明
+is_no_ua=1 かつ is_ua_mismatch=1	          複数フラグ同時
+is_no_ua=1 かつ access_count_session >= 60	フラグ＋閾値超過同時
+実際の攻撃では複数条件が同時に成立することがあります。
+
+
+3. access_time の5秒許容は環境依存（低優先度）
+<?php
+$diff = $now->getTimestamp() - $access_time->getTimestamp();
+check('access_time', $diff >= 0 && $diff < 5, true);
+
+負荷の高いサーバーや CI 環境では 5 秒を超えて
+フレイキーテストになる可能性があります。
+10〜30 秒に緩めるか、定数化するとよいです。
+<?php
+const ACCEPTABLE_TIME_DIFF_SEC = 10;
+check('access_time', $diff >= 0 && $diff < ACCEPTABLE_TIME_DIFF_SEC, true);
+
+
+
