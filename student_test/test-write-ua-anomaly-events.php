@@ -232,11 +232,9 @@ function runTestCase(
     check('is_no_ua_contents',       (int)$row['is_no_ua'],       $contents['is_no_ua']);
     check('is_ua_mismatch_mock',     (int)$row['is_ua_mismatch'], $mock->getIsUaMismatch());
     check('is_ua_mismatch_contents', (int)$row['is_ua_mismatch'], $contents['is_ua_mismatch']);
-    check('is_over_threshold_session', (int)$row['is_over_threshold_session'], $risk_evaluator->getIsOverThresholdSession());
-    check('is_over_threshold_ip', (int)$row['is_over_threshold_ip'], $risk_evaluator->getIsOverThresholdIp());
 
     //  access_time が現在から5秒以内であることを確認します。
-    //  まづ、DBに記録された access_time を DateTime オブジェクトに変換します。
+    //  まず、DBに記録された access_time を DateTime オブジェクトに変換します。
     $access_time = new DateTime($row['access_time']);
     //  現在の時間を DateTime オブジェクトで取得します。
     $now  = new DateTime();
@@ -440,7 +438,7 @@ $uaData2 = [
     'is_no_anomaly_session' => 1, // means that no anomaly events last 10min in session
     'is_no_anomaly_ip' => 1       // means that no anomaly events last 10min in IP
 ];
-runTestCase('Case 1-1-2: anomaly event があるときに（is_ua_mismatch = 1）データが正しく記録されることを確認し正しく記録されることを確認します。',
+runTestCase('Case 1-1-2: anomaly event があるときに（is_ua_mismatch = 1）データが正しく記録されることを確認します。',
     $contents2,
     $uaData2,
     $pdo);

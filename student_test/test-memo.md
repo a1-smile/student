@@ -1229,5 +1229,252 @@ check('access_time', $diff >= 0 && $diff < 5, true);
 const ACCEPTABLE_TIME_DIFF_SEC = 10;
 check('access_time', $diff >= 0 && $diff < ACCEPTABLE_TIME_DIFF_SEC, true);
 
+# student_test\test-write-ua-anomaly-events.php
+を修正して、複合条件のテストケースを追加しました。
+そして、access_time の許容範囲を 定数化しました。
+また、is_over_threshold_session/ip の期待値をリテラルに修正しました。
+そのためにrunTestCase() に以下のような修正を加えました。
+<?php
+    if ($assertSessionThreshold) {
+        check('is_over_threshold_session(evaluator) === 1', $risk_evaluator->getIsOverThresholdSession(), 1);
+        check('is_over_threshold_session (DB) === 1', (int)$row['is_over_threshold_session'], 1);
+    }else {
+        check('is_over_threshold_session(evaluator) === 0', $risk_evaluator->getIsOverThresholdSession(), 0);
+        check('is_over_threshold_session (DB) === 0', (int)$row['is_over_threshold_session'], 0);
+    }  //  END if-else
 
+    if ($assertIpThreshold) {
+        check('is_over_threshold_ip(evaluator) === 1', $risk_evaluator->getIsOverThresholdIp(), 1);
+        check('is_over_threshold_ip (DB) === 1', (int)$row['is_over_threshold_ip'], 1);
+    }else {
+        check('is_over_threshold_ip(evaluator) === 0', $risk_evaluator->getIsOverThresholdIp(), 0);
+        check('is_over_threshold_ip (DB) === 0', (int)$row['is_over_threshold_ip'], 0);
+    }  //  END if-else
+それから、期待される値に、evaluatorやmockから取り出した値だけではなく、
+$contents 配列の値も使うようにしました。
+    check('session_id_mock',         $row['session_id'],     $mock->getSessionId());
+    check('session_id_contents',     $row['session_id'],     $contents['session_id']);
+    check('ip_address_mock',         $row['ip_address'],     $mock->getIpAddress());
+    check('ip_address_contents',     $row['ip_address'],     $contents['ip_address']);
+    check('is_no_ua_mock',           (int)$row['is_no_ua'],       $mock->getIsNoUa());
+    check('is_no_ua_contents',       (int)$row['is_no_ua'],       $contents['is_no_ua']);
+    check('is_ua_mismatch_mock',     (int)$row['is_ua_mismatch'], $mock->getIsUaMismatch());
+    check('is_ua_mismatch_contents', (int)$row['is_ua_mismatch'], $contents['is_ua_mismatch']);
+    check('is_over_threshold_session', (int)$row['is_over_threshold_session'], $risk_evaluator->getIsOverThresholdSession());
+    check('is_over_threshold_ip', (int)$row['is_over_threshold_ip'], $risk_evaluator->getIsOverThresholdIp());
+
+ブラウザでの実行結果は以下のようになりました。
+フィードバックをお願いします。
+Database connection successful.
+
+Case 1-1: anomaly event があるときにデータが正しく記録されることを確認します。
+is_no_ua = 1, // 異常あり
+PASS: session_id_mock
+PASS: session_id_contents
+PASS: ip_address_mock
+PASS: ip_address_contents
+PASS: is_no_ua_mock
+PASS: is_no_ua_contents
+PASS: is_ua_mismatch_mock
+PASS: is_ua_mismatch_contents
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_session(evaluator) === 0
+PASS: is_over_threshold_session (DB) === 0
+PASS: is_over_threshold_ip(evaluator) === 0
+PASS: is_over_threshold_ip (DB) === 0
+
+Case 1-1-2: anomaly event があるときに（is_ua_mismatch = 1）データが正しく記録されることを確認します。
+PASS: session_id_mock
+PASS: session_id_contents
+PASS: ip_address_mock
+PASS: ip_address_contents
+PASS: is_no_ua_mock
+PASS: is_no_ua_contents
+PASS: is_ua_mismatch_mock
+PASS: is_ua_mismatch_contents
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_session(evaluator) === 0
+PASS: is_over_threshold_session (DB) === 0
+PASS: is_over_threshold_ip(evaluator) === 0
+PASS: is_over_threshold_ip (DB) === 0
+
+Case 1-1-3: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_SESSION）データが正しく記録されることを確認し正しく記録されることを確認します。
+
+PASS: session_id_mock
+PASS: session_id_contents
+PASS: ip_address_mock
+PASS: ip_address_contents
+PASS: is_no_ua_mock
+PASS: is_no_ua_contents
+PASS: is_ua_mismatch_mock
+PASS: is_ua_mismatch_contents
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_session(evaluator) === 1
+PASS: is_over_threshold_session (DB) === 1
+PASS: is_over_threshold_ip(evaluator) === 0
+PASS: is_over_threshold_ip (DB) === 0
+
+Case 1-1-4: anomaly event があるときに（ACCESS_COUNT_THRESHOLD_IP）データが正しく記録されることを確認し正しく記録されることを確認します。
+
+PASS: session_id_mock
+PASS: session_id_contents
+PASS: ip_address_mock
+PASS: ip_address_contents
+PASS: is_no_ua_mock
+PASS: is_no_ua_contents
+PASS: is_ua_mismatch_mock
+PASS: is_ua_mismatch_contents
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_session(evaluator) === 0
+PASS: is_over_threshold_session (DB) === 0
+PASS: is_over_threshold_ip(evaluator) === 1
+PASS: is_over_threshold_ip (DB) === 1
+
+Case 1-2: 境界値 (session_id が 128 文字の長い文字列)
+PASS: session_id_mock
+PASS: session_id_contents
+PASS: ip_address_mock
+PASS: ip_address_contents
+PASS: is_no_ua_mock
+PASS: is_no_ua_contents
+PASS: is_ua_mismatch_mock
+PASS: is_ua_mismatch_contents
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_session(evaluator) === 1
+PASS: is_over_threshold_session (DB) === 1
+PASS: is_over_threshold_ip(evaluator) === 0
+PASS: is_over_threshold_ip (DB) === 0
+
+異常がないときに、レコードが追加されないことを確認します。
+また、異常があるときはレコードが追加されることを確認します。
+そして、境界値で適切に条件分岐されていることを確認します。
+
+Case 2-1: 異常がないときに、レコードが追加されないことを確認します。
+過去のアクセスがゼロのとき（ゼロは閾値以内です。）
+DB にレコードが追加されないことを確認します。
+expecting PASS: Record count did not change.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+PASS: Record count did not change. Before: 0, After: 0
+
+Case 2-2: SESSION UNDER THRESHOLD (59)
+閾値-1のときは、レコードが追加されないことを確認します。
+expecting PASS: Record count did not change.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+PASS: Record count did not change. Before: 0, After: 0
+
+ACCESS_COUNT_THRESHOLD_SESSION (60)の場合は
+Case 1-1-3で、
+runTestCase() を使用して確認済です。
+
+Case 2-3: SESSION OVER THRESHOLD (61)
+閾値を超えたときは、レコードが正確に追加されることを確認します。
+expecting PASS
+
+PASS: session_id_mock
+PASS: session_id_contents
+PASS: ip_address_mock
+PASS: ip_address_contents
+PASS: is_no_ua_mock
+PASS: is_no_ua_contents
+PASS: is_ua_mismatch_mock
+PASS: is_ua_mismatch_contents
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_session(evaluator) === 1
+PASS: is_over_threshold_session (DB) === 1
+PASS: is_over_threshold_ip(evaluator) === 0
+PASS: is_over_threshold_ip (DB) === 0
+
+Case 2-4: IP UNDER THRESHOLD (599)
+閾値-1のときは、レコードが追加されないことを確認します。
+expecting PASS: Record count did not change.
+
+PASS: writeUaAnomalyEvents() executed without exceptions.
+PASS: Record count did not change. Before: 0, After: 0
+
+ACCESS_COUNT_THRESHOLD_IP (600)の場合は
+Case 1-1-4で、
+runTestCase() を使用して確認済です。
+
+Case 2-5: IP OVER THRESHOLD (601)
+閾値+1のときは、レコードが正確に追加されることを確認します。
+expecting PASS
+
+PASS: session_id_mock
+PASS: session_id_contents
+PASS: ip_address_mock
+PASS: ip_address_contents
+PASS: is_no_ua_mock
+PASS: is_no_ua_contents
+PASS: is_ua_mismatch_mock
+PASS: is_ua_mismatch_contents
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_session(evaluator) === 0
+PASS: is_over_threshold_session (DB) === 0
+PASS: is_over_threshold_ip(evaluator) === 1
+PASS: is_over_threshold_ip (DB) === 1
+
+Now running error test case...
+
+Case error: 異常系 (session_id が 129 文字の長い文字列)
+expecting PASS:例外が発生しました:
+
+PASS: 例外が発生しました: writeUaAnomalyEvents failed: SQLSTATE[22001]: String data, right truncated: 1406 Data too long for column 'session_id' at row 1
+
+複合条件テストケース(B): is_no_ua === 1 and access_count_session === OVER_THRESHOLD_SESSION
+
+expecting PASS
+
+PASS: session_id_mock
+PASS: session_id_contents
+PASS: ip_address_mock
+PASS: ip_address_contents
+PASS: is_no_ua_mock
+PASS: is_no_ua_contents
+PASS: is_ua_mismatch_mock
+PASS: is_ua_mismatch_contents
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_session(evaluator) === 1
+PASS: is_over_threshold_session (DB) === 1
+PASS: is_over_threshold_ip(evaluator) === 0
+PASS: is_over_threshold_ip (DB) === 0
+
+複合条件テストケース(A): is_no_ua === 1 and is_ua_mismatch === 1
+
+expecting PASS
+
+PASS: session_id_mock
+PASS: session_id_contents
+PASS: ip_address_mock
+PASS: ip_address_contents
+PASS: is_no_ua_mock
+PASS: is_no_ua_contents
+PASS: is_ua_mismatch_mock
+PASS: is_ua_mismatch_contents
+PASS: is_over_threshold_session
+PASS: is_over_threshold_ip
+PASS: access_time
+PASS: is_over_threshold_session(evaluator) === 0
+PASS: is_over_threshold_session (DB) === 0
+PASS: is_over_threshold_ip(evaluator) === 0
+PASS: is_over_threshold_ip (DB) === 0
+
+Result: 142 passed, 0 failed.
 
