@@ -29,6 +29,7 @@
 class WriteUa{
   // error_code
   const   DB_WRITE_ERROR = 1;
+  
   private PDO $pdo;
   private RequestContent $requestContent;
   private UaRepository $uaRepository; 
@@ -145,6 +146,8 @@ class WriteUa{
                                   ); 
         } // END TRY CATCH
     } // END FUNCTION writeUserAgentLog()
+
+
   /**
   * ua_anomaly_events テーブルにデータを記録する処理
   *  CREATE TABLE ua_anomaly_events (
@@ -238,7 +241,7 @@ class WriteUa{
       $stmt->execute();
       }catch(PDOException $e){
         throw new DbWriteException('writeUaAnomalyEvents failed: ' . $e->getMessage(),
-        self::DB_WRITE_ERROR, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
+        self::DB_WRITE_ERROR, //  code は自分で定義する。通常定数化する。マジックナンバーは避ける。 
         $e //  再スローする例外の前の例外のインスタンス。
         ); 
         } // END TRY CATCH

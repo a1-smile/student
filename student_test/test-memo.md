@@ -1478,3 +1478,89 @@ PASS: is_over_threshold_ip (DB) === 0
 
 Result: 142 passed, 0 failed.
 
+#write-ua.php に定義した
+WriteUa クラスの
+writeUaAnomalyEvents()メソッドの
+レビューをお願いします。
+
+レビュー
+1. writeUserAgentLog() との 
+rowCount() 配置の不整合（中優先度）
+writeUserAgentLog() では 
+rowCount() チェックが try 
+ブロック内にありますが、
+writeUaAnomalyEvents() では
+ try ブロック外に出ています。
+
+ <?php
+// writeUserAgentLog() — try の内側
+try {
+    ...
+    $stmt->execute();
+    if ($stmt->rowCount() !== 1) {
+        throw new DbRowCountException(...); // ← try の中
+    }
+} catch (PDOException $e) { ... }
+
+// writeUaAnomalyEvents() — try の外側
+try {
+    ...
+    $stmt->execute();
+} catch (PDOException $e) { ... }
+if ($stmt->rowCount() !== 1) {  // ← try の外
+    throw new DbRowCountException(...);
+}
+
+
+前回の指摘（rowCount() を try 外に移す）は 
+writeUaAnomalyEvents() だけに適用されており、
+writeUserAgentLog() は修正されていません。
+DbRowCountException extends RuntimeException 
+ PDOException ではないため、
+ 技術的にはどちらの配置でも正しく動作しますが、
+ 2つのメソッドで設計が異なることは読む人を混乱させます。
+ どちらかに統一してください。
+
+ 2. $stmt が catch 後に参照される構造（低優先度）
+
+ <?php
+try {
+    $stmt = $pdo->prepare($sql); // ← ここで例外なら $stmt は未定義
+    ...
+    $stmt->execute();
+} catch (PDOException $e) {
+    throw new DbWriteException(...);
+}
+if ($stmt->rowCount() !== 1) { // ← $stmt を参照
+
+prepare() が例外をスローした場合は 
+DbWriteException が再スローされるため、
+実際には $stmt 未定義のまま rowCount() 
+に到達することはありません。
+動作上は安全ですが、
+静的解析ツール（PHPStan等）では
+「$stmt が未定義の可能性」として警告が出ます。
+rowCount() を try 内に戻すか、
+$stmt = null で初期化しておくと明示的になります。
+
+3. インデントの不整合（低優先度）
+write-ua.php の 
+writeUaAnomalyEvents() の
+ }catch ブロックのインデントが他のメソッドと揃っていません。
+
+ <?php
+// writeUaAnomalyEvents() — 閉じ括弧のインデントが異なる
+      $stmt->execute();
+      }catch(PDOException $e){   // ← } が内側にある
+
+// writeUserAgentLog() など他のメソッド
+          $stmt->execute();
+        }catch(PDOException $e){  // ← 揃っている
+
+
+総合評価
+ロジック・セキュリティ上の問題はありません。
+テストも全 PASS しており、動作品質は十分です。
+修正が必要なのは上記 1（設計の一貫性）のみで、
+2・3 は任意の改善です。       
+
