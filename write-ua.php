@@ -127,6 +127,11 @@ class WriteUa{
                 :is_ua_mismatch,
                 NOW())";
       try{
+          //  $stmt がエラーにより
+          //  未定義になり、参照できない
+          //  場合に備えて、
+          //  事前に null で初期化しておく。
+          $stmt = null;
           $stmt = $pdo->prepare($sql);
           
           //  パラメーターの型を指定してバインドする
@@ -135,16 +140,29 @@ class WriteUa{
           $stmt->bindParam(':simple_ua', $simpleUa, PDO::PARAM_STR);
           $stmt->bindParam(':is_ua_mismatch', $isUaMismatch, PDO::PARAM_INT);
           $stmt->execute();
-          //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
-          if ($stmt->rowCount() !== 1) {
-              throw new DbRowCountException('writeUserAgentLog: INSERT affected 0 rows.');
-          } // END IF
-        }catch(PDOException $e){
-        throw new DbWriteException('writeUserAgentLog failed: ' . $e->getMessage(),
-                                  self::DB_WRITE_ERROR, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
-                                  $e //  再スローする例外の前の例外のインスタンス。
-                                  ); 
-        } // END TRY CATCH
+      }catch(PDOException $e){
+          throw new DbWriteException('writeUserAgentLog failed: ' . $e->getMessage(),
+          self::DB_WRITE_ERROR, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
+          $e //  再スローする例外の前の例外のインスタンス。
+          ); 
+      } // END TRY CATCH
+
+      //  $stmt が DBエラーなどで
+      //  初期値のままになっていて、
+      //  PDOException がスローされない場合に備えて、
+      //  null チェックを行う。
+      if ($stmt === null) {
+          throw new DbWriteException('writeUserAgentLog failed: PDOStatement is null.',
+          self::DB_WRITE_ERROR
+          );
+      }   // END IF
+      
+      //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
+      if ($stmt->rowCount() !== 1) {
+          throw new DbRowCountException('writeUserAgentLog: INSERT affected 0 rows.');
+      } // END IF
+            
+
     } // END FUNCTION writeUserAgentLog()
 
 
