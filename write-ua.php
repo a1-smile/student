@@ -104,7 +104,12 @@ class WriteUa{
         $this->isNoAnomalyIp =
           $this->userAgentRiskEvaluator->getIsNoAnomalyIp();
     } // END CONSTRUCT
-
+    /**
+     * user_agent_logs テーブルにデータを記録する処理
+     *
+     * @throws DbWriteException PDO失敗時
+     * @throws DbRowCountException ０行INSERT時
+     */
     public function writeUserAgentLog(): void {
     $pdo = $this->pdo;
     $sessionId = $this->sessionId;
@@ -126,12 +131,16 @@ class WriteUa{
                 :simple_ua,
                 :is_ua_mismatch,
                 NOW())";
+
+      //  $stmt を try-catch の外で参照
+      //  すると、未定義の可能性があると、
+      //  PHPStan に指摘されることがあります。
+      //  このような静的解析ツールの
+      //  ルールに従うために、
+      //  事前に null で初期化しておきます。
+      $stmt = null;
+
       try{
-          //  $stmt がエラーにより
-          //  未定義になり、参照できない
-          //  場合に備えて、
-          //  事前に null で初期化しておく。
-          $stmt = null;
           $stmt = $pdo->prepare($sql);
           
           //  パラメーターの型を指定してバインドする
@@ -142,20 +151,20 @@ class WriteUa{
           $stmt->execute();
       }catch(PDOException $e){
           throw new DbWriteException('writeUserAgentLog failed: ' . $e->getMessage(),
-          self::DB_WRITE_ERROR, //  code は自分で定義する。通常定数かする。マジックナンバーは避ける。 
+          self::DB_WRITE_ERROR, //  code は自分で定義する。通常定数化する。マジックナンバーは避ける。 
           $e //  再スローする例外の前の例外のインスタンス。
           ); 
       } // END TRY CATCH
 
       //  $stmt が DBエラーなどで
-      //  初期値のままになっていて、
-      //  PDOException がスローされない場合に備えて、
-      //  null チェックを行う。
-      if ($stmt === null) {
-          throw new DbWriteException('writeUserAgentLog failed: PDOStatement is null.',
-          self::DB_WRITE_ERROR
-          );
-      }   // END IF
+      //  null のままここまで到達する
+      //  ことはありません。
+      //  PDO の設定によって、
+      //  エラーが発生した場合に例外がスローされるためです。
+      //  なので、
+      //  if ($stmt === null) 
+      //  のようなチェックはなしで、
+      //  $stmt->rowCount() を呼び出すことができます。
       
       //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
       if ($stmt->rowCount() !== 1) {
@@ -247,6 +256,11 @@ class WriteUa{
               :is_over_threshold_session,
               :is_over_threshold_ip,
               NOW())";
+
+    $stmt = null; // 事前に null で初期化しておく
+    //  try-catch ブロックの外で $stmt を参照するため、
+    //  事前に null で初期化しておきます。
+
     try{
       $stmt = $pdo->prepare($sql);
       // パラメーターの型を指定してバインドする
@@ -257,17 +271,17 @@ class WriteUa{
       $stmt->bindParam(':is_over_threshold_session', $isOverThresholdSession, PDO::PARAM_INT);
       $stmt->bindParam(':is_over_threshold_ip', $isOverThresholdIp, PDO::PARAM_INT);
       $stmt->execute();
-      }catch(PDOException $e){
+    }catch(PDOException $e){
         throw new DbWriteException('writeUaAnomalyEvents failed: ' . $e->getMessage(),
         self::DB_WRITE_ERROR, //  code は自分で定義する。通常定数化する。マジックナンバーは避ける。 
         $e //  再スローする例外の前の例外のインスタンス。
         ); 
-        } // END TRY CATCH
+    } // END TRY CATCH
 
-        //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
-        if ($stmt->rowCount() !== 1) {
-            throw new DbRowCountException('writeUaAnomalyEvents: INSERT affected 0 rows.');
-        } // END IF
+    //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
+    if ($stmt->rowCount() !== 1) {
+        throw new DbRowCountException('writeUaAnomalyEvents: INSERT affected 0 rows.');
+    } // END IF
 
   } // END FUNCTION writeUaAnomalyEvents()
 

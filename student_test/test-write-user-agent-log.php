@@ -35,6 +35,9 @@ require_once __DIR__ . '/../risk_evaluation_result.php';
 require_once __DIR__ . '/../user_agent_risk_evaluator.php';
 require_once __DIR__ . '/../write-ua.php';
 
+//  例外処理を実行するfailをrequire_once します。
+require_once __DIR__ . '/../exceptions.php';
+
 // 全ケース合計のカウンタ
 $totalPass = 0;
 $totalFail = 0;
@@ -131,6 +134,8 @@ function runTestCaseError(string $caseLabel, array $contents, PDO $pdo): void {
         echo " FAIL: 例外が発生しませんでした。<br><br>";
     } catch (RuntimeException $e) {
         echo "  PASS: 例外が発生しました: " . $e->getMessage() . "<br><br>";
+        global $totalPass;   // 例外が発生した場合は成功とみなします。
+        $totalPass++;
         return;
     }
 

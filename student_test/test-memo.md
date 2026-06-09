@@ -1564,3 +1564,111 @@ writeUaAnomalyEvents() の
 修正が必要なのは上記 1（設計の一貫性）のみで、
 2・3 は任意の改善です。       
 
+# write-ua.php の 
+WriteUa クラスの
+ writeUserAgentLog() メソッドを修正しました。
+ 以下のような修正を加えました。
+
+ 以下を追記
+ //  $stmt がエラーにより
+          //  未定義になり、参照できない
+          //  場合に備えて、
+          //  事前に null で初期化しておく。
+          $stmt = null;
+          $stmt = $pdo->prepare($sql); 
+
+DBエラーで、記入できなかった場合と、
+DBエラー以外の理由で、記入できなかった場合を
+区別できるように、
+DbWriteException と DbRowCountException を分けてスローするようにしました。
+さらに、両方の例外を docblock に @throws アノテーションで明記しました。
+
+//  $stmt が DBエラーなどで
+      //  初期値のままになっていて、
+      //  PDOException がスローされない場合に備えて、
+      //  null チェックを行う。
+      if ($stmt === null) {
+          throw new DbWriteException('writeUserAgentLog failed: PDOStatement is null.',
+          self::DB_WRITE_ERROR
+          );
+      }   // END IF
+
+      という記述を添えて、
+
+       //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
+      if ($stmt->rowCount() !== 1) {
+          throw new DbRowCountException('writeUserAgentLog: INSERT affected 0 rows.');
+      } // END IF
+      の記述を try-catch bulock の外に移動しました。
+      理由は、try-catch ブロックでキャッチされない例外を、
+      try-catch block 内でスローえうると、
+      可読性が下がるためです。
+      さらに、writeUaAnomalyEvents() と同様の構造にすることで
+      コードの一貫性が向上し、両方のメソッドで同じ設計が採用されていることが明示されます。
+
+      test code である
+      student_test\test-write-user-agent-log.php
+        をブラウザで実行した結果、以下のような出力が得られました。
+        フィードバックをお願いします。
+
+        データベースへの接続に成功しました。
+
+ケース 1: 正常系 (is_ua_mismatch = 0)
+PASS: session_id
+PASS: ip_address
+PASS: simple_ua
+PASS: is_ua_mismatch
+PASS: access_time
+
+ケース 2: 異常系 (is_ua_mismatch = 1)
+PASS: session_id
+PASS: ip_address
+PASS: simple_ua
+PASS: is_ua_mismatch
+PASS: access_time
+
+ケース 3: 異常系(session_id が 128 文字の長い文字列)
+PASS: session_id
+PASS: ip_address
+PASS: simple_ua
+PASS: is_ua_mismatch
+PASS: access_time
+
+Case 4: 異常系 (session_id が 129 文字の長い文字列)
+PASS: 例外が発生しました: writeUserAgentLog failed: SQLSTATE[22001]: String data, right truncated: 1406 データが列に対して長すぎます行 1 の 'session_id'
+
+結果: 15 が合格、0 が失敗。
+
+# write-ua.php の
+WriteUa クラスの
+writeUaAnomalyEvents() メソッドを修正しました。
+
+try-catch ブロック内で 
+catch されない例外をスローする構造は、
+可読性が下がるため、
+try-catch ブロックの外に移動しました。
+
+以下のコードを移動しました。
+    //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
+    if ($stmt->rowCount() !== 1) {
+        throw new DbRowCountException('writeUaAnomalyEvents: INSERT affected 0 rows.');
+    } // END IF
+
+また、try-catch block 外で、
+$stmt を参照する構造になっているため、
+$stmt = null; で初期化しておくと明示的になります。
+
+コードは以下のようになります。
+
+    $stmt = null; // 事前に null で初期化しておく
+    try{
+      $stmt = $pdo->prepare($sql);
+        ....
+    }catch ....
+
+    }  //end try-catch block
+
+        //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
+    if ($stmt->rowCount() !== 1) {
+        throw new DbRowCountException('writeUaAnomalyEvents: INSERT affected 0 rows.');
+    } // END IF
