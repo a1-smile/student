@@ -1648,7 +1648,7 @@ catch されない例外をスローする構造は、
 可読性が下がるため、
 try-catch ブロックの外に移動しました。
 
-以下のコードを移動しました。
+以下のコードを try-catch ブロックの外に移動しました。
     //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
     if ($stmt->rowCount() !== 1) {
         throw new DbRowCountException('writeUaAnomalyEvents: INSERT affected 0 rows.');
@@ -1672,3 +1672,8 @@ $stmt = null; で初期化しておくと明示的になります。
     if ($stmt->rowCount() !== 1) {
         throw new DbRowCountException('writeUaAnomalyEvents: INSERT affected 0 rows.');
     } // END IF
+
+    この変更をふまえて、
+    writeUaAnomalyEvents()
+    のレビューをお願いします。
+

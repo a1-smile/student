@@ -278,6 +278,10 @@ class WriteUa{
         ); 
     } // END TRY CATCH
 
+    //  $stmt が DBエラーなどで  null のままここまで到達することはありません。
+    //  PDO の設定によって、エラーが発生した場合に例外がスローされるためです。
+    //  なので、if ($stmt === null) のようなチェックはなしで
+    //  $stmt->rowCount() を呼び出すことができます。
     //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
     if ($stmt->rowCount() !== 1) {
         throw new DbRowCountException('writeUaAnomalyEvents: INSERT affected 0 rows.');
@@ -324,10 +328,49 @@ class WriteUa{
       $stmtSession->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
       $stmtSession->bindParam(':score_session', $scoreSession, PDO::PARAM_INT);
       $stmtSession->execute();
-      //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
-      if ($stmtSession->rowCount() !== 1) {
-          throw new DbRowCountException('writeUaScores (session): INSERT affected 0 rows.');
-      } // END IF
+      //  INSERTが正しく行われたか確認することを、
+      //  rowCount() でチェックすることは難しいです。
+      //  以下に理由をコメントで説明します。
+      /* 
+      writeUaScores() の rowCount の注意点（別件）
+      ON DUPLICATE KEY UPDATE を使った場合、MySQL では：
+
+      INSERT 成功 → rowCount() === 1
+      UPDATE 発生 → rowCount() === 2
+      UPDATE 発生 だが値は変わらない → rowCount() === 0
+      SQL失敗 で、例外がスローされなかった、
+       つまり、PDOException はスローされなかったが、
+       何らかの理由でレコードが挿入も更新もされなかった場合 → rowCount() === 0
+      そのため rowCount() !== 1 のチェックは 
+      UPDATE 時と、
+      UPDATE 発生 だが値は変わらない
+      場合に 
+       DbRowCountException
+      を誤スローします。
+      なので、
+      upsert の場合は、rowCount() で、
+      業務上期待する処理を行ったかどうかを判断するのは難しいです。
+      
+      また、select を用いて確認する方法もありますが、これも完璧ではありません。
+       なぜなら、select して確認した時点と、
+       実際に insert/update が行われる時点の間に、
+       別のリクエストが同じ session_id/ip_address に対して
+       insert/update を行う可能性があるからです。
+       つまり、レースコンディションの問題が発生します。
+       そのため、厳密に正確に処理を確認するのは難しいです。
+
+       また、UPSERT のたびに、select して確認するのは
+       パフォーマンスの観点からも望ましくありません。
+
+       そして、DB操作 と DB検証 の二つの責務を
+        一つの関数で行うと、コードが複雑になり、保守性が低下します。
+
+        以上の理由から、ON DUPLICATE KEY UPDATE を使った場合の
+        rowCount() のチェックは、
+        行わず、PDOException がスローされなかった場合は、
+        正常に処理が行われたとみなすのが現実的です。
+      */
+      
     }catch(PDOException $e){
         throw new DbWriteException('writeUaScores (session) failed: ' . $e->getMessage(),
                                   self::DB_WRITE_ERROR,
@@ -344,10 +387,6 @@ class WriteUa{
       $stmtIp->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
       $stmtIp->bindParam(':score_ip', $scoreIp, PDO::PARAM_INT);
       $stmtIp->execute();
-      //  INSERTが正しく行われたか確認するために、影響を受けた行数をチェックする
-      if ($stmtIp->rowCount() !== 1) {
-          throw new DbRowCountException('writeUaScores (ip): INSERT affected 0 rows.');
-      } // END IF
     }catch(PDOException $e){
         throw new DbWriteException('writeUaScores (ip) failed: ' . $e->getMessage(),
                                   self::DB_WRITE_ERROR,
