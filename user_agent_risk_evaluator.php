@@ -261,8 +261,17 @@ class UserAgentRiskEvaluator {
             $currentScoreSession += 1;
             $currentScoreIp      += 1;
         }
-
-        if ($this->isUaMismatch===1) {
+        //  UA がない場合は、
+        //  user agent を ''
+        //  simple ua を '' としているため、
+        //  ページ遷移前の UA がある場合は、
+        //  ページ遷移後の UA と不一致になるため、
+        //  UA不一致と判定される可能性がある
+        //  ロジックになっているため、
+        //  isNoUaのフラグも確認して、
+        //  UA 不一致かつ isNoUa が立っていない
+        //  場合にスコアを加算するロジックにする
+        if ($this->isUaMismatch===1 and $this->isNoUa !== 1) {
             $currentScoreSession += 2;
             $currentScoreIp      += 2;
         }
