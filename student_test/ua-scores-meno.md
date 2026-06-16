@@ -30,6 +30,18 @@ recordがなければ、0を代入する
 ```
 ## score if is ua mismatch
 ```php
+    //  ua が存在しない場合、は比較対象にしない、
+    //  例えば、遷移前に uaなし、遷移後に uaなし
+    //  の場合 「'' と '' で ua 一致」とすることは
+    //  適切ではない。  
+    /*たとえば、
+    商品番号で商品を認識している場合、
+    商品番号がない商品同士を
+    どちらも商品番号がないから、
+    同じ商品であるとみなすのは適切ではない。
+    というのと同じです。*/
+    /*という理由で、$isUaMismatch のチェックに
+    $isNoUa !== 1 の条件を追加しています。*/
     if ($isUaMismatch === 1 and $isNoUa !== 1) {
         $isUaMismatchScore = $isNoUaScore + 2;
     } else {
@@ -49,5 +61,6 @@ recordがなければ、0を代入する
 ```    if ($isNoUa === 1 or $isUaMismatch === 1 or $isOverThreshold === 1)
 ``` 
 - 30分以内に減算された
+
 
 
