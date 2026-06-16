@@ -1,8 +1,8 @@
 # リスク スコア を計算するロジック
 
-## previous score
-$previousScore
-データベースから前回のスコアを取得する
+## previous score session
+$previousScoreSession
+データベースのテーブル ua_scores から前回のスコアを取得する
 recordがなければ、0を代入する
 ```php
     //  $pdo を使用して、データベースからスコアを取得する
@@ -20,17 +20,17 @@ recordがなければ、0を代入する
                 return 0; // スコアが見つからない場合は 0 を返す
             }
 ```
-## score if is no ua
+## score if is no ua session
 ```php
     if ($isNoUa === 1) {
-        $isNoUaScore = $previousScore + 1;
+        $isNoUaScoreSession = $previousScoreSession + 1;
     } else {
-        $isNoUaScore = $previousScore;
+        $isNoUaScoreSession = $previousScoreSession;
     } END IF-ELSE
 ```
-## score if is ua mismatch
+## score if is ua mismatch session
 ```php
-    //  ua が存在しない場合、は比較対象にしない、
+    //  ua が存在しない場合は比較対象にしない。
     //  例えば、遷移前に uaなし、遷移後に uaなし
     //  の場合 「'' と '' で ua 一致」とすることは
     //  適切ではない。  
@@ -43,24 +43,68 @@ recordがなければ、0を代入する
     /*という理由で、$isUaMismatch のチェックに
     $isNoUa !== 1 の条件を追加しています。*/
     if ($isUaMismatch === 1 and $isNoUa !== 1) {
-        $isUaMismatchScore = $isNoUaScore + 2;
+        $isUaMismatchScoreSession = $isNoUaScoreSession + 2;
     } else {
-        $isUaMismatchScore = $isNoUaScore;
+        $isUaMismatchScoreSession = $isNoUaScoreSession;
     } END IF-ELSE
 ```
-## score if over threshold
+## score if over threshold session
 ```php
     if ($isOverThreshold === 1) {
-        $isOverThresholdScore = $isUaMismatchScore + 3;
+        $isOverThresholdScoreSession = $isUaMismatchScoreSession + 3;
     } else {
-        $isOverThresholdScore = $isUaMismatchScore;
+        $isOverThresholdScoreSession = $isUaMismatchScoreSession;
     } END IF-ELSE
 ```
-## score を減算しない条件
+## scoreSession を減算しない条件
+user_agent_risk_evaluator.php file の
+メソッド private function decreaseScore で
+早期リターンする場合に相当します。
+
 - 異常があるアクセス
-```    if ($isNoUa === 1 or $isUaMismatch === 1 or $isOverThreshold === 1)
+```    if ($isNoUa                 === 1 or
+           $isUaMismatch           === 1 or 
+           $isOverThresholdSession === 1 or
+           $isOverThresholdIp      === 1) 
 ``` 
-- 30分以内に減算された
+この条件に当てはまるアクセスは、
+異常があるアクセスとみなされるため、
+スコアを減算しないこととする。
+
+この条件は、
+private function decreaseScore の
+以下の記述に相当します。
+```
+//  疑わしいアクセスの場合は、スコアを減算しない
+        if ($isSuspiciousAccess === 1) {
+            return $score;
+        }
+```
+
+- 30分以内に減算された場合は、さらに減算はしない。
+DBのテーブル ua_score_history から、
+
+カラム subject_key が 追跡対象のセッションIDである、
+かつ、
+カラム subject_type が 'session' である、
+かつ、
+カラム is_decreased が 1 である、
+かつ、
+カラム created_at が 30分以内のレコード
+が存在する場合は、スコアを減算しないこととする。
+
+この条件は、
+private function decreaseScore の
+以下の記述に相当します。
+```
+// 30分以内に減算された場合は
+        // さらに減算はしない
+        if ($decreased === 1) {
+            return $score;
+        }
+```
+
+
 
 
 
