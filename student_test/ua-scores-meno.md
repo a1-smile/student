@@ -1,6 +1,8 @@
 # リスク スコア を計算するロジック
 
 ## previous score session
+記録された、session に紐づけられた
+scoreを取得する。
 $previousScoreSession
 データベースのテーブル ua_scores から前回のスコアを取得する
 recordがなければ、0を代入する
@@ -21,6 +23,7 @@ recordがなければ、0を代入する
             }
 ```
 ## score if is no ua session
+uaが存在しない場合は、スコアを1加算する。
 ```php
     if ($isNoUa === 1) {
         $isNoUaScoreSession = $previousScoreSession + 1;
@@ -29,6 +32,7 @@ recordがなければ、0を代入する
     } END IF-ELSE
 ```
 ## score if is ua mismatch session
+ua が不一致する場合は、スコアを2加算する。
 ```php
     //  ua が存在しない場合は比較対象にしない。
     //  例えば、遷移前に uaなし、遷移後に uaなし
@@ -49,8 +53,9 @@ recordがなければ、0を代入する
     } END IF-ELSE
 ```
 ## score if over threshold session
+アクセス回数が閾値を超えた場合は、スコアを3加算する。
 ```php
-    if ($isOverThreshold === 1) {
+    if ($isOverThresholdSession === 1) {
         $isOverThresholdScoreSession = $isUaMismatchScoreSession + 3;
     } else {
         $isOverThresholdScoreSession = $isUaMismatchScoreSession;
@@ -90,8 +95,9 @@ DBのテーブル ua_score_history から、
 かつ、
 カラム is_decreased が 1 である、
 かつ、
-カラム created_at が 30分以内のレコード
-が存在する場合は、スコアを減算しないこととする。
+カラム created_at が 現在時刻から30分以内である、
+以上の条件を満たすレコードが存在する場合は、
+スコアを減算しないこととする。
 
 この条件は、
 private function decreaseScore の
@@ -103,6 +109,11 @@ private function decreaseScore の
             return $score;
         }
 ```
+
+## scoreSession を減算する条件
+-10 分間以上がないアクセス元 -1
+
+-リキャプチャを通過 -4
 
 
 
