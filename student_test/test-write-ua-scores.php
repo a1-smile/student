@@ -7,6 +7,20 @@ student/write-ua.php
 class WriteUaのwriteUaScores() メソッドをテストします。
 */
 
+/* テストケース
+session insert / ip insert
+session update / ip update
+session insert / ip update
+session update / ip insert
+
+session insert / ip update but ip same value
+session update / ip insert but session same value
+
+subject_key 128文字の境界値テスト
+subject_key 129文字の境界値テスト
+*/
+
+
 
 
 //  タイムゾーンを明示的に設定します。
@@ -66,7 +80,16 @@ require_once __DIR__ . '/../write-ua.php';
 require_once __DIR__ . '/../exceptions.php';
 require_once __DIR__ . '/function-check.php';
 
-
+//  table ua_scores を TRUNCATE する関数を定義します。
+function truncateUaScoresTable(PDO $pdo): void {
+    try {
+        $pdo->exec("TRUNCATE TABLE ua_scores");
+        echo "Table ua_scores truncated successfully.<br><br>";
+    } catch (Exception $e) {
+        echo "Error truncating table ua_scores: " . $e->getMessage() . "<br><br>";
+        exit(1);
+    }
+}
 /**
  * runTestWriteUaScores() 関数を定義します。
  * テーブルをTRUNCATEし、writeUaScores()を呼び出し、
@@ -81,21 +104,15 @@ require_once __DIR__ . '/function-check.php';
  * PDO インスタンスを指定します。
  */
 
-function runTestWriteUaScoresTruncated(
+function runTestWriteUaScores(
             string $caseLabel,
             array  $contents,
             array  $uaData,
+            int    $scoreSessionExpected,
+            int    $scoreIpExpected,
             PDO    $pdo,
     ): void {
     echo "<b>{$caseLabel}</b><br>";
-
-    // table ua_scores をクリア
-    try {
-        $pdo->exec("TRUNCATE TABLE ua_scores");
-    } catch (Exception $e) {
-        echo "  Error truncating table: " . $e->getMessage() . "<br><br>";
-        return;
-    }
 
     $mock_request_content = new MockRequestContent1($contents);
     $mock_ua_repository  = new MockUaRepository($uaData);
@@ -129,14 +146,17 @@ function runTestWriteUaScoresTruncated(
         return;
     }
 
-    check('session_id_mock',         $row['session_id'],     $mock->getSessionId());
-    check('session_id_contents',     $row['session_id'],     $contents['session_id']);
-    check('ip_address_mock',         $row['ip_address'],     $mock->getIpAddress());
-    check('ip_address_contents',     $row['ip_address'],     $contents['ip_address']);
-    check('is_no_ua_mock',           (int)$row['is_no_ua'],       $mock->getIsNoUa());
-    check('is_no_ua_contents',       (int)$row['is_no_ua'],       $contents['is_no_ua']);
-    check('is_ua_mismatch_mock',     (int)$row['is_ua_mismatch'], $mock->getIsUaMismatch());
-    check('is_ua_mismatch_contents', (int)$row['is_ua_mismatch'], $contents['is_ua_mismatch']);
+    check('subject_key_session_mock', $row['subject_key'], $session_id);
+    check('subject_key_session_contents', $row['subject_key'], $contents['session_id']);
+
+    // check('session_id_mock',         $row['session_id'],     $mock->getSessionId());
+    // check('session_id_contents',     $row['session_id'],     $contents['session_id']);
+    // check('ip_address_mock',         $row['ip_address'],     $mock->getIpAddress());
+    // check('ip_address_contents',     $row['ip_address'],     $contents['ip_address']);
+    // check('is_no_ua_mock',           (int)$row['is_no_ua'],       $mock->getIsNoUa());
+    // check('is_no_ua_contents',       (int)$row['is_no_ua'],       $contents['is_no_ua']);
+    // check('is_ua_mismatch_mock',     (int)$row['is_ua_mismatch'], $mock->getIsUaMismatch());
+    // check('is_ua_mismatch_contents', (int)$row['is_ua_mismatch'], $contents['is_ua_mismatch']);
 
     //  access_time が現在から5秒以内であることを確認します。
     //  まず、DBに記録された access_time を DateTime オブジェクトに変換します。
@@ -147,27 +167,43 @@ function runTestWriteUaScoresTruncated(
     //  int なので、単純に引き算できます。
     $diff = $now->getTimestamp() - $access_time->getTimestamp();
     check('access_time', $diff >= 0 && $diff < ACCEPTABLE_TIME_DIFF_SEC, true);
-
-
-
-    if ($assertSessionThreshold) {
-        check('is_over_threshold_session(evaluator) === 1', $risk_evaluator->getIsOverThresholdSession(), 1);
-        check('is_over_threshold_session (DB) === 1', (int)$row['is_over_threshold_session'], 1);
-    }else {
-        check('is_over_threshold_session(evaluator) === 0', $risk_evaluator->getIsOverThresholdSession(), 0);
-        check('is_over_threshold_session (DB) === 0', (int)$row['is_over_threshold_session'], 0);
-    }  //  END if-else
-
-    if ($assertIpThreshold) {
-        check('is_over_threshold_ip(evaluator) === 1', $risk_evaluator->getIsOverThresholdIp(), 1);
-        check('is_over_threshold_ip (DB) === 1', (int)$row['is_over_threshold_ip'], 1);
-    }else {
-        check('is_over_threshold_ip(evaluator) === 0', $risk_evaluator->getIsOverThresholdIp(), 0);
-        check('is_over_threshold_ip (DB) === 0', (int)$row['is_over_threshold_ip'], 0);
-    }  //  END if-else
-
+    
     echo "<br>";
-}  // END function runTestCase()
+}  // END function runTestWriteUaScores()
+
+function getRecordCount(PDO $pdo): int {
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM ua_scores");
+        return (int)$stmt->fetchColumn();
+    } catch (Exception $e) {
+        echo "  Error counting records: " . $e->getMessage() . "<br><br>";
+        return -1; // エラーの場合は -1 を返す
+    }
+}
+
+function checkRecordCount(
+    string $caseLabel,
+    PDO $pdo,
+    int $expectedCount
+): void {
+    echo "<b>{$caseLabel}</b><br>";
+
+    global $totalPass, $totalFail;
+
+    $actualCount = getRecordCount($pdo);
+    if ($actualCount === -1) {
+        echo "  FAIL: Could not retrieve record count.<br><br>";
+        return;
+    }
+
+    if ($actualCount === $expectedCount) {
+        $totalPass++;
+        echo "  PASS: Record count is as expected. Count: {$actualCount}<br><br>";
+    } else {
+        $totalFail++;
+        echo "  FAIL: Record count is not as expected. Expected: {$expectedCount}, Actual: {$actualCount}<br><br>";
+    }
+} // END function checkRecordCount()
 
 function runTestCaseError(
             string $caseLabel,

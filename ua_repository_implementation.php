@@ -372,10 +372,10 @@ private PDO $pdo;
         // 例: SQLクエリを実行して、$sessionId と $ipAddress に基づいて異常イベントの数を取得する
         // 取得した異常イベントの数を配列で返す
 
-        //  データベースのua_score_historyの subject_key カラムが $sessionId
+        //  データベースのua_anomaly_eventsの session_id カラムが $sessionId
         //  であるレコードの数をカウントする。
 
-        //  subject_key カラムが $ipAddress
+        //  データベースのua_anomaly_eventsの ip_address カラムが $ipAddress
         //  であるレコードの数をカウントする。
 
 

@@ -90,6 +90,7 @@ class UserAgentRiskEvaluator {
     const ACCESS_THRESHOLD_SESSION = 60;
     const ACCESS_THRESHOLD_IP      = 600;
 
+    // reCAPTCHA を通過し場合のスコア減算の値
     const DECREASE_SCORE_SESSION= 4;
     const DECREASE_SCORE_IP = 1;
 
@@ -415,7 +416,7 @@ class UserAgentRiskEvaluator {
         int $decreased, 
         int $isNoAnomaly,
         int $recaptchaSolved,
-        int $decreaseScore
+        int $decreaseScore  //  subject_type に応じて減算するスコアを指定する
         ): int {
 
         //  疑わしいアクセスの場合は、スコアを減算しない
@@ -448,6 +449,9 @@ class UserAgentRiskEvaluator {
                 // 異常があった場合でreCAPTCHAを
                 // 解いた場合はスコアを4減算
 
+                /*$isNoAnomaly === 1 と判定されれば、
+                このifブロックに入ることはない。*/
+
                 // 異常があって、10分以上経過して
                 // reCAPTCHAを解いてアクセス
                 // して来る場合は通常ありえない。
@@ -461,6 +465,12 @@ class UserAgentRiskEvaluator {
                 // 異常があって、
                 // reCAPTCHAを解いてアクセスして来る場合は
                 // スコアを$decreaseScore減算するというロジックにする
+                //  ただし、$decreaseScoreは
+                //  subject_type に応じて減算するスコアを指定する
+                //  このクラスの冒頭で定義してある
+                //  const DECREASE_SCORE_SESSION= 4;
+                //  const DECREASE_SCORE_IP = 1;
+                //  を使用する。
             $score -= $decreaseScore;
                 //  ゼロ以下にならないようにする
             $score = max($score, 0);
@@ -472,7 +482,7 @@ class UserAgentRiskEvaluator {
             // 直近で reCAPTCHAを解いていない場合は
             // スコアを減算しない
             return $score;
-            }
+    }
 
 
     private function isScoreDecreased(
