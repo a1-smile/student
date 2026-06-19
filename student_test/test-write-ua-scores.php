@@ -178,11 +178,11 @@ function runTestWriteUaScores(
     check('subject_key_session_mock', $row['subject_key'], $session_id);
     check('subject_key_session_contents', $row['subject_key'], $contents['session_id']);
     check('scoreSession', $row['score'], $scoreSessionExpected);
-    check('type', $row['type'], 'session');
+    check('type', $row['subject_type'], 'session');
 
         //  access_time が現在から5秒以内であることを確認します。
     //  まず、DBに記録された access_time を DateTime オブジェクトに変換します。
-    $access_time = new DateTime($row['access_time']);
+    $access_time = new DateTime($row['updated_at']);
     //  現在の時間を DateTime オブジェクトで取得します。
     $now  = new DateTime();
     //  Unix タイムスタンプの差を計算します。
@@ -211,11 +211,11 @@ function runTestWriteUaScores(
     check('subject_key_ip_mock', $row['subject_key'], $ip_address);
     check('subject_key_ip_contents', $row['subject_key'], $contents['ip_address']);
     check('scoreIp', $row['score'], $scoreIpExpected);
-    check('type', $row['type'], 'ip');
+    check('type', $row['subject_type'], 'ip');
 
     //  access_time が現在から5秒以内であることを確認します。
     //  まず、DBに記録された access_time を DateTime オブジェクトに変換します。
-    $access_time = new DateTime($row['access_time']);
+    $access_time = new DateTime($row['updated_at']);
     //  現在の時間を DateTime オブジェクトで取得します。
     $now  = new DateTime();
     //  Unix タイムスタンプの差を計算します。
@@ -299,20 +299,21 @@ function runTestCaseError(
 
 
 // -------------------------------------------------------
-// 
-// 
+// session insert / ip insert
+// $is_no_ua === 1
 //  
 // -------------------------------------------------------
 //  table ua_scores を TRUNCATE します。
+echo "<b>Truncating table ua_scores...</b><br>";
 truncateUaScoresTable($pdo);
 
 //  runTestWriteUaScores() の引数を定義します。
-$caseLabel = '';
+$caseLabel = 'Case<br>session insert / ip insert, $is_no_ua === 1';
 $contents = [
     'session_id'      => 'abc123',
     'ip_address'      => '192.168.0.1',
     'simple_ua'       => 'Chrome/91',
-    'is_no_ua'        => 1,
+    'is_no_ua'        => 1,  // score 1 加算
     'is_ua_mismatch'  => 0,
     'recaptcha_solved' => 0,
     'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -327,8 +328,9 @@ $uaData = [
     'is_no_anomaly_session' => 1, // means that no anomaly events last 10min in session
     'is_no_anomaly_ip' => 1       // means that no anomaly events last 10min in IP
 ];
-$scoreSessionExpected = 0;
-$scoreIpExpected = 0;
+$scoreSessionExpected = 1; // $is_no_ua === 1 なので、scoreSession は 1 になることを期待します。
+$scoreIpExpected = 1; // $is_no_ua === 1 なので、scoreIp は 1 になることを期待します。
+echo "<b>Running test case</b><br>";
 runTestWriteUaScores(
     $caseLabel,
     $contents,
@@ -338,7 +340,8 @@ runTestWriteUaScores(
     $pdo);
 
 //  checkRecordCount() の引数を定義します。
-$caseLabel = '';
+echo "<b>Checking record count...</b><br>";
+$caseLabel = 'Case<br>session insert / ip insert, $is_no_ua === 1';
 $expectedCount = 2; // session と ip の2件が挿入されることを期待します。
 checkRecordCount($caseLabel, $pdo, $expectedCount);
 

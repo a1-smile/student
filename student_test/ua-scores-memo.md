@@ -345,7 +345,141 @@ class UserAgentRiskEvaluator に定義
 
 ただし、ゼロ以下にならないようにする。
 
+# test 実行 1
+risk score を計算するロジックは、
+student_test\ua-scores-memo.md
+に記述されています。
+これを、踏まえて、
+student_test\test-write-ua-scores.php
+にテストコードを記述して、実行します。
+第一段階として、
+- session insert / ip insert, $is_no_ua === 1
+のケースをテストします。
+ブラウザーでの表示は、以下に示すようになります。
+テストコードの改善点を指摘してください。
+Database connection successful.
+
+Truncating table ua_scores...
+Table ua_scores truncated successfully.
+
+Running test case
+Case
+session insert / ip insert, $is_no_ua === 1
+PASS: subject_key_session_mock
+PASS: subject_key_session_contents
+PASS: scoreSession
+PASS: type
+PASS: access_time_session
+PASS: subject_key_ip_mock
+PASS: subject_key_ip_contents
+PASS: scoreIp
+PASS: type
+PASS: access_time_ip
+
+Checking record count...
+Case
+session insert / ip insert, $is_no_ua === 1
+PASS: Record count is as expected. Count: 2
+
+Result: 11 passed, 0 failed.
+
+# フィードバック
+1. 期待値のスコア計算根拠コメントが不足
+is_no_ua === 1 のとき 
+isSuspiciousAccess === 1 になるため 
+decreaseScore() が早期リターンし、
+is_no_anomaly_session = 1 
+であってもスコアは減算されません。
+この「減算がスキップされる理由」がコメントに書かれておらず、
+後からコードを読んだ人が
+「なぜ is_no_anomaly_session = 1 
+なのにスコアが 0 にならないのか」
+と混乱する可能性があります。
+<?php
+// 改善例
+// 計算: previousScore(0) + isNoUa(1) = 1
+// 減算: is_no_ua===1 → isSuspiciousAccess===1 → decreaseScore() 早期リターン
+//       is_no_anomaly_session=1 であっても減算は行われない
+$scoreSessionExpected = 1;
+
+2. is_no_anomaly_session => 1 の設定が意図をミスリード
+$uaData で 
+is_no_anomaly_session => 1, 
+is_no_anomaly_ip => 1 
+を設定していますが、
+is_no_ua === 1 の場合は 
+isSuspiciousAccess === 1 
+になるため、これらの値はスコアに影響しません。
+
+「is_no_anomaly = 1 でも減算されないこと
+（isSuspiciousAccess による早期リターン）
+を確認するテスト」として意図的ならばコメントで明示すべきです。
+そうでなければ is_no_anomaly_session => 0 
+にした方が「このフラグはこのケースで関係ない」
+という意図が明確になります。
+
+3. runTestWriteUaScores() 内で 
+session SELECT 失敗後も ip SELECT が継続される
+session の SELECT で FAIL が発生した後、
+return するのではなく ip 側の SELECT まで実行が続きます。
+失敗後の継続実行は、
+後続のチェック結果が連鎖的に意味を持たなくなるため、
+session 取得失敗の時点で return する方が明確です。
+
+現状のコード（test-write-ua-scores.php:157）では 
+if ($row === false) { echo "FAIL..."; return; } 
+となっており session 側は return していますが、
+session の check() 群が失敗しても 
+return せず ip 側に進む点が懸念です。
+
+4. echo "<b>Running test case</b><br>" 
+と関数内 echo "<b>{$caseLabel}</b><br>" が二重出力
+呼び出し側で「Running test case」と出力し、
+関数内でもケースラベルを出力しているため、
+出力が重複してやや見づらくなっています。
+「Running test case」の echo は削除するか、
+関数内の出力に統合することを検討してください。
+
+5. checkRecordCount() のラベルが 
+runTestWriteUaScores() と同一
+$caseLabel を再代入して同じ文字列をセットしているため、
+2つのテスト出力が同じラベルになっています。
+record count の確認であることが分かるよう、
+ラベルを区別すべきです。
+例えば、以下のように変更すると、出力がより明確になります。
+```php
+<?php
+// 改善例
+$caseLabel = 'Record count after: session insert / ip insert';
+```
+
+6. truncateUaScoresTable() の呼び出し責務が 
+runTestWriteUaScores() の外にある
+現在は呼び出し側が truncate のタイミングを管理する設計で、
+"insert" か "update" かを外部から制御しています。
+今後 "session update / ip update" 
+などのテストケースを追加するとき、
+truncate し忘れるリスクがあります。
+
+runTestWriteUaScores() に
+ bool $truncateBefore = false パラメータを追加するか、
+ または insert テスト用・update テスト用の関数を分けることで、
+ 意図を明示できます。
+
+ 7. 定義済みの未使用定数
+UNDER_THRESHOLD_SESSION, 
+CHECK_THRESHOLD_SESSION, 
+NOT_CHECK_THRESHOLD_SESSION 
+など、今後のテストケース用に定義された定数がありますが、
+現時点では未使用です。
+将来の実装予定であれば // TODO:
+ コメントを付けると意図が明確になります。
 
 
-
+8. 境界値テストのコメントが TODOになっていない
+ファイル冒頭のテストケースコメントに
+「subject_key 128文字の境界値テスト」
+と書かれていますが、実装がありません。
+// TODO: として明示しておくと、
+未実装であることが一目で分かります。
 
