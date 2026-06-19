@@ -96,13 +96,43 @@ function truncateUaScoresTable(PDO $pdo): void {
  * SELECTで取得した値と期待値を照合します。
  * @param string $caseLabel
  * テストケースのラベルを指定します。何をテストするか。
+ * 
  * @param array $contents
  * モックで、サーバーからの情報を提供するための配列です。
+ * [
+ *   'session_id' => 'abc123',
+ *   'ip_address' => '192.168.0.1',
+ *   'simple_ua' => 'Chrome/91',
+ *   'is_no_ua' => 1,
+ *   'is_ua_mismatch' => 0,
+ *   'recaptcha_solved' => 0,
+ * ]
  * @param array $uaData
  * モックで、DBの情報を提供するための配列です。
  * @param PDO $pdo
  * PDO インスタンスを指定します。
  */
+//$contents = [
+//         'session_id' => 'abc123',
+//         'ip_address' => '192.168.0.1',
+//         'simple_ua' => 'Mozilla/5.0',
+//         'is_no_ua' => 0,
+//         'is_ua_mismatch' => 0,
+//         'recaptcha_solved' => 0
+//     ];  
+
+
+// $uaData = [
+//     'score_session' => 0,
+//     'score_ip' => 0,
+//     'access_count_session' => 0,
+//     'access_count_ip' => 0,
+//     'is_decreased_session' => 0,
+//     'is_decreased_ip' => 0,
+//     'is_no_anomaly_session' => 0,
+//     'is_no_anomaly_ip' => 0
+// ];
+
 
 function runTestWriteUaScores(
             string $caseLabel,
@@ -129,11 +159,10 @@ function runTestWriteUaScores(
         return;
     }  // END try-catch
     
-
-    // SELECTで session に紐づいた record を取得する。そして期待値と照合する
+// SELECTで session に紐づいた record を取得する。そして期待値と照合する
     $session_id = $mock_request_content->getSessionId();
     try {
-        $stmt = $pdo->prepare("SELECT * FROM ua_scores WHERE session_id = :session_id");
+        $stmt = $pdo->prepare("SELECT * FROM ua_scores WHERE subject_key = :session_id");
         $stmt->bindParam(':session_id', $session_id, PDO::PARAM_STR);
         $stmt->execute();
         $row  = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -148,15 +177,30 @@ function runTestWriteUaScores(
 
     check('subject_key_session_mock', $row['subject_key'], $session_id);
     check('subject_key_session_contents', $row['subject_key'], $contents['session_id']);
+    check('scoreSession', $row['score'], $scoreSessionExpected);
+    check('type', $row['type'], 'session');
+    
 
-    // check('session_id_mock',         $row['session_id'],     $mock->getSessionId());
-    // check('session_id_contents',     $row['session_id'],     $contents['session_id']);
-    // check('ip_address_mock',         $row['ip_address'],     $mock->getIpAddress());
-    // check('ip_address_contents',     $row['ip_address'],     $contents['ip_address']);
-    // check('is_no_ua_mock',           (int)$row['is_no_ua'],       $mock->getIsNoUa());
-    // check('is_no_ua_contents',       (int)$row['is_no_ua'],       $contents['is_no_ua']);
-    // check('is_ua_mismatch_mock',     (int)$row['is_ua_mismatch'], $mock->getIsUaMismatch());
-    // check('is_ua_mismatch_contents', (int)$row['is_ua_mismatch'], $contents['is_ua_mismatch']);
+ // SELECTで ip address に紐づいた record を取得する。そして期待値と照合する
+    $ip_address = $mock_request_content->getIpAddress();
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM ua_scores WHERE subject_key = :ip_address");
+        $stmt->bindParam(':ip_address', $ip_address, PDO::PARAM_STR);
+        $stmt->execute();
+        $row  = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        echo "  Error querying table: " . $e->getMessage() . "<br><br>";
+        return;
+    }
+    if ($row === false) {
+        echo "  FAIL: No log entry found in ua_scores.<br><br>";
+        return;
+    }
+
+    check('subject_key_ip_mock', $row['subject_key'], $ip_address);
+    check('subject_key_ip_contents', $row['subject_key'], $contents['ip_address']);
+    check('scoreSession', $row['score'], $scoreSessionExpected);
+    check('type', $row['type'], 'ip');
 
     //  access_time が現在から5秒以内であることを確認します。
     //  まず、DBに記録された access_time を DateTime オブジェクトに変換します。
