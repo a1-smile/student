@@ -247,10 +247,17 @@ class UserAgentRiskEvaluator に定義
  を用いて、
 
  以下に示す、
- private function decreaseScore
- の
- $decreaseScore 引数に
- DECREASE_SCORE_SESSION を代入して、
+ private function decreaseScore(
+        int $score, 
+        int $isSuspiciousAccess,
+        int $decreased, 
+        int $isNoAnomaly,
+        int $recaptchaSolved,
+        int $decreaseScore  //  subject_type に応じて減算するスコアを指定する
+        )
+ の引数
+ $decreaseScore に
+ 定数 DECREASE_SCORE_SESSION を代入して、
  減算する。
      private function decreaseScore(
         int $score, 

@@ -325,8 +325,8 @@ $uaData = [
     'access_count_ip' => 0, // 閾値 600
     'is_decreased_session' => 0,
     'is_decreased_ip' => 0,
-    'is_no_anomaly_session' => 1, // means that no anomaly events last 10min in session
-    'is_no_anomaly_ip' => 1       // means that no anomaly events last 10min in IP
+    'is_no_anomaly_session' => 0 , // 'is_no_ua' => 1 と設定してあり、異常があるアクセスなので、こちらの値はスコアに影響しません。
+    'is_no_anomaly_ip' => 0       // 異常があるアクセスなので、こちらの値はスコアに影響しません。
 ];
 $scoreSessionExpected = 1; // $is_no_ua === 1 なので、scoreSession は 1 になることを期待します。
 $scoreIpExpected = 1; // $is_no_ua === 1 なので、scoreIp は 1 になることを期待します。
