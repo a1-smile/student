@@ -20,6 +20,81 @@ subject_key 128文字の境界値テスト
 subject_key 129文字の境界値テスト
 */
 
+/**  expected risk score をtest用に
+*計算する関数を定義します。
+*これにより、risk score を計算する
+*ロジックをテストコード内で明示的に表現できるようになります。 
+*@param int $previous_score
+*@param int $is_no_ua
+*@param int $is_ua_mismatch
+*@param int $is_over_threshold
+*@param int $decreased_last_30min
+*@param int $no_anomaly_last_10min
+*@param int $recaptcha_solved
+*@param int $decrease_score_for_subject
+*/
+ 
+function calculate_expected_score(
+    int $previous_score,
+    int $is_no_ua,
+    int $is_ua_mismatch,
+    int $is_over_threshold,
+    int $decreased_last_30min,
+    int $no_anomaly_last_10min,
+    int $recaptcha_solved,
+    int $decrease_score_for_subject
+): int {
+    $is_suspicious_access = 0; // default value
+    if ($is_no_ua === 1) {
+        $is_no_ua_score = $previous_score + 1;
+        $is_suspicious_access = 1;
+    } else {
+        $is_no_ua_score = $previous_score;
+    }  //  END IF-ELSE
+
+    //  $is_no_ua === 0（uaあり）の場合は、
+    //  遷移前と遷移後で、ua を比較する。
+    if ($is_no_ua === 0 and $is_ua_mismatch === 1) {
+        $is_ua_mismatch_score = $is_no_ua_score + 2;
+        $is_suspicious_access = 1;
+    } else {
+        $is_ua_mismatch_score = $is_no_ua_score;
+    }  // END IF-ELSE
+
+    if ($is_over_threshold === 1) {
+        $is_over_threshold_score = $is_ua_mismatch_score + 3;
+        $is_suspicious_access = 1;
+    } else {
+        $is_over_threshold_score = $is_ua_mismatch_score;
+    }  // END IF-ELSE
+
+    if ($is_suspicious_access === 1) {
+        return $is_over_threshold_score;
+    }  // END IF
+
+    if ($decreased_last_30min === 1) {
+        return $is_over_threshold_score;
+    }  // END IF
+
+    if ($no_anomaly_last_10min === 1) {
+        $no_anomaly_score = $is_over_threshold_score - 1;
+        if ($no_anomaly_score < 0) {
+            $no_anomaly_score = 0;
+        }  // END IF nested
+        return $no_anomaly_score;
+    }  // END IF
+
+    if ($recaptcha_solved === 1) {
+        $recaptcha_score = $is_over_threshold_score - $decrease_score_for_subject;
+        if ($recaptcha_score < 0) {
+            $recaptcha_score = 0;
+        }  // END IF nested
+        return $recaptcha_score;
+    }  // END IF
+
+    return $is_over_threshold_score;
+        
+}  // END function calculate_expected_score()
 
 
 
@@ -32,22 +107,11 @@ date_default_timezone_set('Asia/Tokyo');
 //  アクセス時間と現在の時間に
 //  数秒の差が生じることがあるので、
 //  10~30sec くらいの値を設定してください。
-const ACCEPTABLE_TIME_DIFF_SEC = 10;
-//  $accessCount の
-//  閾値を定数として定義します。
-const UNDER_THRESHOLD_SESSION = 59;
-const ACCESS_COUNT_THRESHOLD_SESSION = 60;
-const OVER_THRESHOLD_SESSION = 61;
-
-const UNDER_THRESHOLD_IP = 599;
-const ACCESS_COUNT_THRESHOLD_IP = 600;
-const OVER_THRESHOLD_IP = 601;
-
-const CHECK_THRESHOLD_SESSION = true; // 閾値を超えていることを明示的に示すフラグ
-const CHECK_THRESHOLD_IP = true; // 閾値を超えていることを明示的に示すフラグ
-
-const NOT_CHECK_THRESHOLD_SESSION = false; // 閾値を超えていないことを明示的に示すフラグ
-const NOT_CHECK_THRESHOLD_IP = false; // 閾値を超えていないことを明示的に示すフラグ
+const  ACCEPTABLE_TIME_DIFF_SEC = 10;
+const  DECREASE_SCORE_FOR_SESSION = 4;
+const  DECREASE_SCORE_FOR_IP = 1;
+const  CLEAR_DB = true; // テスト開始前にDBをクリアするかどうか。true にすると、テスト開始前に table ua_scores を TRUNCATE します。
+const  NOT_CLEAR_DB = false; // テスト開始前にDBをクリアしない場合。テストケースによっては、前のテストケースのデータが残っていることを前提とするものもあるため、こちらの定数も定義しておきます。
 
 //  DBManager クラスを使用するために、require_once します。
 require_once __DIR__ . '/../common/dbmanager.php';
@@ -141,8 +205,14 @@ function runTestWriteUaScores(
             int    $scoreSessionExpected,
             int    $scoreIpExpected,
             PDO    $pdo,
+            bool   $clearDb = true
     ): void {
     echo "<b>{$caseLabel}</b><br>";
+
+    if ($clearDb) {
+        // table ua_scores をクリア
+        truncateUaScoresTable($pdo);
+    }  //END IF
 
     $mock_request_content = new MockRequestContent1($contents);
     $mock_ua_repository  = new MockUaRepository($uaData);
@@ -327,9 +397,40 @@ $uaData = [
     'is_decreased_ip' => 0,
     'is_no_anomaly_session' => 0 , // 'is_no_ua' => 1 と設定してあり、異常があるアクセスなので、こちらの値はスコアに影響しません。
     'is_no_anomaly_ip' => 0       // 異常があるアクセスなので、こちらの値はスコアに影響しません。
-];
-$scoreSessionExpected = 1; // $is_no_ua === 1 なので、scoreSession は 1 になることを期待します。
-$scoreIpExpected = 1; // $is_no_ua === 1 なので、scoreIp は 1 になることを期待します。
+];  
+
+if ($uaData[access_count_session] >= 60) {
+    $is_over_threshold_session = 1;
+} else {
+    $is_over_threshold_session = 0;
+}
+
+if ($uaData[access_count_ip] >= 600) {
+    $is_over_threshold_ip = 1;
+} else {
+    $is_over_threshold_ip = 0;
+}
+
+$scoreSessionExpected = calculate_expected_score(
+    $uaData['score_session'],
+    $contents['is_no_ua'],
+    $contents['is_ua_mismatch'],
+    $is_over_threshold_session, // $is_over_threshold は、アクセス数が閾値を超えていないため、0 とします。
+    $uaData['is_decreased_session'], // $decreased_last_30min は、過去30分にスコアが減点されたアクセスがないため、0 とします。
+    $uaData['is_no_anomaly_session'], // $no_anomaly_last_10min は、過去10分に異常のないアクセスがないため、0 とします。
+    $contents['recaptcha_solved'], // $recaptcha_solved は、今回のアクセスでreCAPTCHAを解いていないため、0 とします。
+    DECREASE_SCORE_FOR_SESSION
+); 
+$scoreIpExpected = calculate_expected_score(
+    $uaData['score_ip'],
+    $contents['is_no_ua'],
+    $contents['is_ua_mismatch'],
+    $is_over_threshold_ip, // $is_over_threshold は、アクセス数が閾値を超えていないため、0 とします。
+    $uaData['is_decreased_ip'], // $decreased_last_30min は、過去30分にスコアが減点されたアクセスがないため、0 とします。
+    $uaData['is_no_anomaly_ip'], // $no_anomaly_last_10min は、過去10分に異常のないアクセスがないため、0 とします。
+    $contents['recaptcha_solved'], // $recaptcha_solved は、今回のアクセスでreCAPTCHAを解いていないため、0 とします。
+    DECREASE_SCORE_FOR_IP
+);
 echo "<b>Running test case</b><br>";
 runTestWriteUaScores(
     $caseLabel,
@@ -337,7 +438,8 @@ runTestWriteUaScores(
     $uaData,
     $scoreSessionExpected,
     $scoreIpExpected,
-    $pdo);
+    $pdo,
+    CLEAR_DB);
 
 //  checkRecordCount() の引数を定義します。
 echo "<b>Checking record count...</b><br>";
