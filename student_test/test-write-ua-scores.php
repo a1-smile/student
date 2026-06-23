@@ -9,15 +9,21 @@ class WriteUaのwriteUaScores() メソッドをテストします。
 
 /* テストケース
 session insert / ip insert
-session update / ip update
-session insert / ip update
-session update / ip insert
+session update / ip update //: to do
+session insert / ip update //: to do
+session update / ip insert //: to do 
 
-session insert / ip update but ip same value
-session update / ip insert but session same value
+//:to do //session insert / ip update but ip same value
+//:to do //session update / ip insert but session same value
 
-subject_key 128文字の境界値テスト
-subject_key 129文字の境界値テスト
+//:to do //subject_key 128文字の境界値テスト
+//:to do //subject_key 129文字の境界値テスト
+//:to do //access count session59, 60, 61 の境界値テスト
+//:to do //access count ip 599, 600, 601 の境界値テスト
+
+//:to do //複合条件 is_ua_mismatch === 1 
+// and 
+// access_count_session is_over_threshold === 1 の場合のテスト
 */
 
 /**  expected risk score をtest用に
@@ -31,6 +37,8 @@ subject_key 129文字の境界値テスト
 *@param int $decreased_last_30min
 *@param int $no_anomaly_last_10min
 *@param int $recaptcha_solved
+*
+*subject_type に応じたrecaptcha通過時に減算値
 *@param int $decrease_score_for_subject
 */
  
@@ -44,7 +52,7 @@ function calculate_expected_score(
     int $recaptcha_solved,
     int $decrease_score_for_subject
 ): int {
-    $is_suspicious_access = 0; // default value
+    $is_suspicious_access = 0; // default value of suspicious access flag
     if ($is_no_ua === 1) {
         $is_no_ua_score = $previous_score + 1;
         $is_suspicious_access = 1;
@@ -68,22 +76,42 @@ function calculate_expected_score(
         $is_over_threshold_score = $is_ua_mismatch_score;
     }  // END IF-ELSE
 
+    //  ここまでで、加算が完了。
+
+    //  ここから、減算のロジックを実装します。
+
+    //  疑わしいアクセスの場合は、
+    // 減算のロジックを適用せず、
+    // 加算後のスコアを返します。
     if ($is_suspicious_access === 1) {
         return $is_over_threshold_score;
     }  // END IF
 
+    //  過去30分にスコアが減点されたアクセスがある場合は、
+    //  減算のロジックを適用せず、
+    //  加算後のスコアを返します。
     if ($decreased_last_30min === 1) {
         return $is_over_threshold_score;
     }  // END IF
 
+    //  過去10分に異常がなかった場合は、
+    //  減算のロジックを適用し、1点減点します。
     if ($no_anomaly_last_10min === 1) {
         $no_anomaly_score = $is_over_threshold_score - 1;
         if ($no_anomaly_score < 0) {
             $no_anomaly_score = 0;
         }  // END IF nested
+        //  異常がなかった場合は、次の項目の
+        //  recaptcha_solved の判定を行わず、
+        // ここで終了します。
+        // 異常がなく、かつ recaptcha を通過、
+        // というケースは、想定されないためです。
         return $no_anomaly_score;
     }  // END IF
 
+    //  recaptcha を通過した場合は、
+    // 減算のロジックを適用し、
+    // subject_type に応じた減算値を減点します。
     if ($recaptcha_solved === 1) {
         $recaptcha_score = $is_over_threshold_score - $decrease_score_for_subject;
         if ($recaptcha_score < 0) {
@@ -92,10 +120,11 @@ function calculate_expected_score(
         return $recaptcha_score;
     }  // END IF
 
+    //  減算の条件に該当しない場合は、
+    //  加算後のスコアを返します。
     return $is_over_threshold_score;
         
 }  // END function calculate_expected_score()
-
 
 
 //  タイムゾーンを明示的に設定します。
@@ -108,10 +137,14 @@ date_default_timezone_set('Asia/Tokyo');
 //  数秒の差が生じることがあるので、
 //  10~30sec くらいの値を設定してください。
 const  ACCEPTABLE_TIME_DIFF_SEC = 10;
-const  DECREASE_SCORE_FOR_SESSION = 4;
-const  DECREASE_SCORE_FOR_IP = 1;
+const  DECREASE_SCORE_FOR_SESSION = 4; // subject_type が session の場合、recaptcha 通過時に減算する値
+const  DECREASE_SCORE_FOR_IP = 1; // subject_type が ip の場合、recaptcha 通過時に減算する値    
 const  CLEAR_DB = true; // テスト開始前にDBをクリアするかどうか。true にすると、テスト開始前に table ua_scores を TRUNCATE します。
 const  NOT_CLEAR_DB = false; // テスト開始前にDBをクリアしない場合。テストケースによっては、前のテストケースのデータが残っていることを前提とするものもあるため、こちらの定数も定義しておきます。
+
+//to do:const  MAX_SUBJECT_KEY_LENGTH = 128; // subject_key の最大長を定義します。128文字を超える場合は、例外が発生することを想定しています。
+const  JUST_THRESHOLD_SESSION = 60; // access_count_session の閾値を定義します。
+const JUST_THRESHOLD_IP = 600; // access_count_ip の閾値を定義します。
 
 //  DBManager クラスを使用するために、require_once します。
 require_once __DIR__ . '/../common/dbmanager.php';
@@ -130,14 +163,10 @@ $pdo = $dbManager->get_db();
 
 //  RequestContent インターフェイスを、require_once します。
 require_once __DIR__ . '/../interface_request_content.php';
-//  RequestContentImplementation クラスの
-//  静的メソッド を使用するために、require_once します。
 //  その他、のテストに必要なファイルも require_once します。
-require_once __DIR__ . '/../request_content_implementation.php';
 require_once __DIR__ . '/../mock_request_content.php';
 require_once __DIR__ . '/../interface_ua_repository.php';
 require_once __DIR__ . '/../mock_ua_repository.php';
-require_once __DIR__ . '/../ua_repository_implementation.php';
 require_once __DIR__ . '/../risk_evaluation_result.php';
 require_once __DIR__ . '/../user_agent_risk_evaluator.php';
 require_once __DIR__ . '/../write-ua.php';
@@ -152,11 +181,12 @@ function truncateUaScoresTable(PDO $pdo): void {
     } catch (Exception $e) {
         echo "Error truncating table ua_scores: " . $e->getMessage() . "<br><br>";
         exit(1);
-    }
-}
+    }  // END try-catch
+}  // END function truncateUaScoresTable()
+
 /**
  * runTestWriteUaScores() 関数を定義します。
- * テーブルをTRUNCATEし、writeUaScores()を呼び出し、
+ * writeUaScores()を呼び出し、
  * SELECTで取得した値と期待値を照合します。
  * @param string $caseLabel
  * テストケースのラベルを指定します。何をテストするか。
@@ -173,8 +203,25 @@ function truncateUaScoresTable(PDO $pdo): void {
  * ]
  * @param array $uaData
  * モックで、DBの情報を提供するための配列です。
+ * [
+ *   'score_session' => 0,
+ *  'score_ip' => 0,
+ *  'access_count_session' => 0,
+ *  'access_count_ip' => 0,
+ *  'is_decreased_session' => 0,
+ *  'is_decreased_ip' => 0,
+ *  'is_no_anomaly_session' => 0,
+ *  'is_no_anomaly_ip' => 0,
+ * ]
+ * @param int $scoreSessionExpected
+ * session に紐づいたレコードの score の期待値を指定します。
+ * @param int $scoreIpExpected
+ * IP に紐づいたレコードの score の期待値を指定します。
  * @param PDO $pdo
  * PDO インスタンスを指定します。
+ * 
+ * @param bool $clearDb
+ * true の場合、テスト開始前に table ua_scores を TRUNCATE します
  */
 //$contents = [
 //         'session_id' => 'abc123',
@@ -373,9 +420,6 @@ function runTestCaseError(
 // $is_no_ua === 1
 //  
 // -------------------------------------------------------
-//  table ua_scores を TRUNCATE します。
-echo "<b>Truncating table ua_scores...</b><br>";
-truncateUaScoresTable($pdo);
 
 //  runTestWriteUaScores() の引数を定義します。
 $caseLabel = 'Case<br>session insert / ip insert, $is_no_ua === 1';
@@ -399,13 +443,13 @@ $uaData = [
     'is_no_anomaly_ip' => 0       // 異常があるアクセスなので、こちらの値はスコアに影響しません。
 ];  
 
-if ($uaData[access_count_session] >= 60) {
+if ($uaData['access_count_session'] >= JUST_THRESHOLD_SESSION) {
     $is_over_threshold_session = 1;
 } else {
     $is_over_threshold_session = 0;
 }
 
-if ($uaData[access_count_ip] >= 600) {
+if ($uaData['access_count_ip'] >= JUST_THRESHOLD_IP) {
     $is_over_threshold_ip = 1;
 } else {
     $is_over_threshold_ip = 0;
@@ -431,7 +475,6 @@ $scoreIpExpected = calculate_expected_score(
     $contents['recaptcha_solved'], // $recaptcha_solved は、今回のアクセスでreCAPTCHAを解いていないため、0 とします。
     DECREASE_SCORE_FOR_IP
 );
-echo "<b>Running test case</b><br>";
 runTestWriteUaScores(
     $caseLabel,
     $contents,
@@ -442,8 +485,7 @@ runTestWriteUaScores(
     CLEAR_DB);
 
 //  checkRecordCount() の引数を定義します。
-echo "<b>Checking record count...</b><br>";
-$caseLabel = 'Case<br>session insert / ip insert, $is_no_ua === 1';
+$caseLabel = 'Check record count after session insert / ip insert';
 $expectedCount = 2; // session と ip の2件が挿入されることを期待します。
 checkRecordCount($caseLabel, $pdo, $expectedCount);
 
