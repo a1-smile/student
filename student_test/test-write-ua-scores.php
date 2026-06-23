@@ -292,10 +292,10 @@ function runTestWriteUaScores(
         return;
     }
 
-    check('subject_key_session_mock', $row['subject_key'], $session_id);
-    check('subject_key_session_contents', $row['subject_key'], $contents['session_id']);
-    check('scoreSession', $row['score'], $scoreSessionExpected);
-    check('type', $row['subject_type'], 'session');
+    $ok  = check('subject_key_session_mock', $row['subject_key'], $session_id);
+    $ok &= check('subject_key_session_contents', $row['subject_key'], $contents['session_id']);
+    $ok &= check('scoreSession', $row['score'], $scoreSessionExpected);
+    $ok &= check('type', $row['subject_type'], 'session');
 
         //  access_time が現在から5秒以内であることを確認します。
     //  まず、DBに記録された access_time を DateTime オブジェクトに変換します。
@@ -305,9 +305,12 @@ function runTestWriteUaScores(
     //  Unix タイムスタンプの差を計算します。
     //  int なので、単純に引き算できます。
     $diff = $now->getTimestamp() - $access_time->getTimestamp();
-    check('access_time_session', $diff >= 0 && $diff < ACCEPTABLE_TIME_DIFF_SEC, true);
+    $ok &= check('access_time_session', $diff >= 0 && $diff < ACCEPTABLE_TIME_DIFF_SEC, true);
 
-    
+    if (!$ok) {
+        echo "  session checks failed. skipping ip checks.<br><br>";
+        return;
+    }
 
  // SELECTで ip address に紐づいた record を取得する。そして期待値と照合する
     $ip_address = $mock_request_content->getIpAddress();
