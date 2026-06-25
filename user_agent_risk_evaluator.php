@@ -264,6 +264,7 @@ class UserAgentRiskEvaluator {
         }
         //  UA がない場合は、
         //  user agent を ''
+        //  そして
         //  simple ua を '' としているが、
         //  '' を ua として他の ua と比較することは、
         //  適切ではない。例えば、
