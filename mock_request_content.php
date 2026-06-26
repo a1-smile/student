@@ -10,7 +10,8 @@
 //         'recaptcha_solved' => 0
 //     ];  
 
-
+/* RequestContentImplementation が必要です。
+simple ua を求めるときにRequestContentImplementationの静的メソッドを使用します。 */
     class MockRequestContent1 implements RequestContent {
 
 

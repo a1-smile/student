@@ -596,3 +596,169 @@ if (!$ok) {
 | session の `check()` が全 PASS | ip に進む ✅ | ip に進む ✅（変わらず） |
 
 `check()` は「結果を表示する係」、`if (!$ok) return` が「失敗したら止める係」と役割を分けるのがポイントです。
+
+# student_test\test-write-ua-scores.php を実行しました。
+ブラウザーでの表示は、以下に示すようになります。
+テストコードの改善点を指摘してください。
+Database connection successful.
+
+Case
+session insert / ip insert, $is_no_ua === 1
+Table ua_scores truncated successfully.
+
+PASS: subject_key_session_mock
+PASS: subject_key_session_contents
+PASS: scoreSession
+PASS: type
+PASS: access_time_session
+PASS: subject_key_ip_mock
+PASS: subject_key_ip_contents
+PASS: scoreIp
+PASS: type
+PASS: access_time_ip
+
+Check record count after session insert / ip insert
+PASS: Record count is as expected. Count: 2
+
+Result: 11 passed, 0 failed.
+
+# フィードバック
+
+
+Read [](file:///c%3A/Users/aigas/OneDrive/dev/student/student_test/test-write-ua-scores.php#1-1), lines 1 to 50
+
+Searched for files matching `**/student_test/function-check.php`, 1 match
+
+Read [](file:///c%3A/Users/aigas/OneDrive/dev/student/write-ua.php#1-1), lines 1 to 100
+
+Read [](file:///c%3A/Users/aigas/OneDrive/dev/student/student_test/function-check.php)
+
+Read [](file:///c%3A/Users/aigas/OneDrive/dev/student/write-ua.php#100-100), lines 100 to 200
+
+Read [](file:///c%3A/Users/aigas/OneDrive/dev/student/mock_request_content.php#1-1), lines 1 to 60
+
+Read [](file:///c%3A/Users/aigas/OneDrive/dev/student/mock_request_content.php#60-60), lines 60 to 97
+
+Read [](file:///c%3A/Users/aigas/OneDrive/dev/student/mock_ua_repository.php)
+
+テスト全体を読みました。改善点を重要度順にまとめます。
+
+---
+
+## 改善点
+
+### 1. 【重要】`calculate_expected_score()` がプロダクションコードのミラーになっている
+
+**現状の問題**: 期待値を `calculate_expected_score()` で計算していますが、これは `UserAgentRiskEvaluator` のスコア計算ロジックをそのまま再実装したものです。本番コードとテストコードに**同じバグが存在すると、テストはPASSしてしまいます**。
+
+```php
+// 現状：ロジックを再計算して期待値を求めている
+$scoreSessionExpected = calculate_expected_score(
+    $uaData['score_session'],
+    $contents['is_no_ua'], ...
+);
+```
+
+**改善案**: 各テストケースで、期待値をハードコードした具体的な数値にする。
+
+```php
+// 改善後：is_no_ua=1 なので +1 、その他は加算なし → 期待値は 0+1 = 1
+$scoreSessionExpected = 1;
+$scoreIpExpected      = 1;
+```
+
+これにより、テストが「入力に対して正しい出力が返るか」を直接検証できます。
+
+---
+
+### 2. 【重要】ip チェック側で `$ok` を追跡していない
+
+session 側と ip 側で `$ok` の扱いが非対称です。
+
+```php
+// session 側：$ok を積み重ね、失敗時にスキップ判定している
+$ok  = check('subject_key_session_mock', ...);
+$ok &= check('scoreSession', ...);
+if (!$ok) { return; }
+
+// ip 側：check() の戻り値を $ok に代入していない
+check('subject_key_ip_mock', ...);   // ← 戻り値を無視
+check('scoreIp', ...);               // ← 戻り値を無視
+```
+
+ip チェックの失敗を `$totalFail` に積めているのは `check()` 内部のグローバル変数経由のためですが、**ip チェック失敗時に後続の `check()` を続けるかどうかが制御できていません**。session と同様に `$ok` で追跡すべきです。
+
+---
+
+### 3. 【重要】エラー終了時に `$totalFail` をインクリメントしていない
+
+`runTestWriteUaScores()` 内でエラーが発生すると `return` しますが、失敗カウントが増えません。
+
+```php
+if ($row === false) {
+    echo "  FAIL: No log entry found in ua_scores.<br><br>";
+    // $totalFail++ が抜けている
+    return;
+}
+```
+
+これらのパスも `$totalFail` をインクリメントすべきです。
+
+---
+
+### 4. `$ok &=` のビット演算が型として不明確
+
+```php
+$ok  = check(...); // bool
+$ok &= check(...); // ビット AND → 結果は int になる
+```
+
+`bool` と `int` が混在します。全 `check()` を実行しつつ結果を収集したい意図は理解できますが、明示的に書く方が安全です。
+
+```php
+$ok  = check(...);
+$ok  = check(...) && $ok;  // 短絡しない場合
+// または
+$ok  = check(...)  & $ok;  // 全部実行したい場合はビット演算を明示
+```
+
+あるいは `(bool)($ok & check(...))` のように型を明示します。
+
+---
+
+### 5. `runTestCaseError()` が定義されているが一度も呼ばれていない
+
+例外発生を期待するエラー系テスト用関数が定義されていますが、現在どのテストからも呼ばれていません。削除するか、対応するテストケースを追加する必要があります。
+
+---
+
+### 6. テストケースが 1 ケースのみ
+
+ファイル冒頭のコメントに多数の `//: to do` が残っており、実装されているのは `session insert / ip insert, $is_no_ua === 1` の 1 ケースだけです。特に以下は優先度が高いです。
+
+- `session update / ip update`（同一キーで2回書き込む）
+- `access_count_session 59, 60, 61` の境界値テスト
+- `is_ua_mismatch === 1 && is_over_threshold === 1` の複合条件
+
+---
+
+### まとめ（優先度順）
+
+| # | 問題                                      | 影響 |
+|---|------                                    |------|
+| 1 | 期待値をロジックで計算している（ミラーリング問題） | バグを検出できない偽陽性 |
+| 2 | ip 側の `$ok` が未追跡                      | ip 失敗後も処理が続く |
+| 3 | エラー時に `$totalFail` が増えない           | 結果カウントが不正確 |
+| 4 | `$ok &=` の型不明確                        | 可読性・型安全性 |
+| 5 | `runTestCaseError()` が未使用              | デッドコード |
+| 6 | テストケースが 1 つのみ                      | カバレッジ不足 |
+
+# session update / ip update のテストケースは、
+1. table ua_scores を truncate する設定で
+runTestWriteUaScores() を実行する。
+2. table ua_scores を truncate しない設定で
+同じ session_id / ip_address で
+runTestWriteUaScores() を実行する。
+3. record count が 2 であることを確認する。
+
+というテストでよろしいでしょうか？
