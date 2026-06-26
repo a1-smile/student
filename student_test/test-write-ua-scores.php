@@ -15,15 +15,14 @@ session update / ip update
 
 //:to do //session insert / ip update but ip same value
 //:to do //session update / ip insert but session same value
+//subject_key 128文字の境界値テスト
+//subject_key 129文字の境界値テスト
+//access count session59, 60, 61 の境界値テスト
+//access count ip 599, 600, 601 の境界値テスト
 
-//:to do //subject_key 128文字の境界値テスト
-//:to do //subject_key 129文字の境界値テスト
-//:to do //access count session59, 60, 61 の境界値テスト
-//:to do //access count ip 599, 600, 601 の境界値テスト
-
-//:to do //複合条件 is_ua_mismatch === 1 
+//複合条件 is_ua_mismatch === 1 
 // and 
-// access_count_session is_over_threshold === 1 の場合のテスト
+// access_count is_over_threshold === 1 の場合のテスト
 */
 
 /* risk score を
@@ -74,8 +73,10 @@ session update / ip update
     // というケースは、想定されないためです。
 
     //  recaptcha を通過した場合は、
-    // 減算のロジックを適用し、
-    // subject_type に応じた減算値を減点します。
+    //  減算のロジックを適用し、
+    //  subject_type に応じた減算値を減点します。
+    //    session の場合は、4点減点します。
+    //    ip の場合は、1点減点します。
 
     //  減算の条件に該当しない場合は、
     //  加算後のスコアを計算結果とします。
@@ -301,7 +302,7 @@ function runTestCaseError(
     try {
         $write_ua->writeUaScores();
         $totalFail++;
-        die("  FAIL: 例外が発生しませんでした。<br><br>");
+        die("  FAIL: 例外が発生しませんでした。デバッグが必要です。<br><br>");
     } catch (RuntimeException $e) {
         $totalPass++;
         echo "  PASS: 例外が発生しました: " . $e->getMessage() . "<br><br>";
@@ -531,6 +532,380 @@ runTestWriteUaScores(
 // step 3: record count が 2（INSERT でなく UPDATE）であることを確認する。
 $caseLabel = 'Record count = 2: UPDATE であり INSERT でないことを確認';
 $expectedCount = 2;
+checkRecordCount($caseLabel, $pdo, $expectedCount);
+
+/* session ベースの過去1分間のアクセス数が閾値-1の場合のテスト */
+$caseLabel = 'Case<br>session ベースの過去1分間のアクセス数が閾値-1の場合のテスト';
+$contents = [
+    'session_id'      => 'session_threshold_minus_1',
+    'ip_address'      => '192.168.0.1',
+    'simple_ua'       => 'Chrome/91',
+    'is_no_ua'        => 0,
+    'is_ua_mismatch'  => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+];
+
+$uaData = [
+    'score_session' => 0,
+    'score_ip' => 0,
+    'access_count_session' => JUST_THRESHOLD_SESSION - 1, // 閾値-1
+    'access_count_ip' => 0, // 閾値 600
+    'is_decreased_session' => 0,
+    'is_decreased_ip' => 0,
+    'is_no_anomaly_session' => 0 , 
+    'is_no_anomaly_ip' => 0 
+];
+$is_over_threshold_session = 0; // 閾値-1なので、閾値を超えていない
+$is_over_threshold_ip = 0; // 閾値 600 なので、閾値を超えていない
+
+$scoreSessionExpected = 0; // previous score 0、加算なし、減算なし → score = 0
+$scoreIpExpected = 0; // previous score 0、加算なし、減算なし → score = 0
+
+runTestWriteUaScores(
+    $caseLabel,
+    $contents,
+    $uaData,
+    $scoreSessionExpected,
+    $scoreIpExpected,
+    $pdo,
+    CLEAR_DB);
+
+//  checkRecordCount() の引数を定義します。
+$caseLabel = 'Check record count after session threshold-1 test';
+$expectedCount = 2; // session と ip の2件が挿入されることを期待します。
+checkRecordCount($caseLabel, $pdo, $expectedCount);
+
+/* session ベースの過去1分間のアクセス数が閾値の場合のテスト */
+$caseLabel = 'Case<br>session ベースの過去1分間のアクセス数が閾値の場合のテスト';
+$contents = [
+    'session_id'       => 'session_threshold',
+    'ip_address'       => '192.168.0.1',
+    'simple_ua'        => 'Chrome/91',
+    'is_no_ua'         => 0,
+    'is_ua_mismatch'   => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+];
+
+$uaData = [
+    'score_session' => 0,
+    'score_ip' => 0,
+    'access_count_session' => JUST_THRESHOLD_SESSION, // 閾値
+    'access_count_ip' => 0, // 閾値 600
+    'is_decreased_session' => 0,
+    'is_decreased_ip' => 0,
+    'is_no_anomaly_session' => 0 , 
+    'is_no_anomaly_ip' => 0 
+];
+
+$is_over_threshold_session = 1; // 閾値なので、閾値を超えている
+$is_over_threshold_ip = 0; // 閾値 600 なので、閾値を超えていない
+
+$scoreSessionExpected = 3; // previous score 0、加算 +3、減算なし → score = 3
+$scoreIpExpected = 0; // previous score 0、加算なし、減算なし → score = 0
+
+runTestWriteUaScores(
+    $caseLabel,
+    $contents,
+    $uaData,
+    $scoreSessionExpected,
+    $scoreIpExpected,
+    $pdo,
+    CLEAR_DB);
+
+//  checkRecordCount() の引数を定義します。
+$caseLabel = 'Check record count after session threshold test';
+$expectedCount = 2; // session と ip の2件が挿入されることを期待します。
+checkRecordCount($caseLabel, $pdo, $expectedCount);
+
+/* session ベースの過去1分間のアクセス数が閾値+1の場合のテスト */
+$caseLabel = 'Case<br>session ベースの過去1分間のアクセス数が閾値+1の場合のテスト';
+$contents = [
+    'session_id'       => 'session_threshold_plus_1',
+    'ip_address'       => '192.168.0.1',
+    'simple_ua'        => 'Chrome/91',
+    'is_no_ua'         => 0,
+    'is_ua_mismatch'   => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+];
+
+$uaData = [
+    'score_session' => 0,
+    'score_ip' => 0,
+    'access_count_session' => JUST_THRESHOLD_SESSION + 1, // 閾値+1
+    'access_count_ip' => 0, // 閾値 600
+    'is_decreased_session' => 0,
+    'is_decreased_ip' => 0,
+    'is_no_anomaly_session' => 0 , 
+    'is_no_anomaly_ip' => 0 
+];
+
+$is_over_threshold_session = 1; // 閾値+1なので、閾値を超えている
+$is_over_threshold_ip = 0; // 閾値 600 なので、閾値を超えていない
+
+$scoreSessionExpected = 3; // previous score 0、加算 +3、減算なし → score = 3
+$scoreIpExpected = 0; // previous score 0、加算なし、減算なし → score = 0
+
+runTestWriteUaScores(
+    $caseLabel,
+    $contents,
+    $uaData,
+    $scoreSessionExpected,
+    $scoreIpExpected,
+    $pdo,
+    CLEAR_DB);
+
+//  checkRecordCount() の引数を定義します。
+$caseLabel = 'Check record count after session threshold+1 test';
+$expectedCount = 2; // session と ip の2件が挿入されることを期待します。
+checkRecordCount($caseLabel, $pdo, $expectedCount);
+
+/* IP ベースの過去1分間のアクセス数が閾値-1の場合のテスト */
+$caseLabel = 'Case<br>IP ベースの過去1分間のアクセス数が閾値-1の場合のテスト (599)';
+$contents = [
+    'session_id'       => 'ip_threshold_minus_1',
+    'ip_address'       => '10.0.1.1',
+    'simple_ua'        => 'Chrome/91',
+    'is_no_ua'         => 0,
+    'is_ua_mismatch'   => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+];
+
+$uaData = [
+    'score_session'        => 0,
+    'score_ip'             => 0,
+    'access_count_session' => 0,                      // 閾値 60
+    'access_count_ip'      => JUST_THRESHOLD_IP - 1,  // 閾値-1 (599)
+    'is_decreased_session' => 0,
+    'is_decreased_ip'      => 0,
+    'is_no_anomaly_session' => 0,
+    'is_no_anomaly_ip'      => 0,
+];
+
+$is_over_threshold_session = 0; // 閾値を超えていない
+$is_over_threshold_ip      = 0; // 閾値-1なので、閾値を超えていない
+
+/* score calculation
+previous score 0
+
+is_no_ua 0 => 加算なし
+
+ua があるので比較できるが、
+is_ua_mismatch 0 => 加算なし
+
+過去1分の ip アクセス数が閾値を超えていないので、
+加算なし
+
+疑わしいアクセスではない
+
+過去30分にスコアが減点されたアクセスがない、
+
+過去10分に異常がなかったという
+記録はないので、
+減点しません。
+
+recaptcha_solved 0 なので、
+減算しません。
+結果は、
+session score は 0、ip score は 0 です。
+*/
+$scoreSessionExpected = 0;
+$scoreIpExpected      = 0;
+
+runTestWriteUaScores(
+    $caseLabel,
+    $contents,
+    $uaData,
+    $scoreSessionExpected,
+    $scoreIpExpected,
+    $pdo,
+    CLEAR_DB);
+
+$caseLabel = 'Check record count after IP threshold-1 test';
+$expectedCount = 2;
+checkRecordCount($caseLabel, $pdo, $expectedCount);
+
+/* IP ベースの過去1分間のアクセス数が閾値の場合のテスト */
+$caseLabel = 'Case<br>IP ベースの過去1分間のアクセス数が閾値の場合のテスト (600)';
+$contents = [
+    'session_id'       => 'ip_threshold',
+    'ip_address'       => '10.0.1.2',
+    'simple_ua'        => 'Chrome/91',
+    'is_no_ua'         => 0,
+    'is_ua_mismatch'   => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+];
+
+$uaData = [
+    'score_session'        => 0,
+    'score_ip'             => 0,
+    'access_count_session' => 0,                  // 閾値 60
+    'access_count_ip'      => JUST_THRESHOLD_IP,  // 閾値 (600)
+    'is_decreased_session' => 0,
+    'is_decreased_ip'      => 0,
+    'is_no_anomaly_session' => 0,
+    'is_no_anomaly_ip'      => 0,
+];
+
+$is_over_threshold_session = 0; // 閾値を超えていない
+$is_over_threshold_ip      = 1; // 閾値なので、閾値を超えている
+
+/* score calculation
+previous score 0
+
+is_no_ua 0 => 加算なし
+
+ua があるので比較できるが、
+is_ua_mismatch 0 => 加算なし
+
+過去1分の ip アクセス数が閾値を超えているので、
+ip score に +3
+
+ip が疑わしいアクセス (is_over_threshold_ip === 1) なので、
+ip の減算ロジックは適用されず、加算後のスコアが計算結果となります。
+
+session は疑わしいアクセスではない (is_no_ua=0, is_ua_mismatch=0, is_over_threshold_session=0)
+過去30分にスコアが減点されたアクセスがない、
+過去10分に異常がなかったという記録はないので、減点しません。
+recaptcha_solved 0 なので、減算しません。
+
+結果は、
+session score は 0、ip score は 0 + 3 = 3 です。
+*/
+$scoreSessionExpected = 0;
+$scoreIpExpected      = 3;
+
+runTestWriteUaScores(
+    $caseLabel,
+    $contents,
+    $uaData,
+    $scoreSessionExpected,
+    $scoreIpExpected,
+    $pdo,
+    CLEAR_DB);
+
+$caseLabel = 'Check record count after IP threshold test';
+$expectedCount = 2;
+checkRecordCount($caseLabel, $pdo, $expectedCount);
+
+/* IP ベースの過去1分間のアクセス数が閾値+1の場合のテスト */
+$caseLabel = 'Case<br>IP ベースの過去1分間のアクセス数が閾値+1の場合のテスト (601)';
+$contents = [
+    'session_id'       => 'ip_threshold_plus_1',
+    'ip_address'       => '10.0.1.3',
+    'simple_ua'        => 'Chrome/91',
+    'is_no_ua'         => 0,
+    'is_ua_mismatch'   => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+];
+
+$uaData = [
+    'score_session'        => 0,
+    'score_ip'             => 0,
+    'access_count_session' => 0,                      // 閾値 60
+    'access_count_ip'      => JUST_THRESHOLD_IP + 1,  // 閾値+1 (601)
+    'is_decreased_session' => 0,
+    'is_decreased_ip'      => 0,
+    'is_no_anomaly_session' => 0,
+    'is_no_anomaly_ip'      => 0,
+];
+
+$is_over_threshold_session = 0; // 閾値を超えていない
+$is_over_threshold_ip      = 1; // 閾値+1なので、閾値を超えている
+
+/* score calculation
+previous score 0
+
+is_no_ua 0 => 加算なし
+
+ua があるので比較できるが、
+is_ua_mismatch 0 => 加算なし
+
+過去1分の ip アクセス数が閾値を超えているので、
+ip score に +3
+
+ip が疑わしいアクセス (is_over_threshold_ip === 1) なので、
+ip の減算ロジックは適用されず、加算後のスコアが計算結果となります。
+
+session は疑わしいアクセスではない
+過去30分にスコアが減点されたアクセスがない、
+過去10分に異常がなかったという記録はないので、減点しません。
+recaptcha_solved 0 なので、減算しません。
+
+結果は、
+session score は 0、ip score は 0 + 3 = 3 です。
+*/
+$scoreSessionExpected = 0;
+$scoreIpExpected      = 3;
+
+runTestWriteUaScores(
+    $caseLabel,
+    $contents,
+    $uaData,
+    $scoreSessionExpected,
+    $scoreIpExpected,
+    $pdo,
+    CLEAR_DB);
+
+$caseLabel = 'Check record count after IP threshold+1 test';
+$expectedCount = 2;
+checkRecordCount($caseLabel, $pdo, $expectedCount);
+
+/* `is_ua_mismatch === 1 && is_over_threshold === 1` の複合条件のテスト */
+$caseLabel = 'Case<br>is_ua_mismatch === 1 && is_over_threshold === 1 の複合条件のテスト';
+$contents = [
+    'session_id'       => 'mismatch_and_threshold',
+    'ip_address'       => '192.168.0.1',
+    'simple_ua'        => 'Chrome/91',
+    'is_no_ua'         => 0,
+    'is_ua_mismatch'   => 1,
+    'recaptcha_solved' => 0,
+    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+];
+
+$uaData = [
+    'score_session' => 0,
+    'score_ip' => 0,
+    'access_count_session' => JUST_THRESHOLD_SESSION , // 閾値
+    'access_count_ip' => JUST_THRESHOLD_IP, // 閾値 
+    'is_decreased_session' => 0,
+    'is_decreased_ip' => 0,
+    'is_no_anomaly_session' => 0 , 
+    'is_no_anomaly_ip' => 0 
+];
+
+$is_over_threshold_session = 1; // 閾値
+$is_over_threshold_ip = 1; // 閾値
+
+/* score calculation
+previous score 0、
+加算 
+    ua mismatch +2
+    over threshold +3
+減算
+    疑わしいアクセス、減算なし
+result score = 0 + 2 + 3 = 5
+*/
+$scoreSessionExpected = 5; 
+$scoreIpExpected = 5; 
+
+runTestWriteUaScores(
+    $caseLabel,
+    $contents,
+    $uaData,
+    $scoreSessionExpected,
+    $scoreIpExpected,
+    $pdo,
+    CLEAR_DB);
+
+//  checkRecordCount() の引数を定義します。
+$caseLabel = 'Check record count after is_ua_mismatch && is_over_threshold test';
+$expectedCount = 2; // session と ip の2件が挿入されることを期待します。
 checkRecordCount($caseLabel, $pdo, $expectedCount);
 
 /* subject_key の文字列の長さが上限である場合のテスト */

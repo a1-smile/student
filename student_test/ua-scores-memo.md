@@ -762,3 +762,12 @@ runTestWriteUaScores() を実行する。
 3. record count が 2 であることを確認する。
 
 というテストでよろしいでしょうか？
+
+# session insert / ip update のテストケースは、
+1. table ua_scores を truncate する設定で
+runTestWriteUaScores() を実行する。
+2. table ua_scores を truncate しない設定で
+違う session_id で、同じ ip_address で
+runTestWriteUaScores() を実行する。
+3. record count が 3 であることを確認する。
+というテストでよろしいでしょうか？
