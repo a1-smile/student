@@ -753,7 +753,7 @@ $ok  = check(...)  & $ok;  // 全部実行したい場合はビット演算を�
 | 5 | `runTestCaseError()` が未使用              | デッドコード |
 | 6 | テストケースが 1 つのみ                      | カバレッジ不足 |
 
-# session update / ip update のテストケースは、
+# session update / ip update のテストケースを実装する場合は、
 1. table ua_scores を truncate する設定で
 runTestWriteUaScores() を実行する。
 2. table ua_scores を truncate しない設定で
@@ -761,13 +761,96 @@ runTestWriteUaScores() を実行する。
 runTestWriteUaScores() を実行する。
 3. record count が 2 であることを確認する。
 
-というテストでよろしいでしょうか？
+という方向性でよろしいでしょうか？
 
-# session insert / ip update のテストケースは、
+# session insert / ip update のテストケースを実装する場合は、
 1. table ua_scores を truncate する設定で
 runTestWriteUaScores() を実行する。
-2. table ua_scores を truncate しない設定で
-違う session_id で、同じ ip_address で
+
+2. table ua_scores を truncate しない設定で,
+- 1. と違う session_id で、
+- 1. と同じ ip_address で
+- ただし、ip ベースのスコアの値は１.と異なる値になるようにする。
+という条件で
 runTestWriteUaScores() を実行する。
+
+ip ベースの score を 1. と 2. で異なる値にする理由は、
+update のときは score が同じ場合と
+異なる場合でsqlの挙動が変わるので、異なる値になるようにする、
+という意図です。
 3. record count が 3 であることを確認する。
-というテストでよろしいでしょうか？
+     record count が 3 であることを確認する理由は、
+     1. の session insert / ip insert のときに
+    2つのレコードが作成されている
+     2. の session insert / ip update のときに
+     1つのレコードが作成されるので、
+     合計3つのレコードが作成されることを想定しているためです。
+
+4. 分かりやすいように、適切にコメントを入れる。
+という方向性でよろしいでしょうか？
+
+# 答え
+To Do リストを更新しました
+
+Read [](file:///c%3A/Users/aigas/OneDrive/dev/student/student_test/test-write-ua-scores.php#1-1), lines 1 to 100
+
+Read [](file:///c%3A/Users/aigas/OneDrive/dev/student/student_test/test-write-ua-scores.php#100-100), lines 100 to 280
+
+Read [](file:///c%3A/Users/aigas/OneDrive/dev/student/student_test/test-write-ua-scores.php#280-280), lines 280 to 450
+
+Read [](file:///c%3A/Users/aigas/OneDrive/dev/student/student_test/test-write-ua-scores.php#450-450), lines 450 to 500
+
+Read [](file:///c%3A/Users/aigas/OneDrive/dev/student/student_test/test-write-ua-scores.php#500-500), lines 500 to 560
+
+コードの全体構造を把握しました。計画を立てます。 
+
+Read [](file:///c%3A/Users/aigas/OneDrive/dev/student/student_test/test-write-ua-scores.php#560-560), lines 560 to 650
+
+コードの構造をよく理解しました。計画を整理します。 
+
+Created memory file [](file:///c%3A/Users/aigas/AppData/Roaming/Code/User/workspaceStorage/96854da97b29815c4ca80c0f41e1431b/GitHub.copilot-chat/memory-tool/memories/YzYwZWEyZDAtOWY0Ny00M2M2LTk5YjUtNTU3ODQxMDZhYmU4/plan.md)
+
+はい、その方向性で問題ありません。計画をまとめます。
+
+---
+
+## Plan: session insert / ip update テストケース追加
+
+**テストデータ設計**
+
+| | session_id | ip_address | score_ip（mock） | scoreIpExpected |
+|---|---|---|---|---|
+| Step 1 (CLEAR_DB) | `ip_update_session_01` | `172.16.0.1` | 0 | **1** |
+| Step 2 (NOT_CLEAR_DB) | `ip_update_session_02` ← **異なる** | `172.16.0.1` ← **同じ** | 1 ← step1の結果 | **2** ← step1と異なる値 ✓ |
+
+**Steps**
+1. Step 1: CLEAR_DB で実行 → `ip_update_session_01`（session INSERT）＋ `172.16.0.1`（ip INSERT）= 2レコード
+2. Step 2: NOT_CLEAR_DB で実行 → `ip_update_session_02`（session INSERT）＋ `172.16.0.1`（ip **UPDATE**、score 1→2）= +1レコード
+3. `checkRecordCount = 3` を確認
+4. 各ステップに「なぜ ip score が 1 と 2 で異なる値になるか」の理由コメントを追加
+
+**挿入位置**
+test-write-ua-scores.php の session update / ip update の `checkRecordCount` 直後
+
+**Relevant files**
+- test-write-ua-scores.php — 挿入・コメント追加対象
+- ファイル冒頭の `//: to do //session insert / ip update` も実装済みに更新
+
+**Verification**
+1. ブラウザで test-write-ua-scores.php を実行
+2. step 1 / step 2 がそれぞれ全 PASS
+3. `Record count is as expected. Count: 3` の PASS を確認
+
+---
+
+**1点補足**：`ip ベースのスコアの値を異なる値にする理由` のコメントについて、具体的にはこう記載する想定です。
+
+```
+// ip ベースの score を step 1（1）と step 2（2）で意図的に異なる値にしている。
+// UPDATE 時に score が同じ値の場合と異なる値の場合で SQL の挙動が変わるため、
+// UPDATE が確実に実行されることを確認するために、異なる値にしている。
+```
+
+この方向性で実装に進めてよろしいでしょうか？
+
+To Do 項目が 5 件作成されました

@@ -10,7 +10,7 @@ class WriteUaのwriteUaScores() メソッドをテストします。
 /* テストケース
 session insert / ip insert
 session update / ip update 
-//: to do //session insert / ip update 
+session insert / ip update 
 //: to do //session update / ip insert 
 
 //:to do //session insert / ip update but ip same value
@@ -532,6 +532,121 @@ runTestWriteUaScores(
 // step 3: record count が 2（INSERT でなく UPDATE）であることを確認する。
 $caseLabel = 'Record count = 2: UPDATE であり INSERT でないことを確認';
 $expectedCount = 2;
+checkRecordCount($caseLabel, $pdo, $expectedCount);
+
+// -------------------------------------------------------
+// session insert / ip update
+// $is_no_ua === 1
+//
+// このケースでは、
+// session_id が異なる（→ session は INSERT）
+// ip_address が同じ  （→ ip は UPDATE）
+// ことを確認します。
+//
+// step 1: CLEAR_DB で insert を行い、scoreSession=1 / scoreIp=1 を書き込む。
+// step 2: 異なる session_id / 同じ ip_address で NOT_CLEAR_DB にして実行する。
+//         session は新規 → INSERT（scoreSession: 0+1=1）
+//         ip は既存  → UPDATE（scoreIp: 1+1=2）
+//
+// ip ベースの score を step 1（1）と step 2（2）で意図的に異なる値にしている理由：
+// UPDATE 時に score が同じ値の場合と異なる値の場合で SQL の挙動が変わるため、
+// UPDATE が確実に実行（値が変化）されることを確認するために、異なる値にしている。
+//
+// step 3: record count が 3 であることを確認する。
+//         step 1 で session(01) + ip の 2 レコードが INSERT される。
+//         step 2 で session(02) の 1 レコードが INSERT される。
+//         ip は UPDATE されるため、レコードは増えない。
+//         合計 3 レコードになることを確認する。
+// -------------------------------------------------------
+
+// step 1: insert (CLEAR_DB)
+$caseLabel = 'Case<br>session insert / ip update, step 1: insert';
+
+$contents = [
+    'session_id'       => 'ip_update_session_01',  // step 1 のセッション ID
+    'ip_address'       => '172.16.0.1',
+    'simple_ua'        => 'Chrome/91',
+    'is_no_ua'         => 1,  // score +1
+    'is_ua_mismatch'   => 0,
+    'recaptcha_solved'  => 0,
+    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+];
+
+$uaData = [
+    'score_session'        => 0,  // DB に記録なし → 0
+    'score_ip'             => 0,  // DB に記録なし → 0
+    'access_count_session' => 0,  // 閾値 60
+    'access_count_ip'      => 0,  // 閾値 600
+    'is_decreased_session' => 0,
+    'is_decreased_ip'      => 0,
+    'is_no_anomaly_session' => 0,  // is_no_ua=1 → isSuspiciousAccess=1 → decreaseScore() 早期リターン → 減算スキップ
+    'is_no_anomaly_ip'      => 0,  // 同上
+];
+
+// 計算: previous(0) + is_no_ua(+1) = 1
+// 減算: is_no_ua===1 → isSuspiciousAccess===1 → decreaseScore() 早期リターン
+$scoreSessionExpected = 1;
+$scoreIpExpected      = 1;
+
+runTestWriteUaScores(
+    $caseLabel,
+    $contents,
+    $uaData,
+    $scoreSessionExpected,
+    $scoreIpExpected,
+    $pdo,
+    CLEAR_DB);
+
+// step 2: session INSERT / ip UPDATE (NOT_CLEAR_DB)
+// session_id を変える（→ session は新規 INSERT）
+// ip_address は step 1 と同じ（→ ip は UPDATE）
+// score_ip に step 1 で DB に書かれた値 1 をセットすることで、
+// 「DB に ip score 1 が残っている状態から別セッションがアクセスした」状況を模倣する。
+$caseLabel = 'Case<br>session insert / ip update, step 2: session insert / ip update';
+
+$contents = [
+    'session_id'       => 'ip_update_session_02',  // step 1 と異なる session_id → session INSERT
+    'ip_address'       => '172.16.0.1',             // step 1 と同じ ip_address → ip UPDATE
+    'simple_ua'        => 'Chrome/91',
+    'is_no_ua'         => 1,  // score +1
+    'is_ua_mismatch'   => 0,
+    'recaptcha_solved'  => 0,
+    'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+];
+
+$uaData = [
+    'score_session'        => 0,  // 新規セッション → DB に記録なし → 0
+    'score_ip'             => 1,  // step 1 で DB に書かれた ip score
+    'access_count_session' => 0,
+    'access_count_ip'      => 0,
+    'is_decreased_session' => 0,
+    'is_decreased_ip'      => 0,
+    'is_no_anomaly_session' => 0,  // is_no_ua=1 → isSuspiciousAccess=1 → decreaseScore() 早期リターン → 減算スキップ
+    'is_no_anomaly_ip'      => 0,  // 同上
+];
+
+// session: previous(0) + is_no_ua(+1) = 1
+// ip:      previous(1) + is_no_ua(+1) = 2
+// → step 1 の ip score(1) と step 2 の ip score(2) が異なる値になることを確認する。
+// 減算: is_no_ua===1 → isSuspiciousAccess===1 → decreaseScore() 早期リターン
+$scoreSessionExpected = 1;
+$scoreIpExpected      = 2;
+
+runTestWriteUaScores(
+    $caseLabel,
+    $contents,
+    $uaData,
+    $scoreSessionExpected,
+    $scoreIpExpected,
+    $pdo,
+    NOT_CLEAR_DB);  // クリアしない → ip は UPDATE、session は INSERT になることを確認
+
+// step 3: record count が 3 であることを確認する。
+//   step 1: ip_update_session_01（session）+ 172.16.0.1（ip）= 2 レコード INSERT
+//   step 2: ip_update_session_02（session）= 1 レコード INSERT、172.16.0.1（ip）= UPDATE（増えない）
+//   合計 3 レコード
+$caseLabel = 'Record count = 3: session(01) + ip + session(02) の合計を確認';
+$expectedCount = 3;
 checkRecordCount($caseLabel, $pdo, $expectedCount);
 
 /* session ベースの過去1分間のアクセス数が閾値-1の場合のテスト */
