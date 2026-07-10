@@ -30,11 +30,9 @@ session insert / ip update
 テスト用の expected score はこの仕様の
 ハードコードによって計算します。
 また、
-*これにより、risk score を計算する
-*ロジックをテストコード内で明示的に表現できるようにもなります。 
+*これにより、risk score を計算するロジック
+をテストコード内で明示的に表現できるようにもなります。 
 
-    //  疑わしいアクセスに対しては、
-    //  risk score の減算を行わない。
 
     //  $is_no_ua === 1（uaなし）の場合は、risk score に1点加算します。
     
@@ -52,7 +50,7 @@ session insert / ip update
 
     //  疑わしいアクセスの場合は、
     // 減算のロジックを適用せず、
-    // 加算後のスコアを返します。
+    // 加算後のスコアで確定します。
     // 疑わしいという判定は
     //  ua なし、
     //  ua 不一致、
@@ -61,22 +59,22 @@ session insert / ip update
 
     //  過去30分にスコアが減点されたアクセスがある場合は、
     //  減算のロジックを適用せず、
-    //  加算後のスコアで  終了します。
+    //  加算後のスコアで確定します。
 
     //  過去10分に異常がなかった場合は、
     //  減算のロジックを適用し、1点減点します。
 
-    //  異常がなかった場合は、次の項目の
+    //  過去10分に異常がなかった場合は、次の項目の
     //  recaptcha_solved の判定を行わず、
-    // ここで終了します。
+    // ここで確定します。
     // 異常がなく、かつ recaptcha を通過、
     // というケースは、想定されないためです。
 
     //  recaptcha を通過した場合は、
     //  減算のロジックを適用し、
     //  subject_type に応じた減算値を減点します。
-    //    session の場合は、4点減点します。
-    //    ip の場合は、1点減点します。
+    //    session ベースでは、4点減点します。
+    //    ip ベースでは、1点減点します。
 
     //  減算の条件に該当しない場合は、
     //  加算後のスコアを計算結果とします。
@@ -276,6 +274,38 @@ function checkRecordCount(
     }
 } // END function checkRecordCount()
 
+
+/**
+ * runTestCaseError() 関数を定義します。
+ * writeUaScores() を呼び出し、例外が発生することを期待します。
+ * 例外が発生しない場合は、テスト失敗とします。
+ * @param string $caseLabel
+ * テストケースのラベルを指定します。何をテストするか。
+ * 
+ * @param array $contents
+ * モックで、サーバーからの情報を提供するための配列です。
+ * [
+ *   'session_id' => 'abc123',
+ *   'ip_address' => '127.0.0.1',
+ * ]
+ * @param array $uaData
+ * モックで、DBの情報を提供するための配列です。
+ * [
+ *  'score_session' => 0,
+ * 'score_ip' => 0,
+ * 'access_count_session' => 0,
+ * 'access_count_ip' => 0,
+ * 'is_decreased_session' => 0,
+ * 'is_decreased_ip' => 0,
+ * 'is_no_anomaly_session' => 0,
+ * 'is_no_anomaly_ip' => 0,
+ * ]
+ * @param PDO $pdo
+ * PDO インスタンスを指定します。
+ * 
+ * 戻り値は void です。例外が発生した場合は、PASS として処理を終了します。
+ * 例外が発生しなかった場合は、FAIL として処理を終了します。
+ */
 function runTestCaseError(
             string $caseLabel,
             array $contents,
@@ -310,9 +340,17 @@ function runTestCaseError(
     } // END try-catch
 } // END function runTestCaseError()
 
+
+//  以上で、関数定義は終了です。
+
+//  test に必要な設定をします。
+
 //  タイムゾーンを明示的に設定します。
 //  sql と php で時間がずれるのを防ぐためです。
 date_default_timezone_set('Asia/Tokyo');
+
+
+//  定数を定義します。
 
 //  DBへのアクセス時刻と現在の時刻の差の上限を定数として定義します。
 //  許容される時間の差を秒単位で定義します。
@@ -539,9 +577,11 @@ checkRecordCount($caseLabel, $pdo, $expectedCount);
 // $is_no_ua === 1
 //
 // このケースでは、
+// 1回目のアクセスで session_id と ip_address の両方が新規に INSERT されます。
+// 2回目のアクセスでは、
 // session_id が異なる（→ session は INSERT）
 // ip_address が同じ  （→ ip は UPDATE）
-// ことを確認します。
+// 場合を確認します。
 //
 // step 1: CLEAR_DB で insert を行い、scoreSession=1 / scoreIp=1 を書き込む。
 // step 2: 異なる session_id / 同じ ip_address で NOT_CLEAR_DB にして実行する。
@@ -560,7 +600,7 @@ checkRecordCount($caseLabel, $pdo, $expectedCount);
 // -------------------------------------------------------
 
 // step 1: insert (CLEAR_DB)
-$caseLabel = 'Case<br>session insert / ip update, step 1: insert';
+$caseLabel = 'Case<br>session insert / ip update, step 1: insert (both)';
 
 $contents = [
     'session_id'       => 'ip_update_session_01',  // step 1 のセッション ID
@@ -617,14 +657,15 @@ $contents = [
 $uaData = [
     'score_session'        => 0,  // 新規セッション → DB に記録なし → 0
     'score_ip'             => 1,  // step 1 で DB に書かれた ip score
-    'access_count_session' => 0,
-    'access_count_ip'      => 0,
+    'access_count_session' => 0,  // 過去1分間のアクセス数がありません。
+    'access_count_ip'      => 1,  // step 1 で 1count されているという想定
     'is_decreased_session' => 0,
     'is_decreased_ip'      => 0,
     'is_no_anomaly_session' => 0,  // is_no_ua=1 → isSuspiciousAccess=1 → decreaseScore() 早期リターン → 減算スキップ
     'is_no_anomaly_ip'      => 0,  // 同上
 ];
 
+//  score計算:
 // session: previous(0) + is_no_ua(+1) = 1
 // ip:      previous(1) + is_no_ua(+1) = 2
 // → step 1 の ip score(1) と step 2 の ip score(2) が異なる値になることを確認する。
@@ -648,6 +689,13 @@ runTestWriteUaScores(
 $caseLabel = 'Record count = 3: session(01) + ip + session(02) の合計を確認';
 $expectedCount = 3;
 checkRecordCount($caseLabel, $pdo, $expectedCount);
+
+/*test case session update (score changed)/ip insert
+session base では、過去にアクセスあり、ip base では新規アクセスの場合のテスト
+ただし、session base の score は変化している場合です。 */
+
+
+// 以下は境界値テストです。
 
 /* session ベースの過去1分間のアクセス数が閾値-1の場合のテスト */
 $caseLabel = 'Case<br>session ベースの過去1分間のアクセス数が閾値-1の場合のテスト';
