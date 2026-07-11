@@ -10,8 +10,8 @@ class WriteUaのwriteUaScores() メソッドをテストします。
 /* テストケース
 session insert / ip insert
 session update / ip update 
-session insert / ip update 
-//: to do //session update / ip insert 
+session insert / ip update (score ip change)
+//: to do //session update(score session change) / ip insert 
 
 //:to do //session insert / ip update but ip same value
 //:to do //session update / ip insert but session same value
@@ -690,9 +690,17 @@ $caseLabel = 'Record count = 3: session(01) + ip + session(02) の合計を確�
 $expectedCount = 3;
 checkRecordCount($caseLabel, $pdo, $expectedCount);
 
-/*test case session update (score changed)/ip insert
+/*test case session update (score change)/ip insert
 session base では、過去にアクセスあり、ip base では新規アクセスの場合のテスト
 ただし、session base の score は変化している場合です。 */
+
+// step1: session insert / ip insert (CLEAR_DB)
+
+// step2: session update (score change) / ip insert (NOT_CLEAR_DB)
+
+// step3: record count が 3 であることを確認する。
+
+
 
 
 // 以下は境界値テストです。

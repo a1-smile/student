@@ -47,7 +47,7 @@ ua が不一致の場合は、スコアを2加算する。
     また、違う商品であるとも言えない。
     というのと同じです。*/
     /*という理由で、$isUaMismatch のチェックに
-    $isNoUa !== 1 の条件を追加しています。*/
+    $isNoUa !== 1 の条件を追加されるロジックになります。*/
     if ($isUaMismatch === 1 and $isNoUa !== 1) {
         $isUaMismatchScoreSession = $isNoUaScoreSession + 2;
     } else {
