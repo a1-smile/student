@@ -7,20 +7,32 @@ student/write-ua.php
 class WriteUaのwriteUaScores() メソッドをテストします。
 */
 
+/* test case decision table
+主要なテストケースのディシジョンテーブル
+status
+--------------------------------------------------
+score_session | insert | insert | update | update 
+score_ip      | insert | update | insert | update 
+--------------------------------------------------
+action
+--------------------------------------------------
+record count  | +2     | +1      | +1    | +0     
+*/
+
 /* テストケース
-session insert / ip insert
-session update / ip update 
-session insert / ip update (score ip change)
-//: to do //session update(score session change) / ip insert 
+(pass)session insert / ip insert
+(pass)session update / ip update 
+(pass)session insert / ip update (score ip change)
+(pass)session update (score session change) / ip insert
 
-//:to do //session insert / ip update but ip same value
-//:to do //session update / ip insert but session same value
-//subject_key 128文字の境界値テスト
-//subject_key 129文字の境界値テスト
-//access count session59, 60, 61 の境界値テスト
-//access count ip 599, 600, 601 の境界値テスト
+//:to do //session insert / ip update but score ip same value
+//:to do //session update / ip insert but score session same value
+(pass)subject_key 128文字の境界値テスト
+(pass)subject_key 129文字の境界値テスト
+(pass)access count session59, 60, 61 の境界値テスト
+(pass)access count ip 599, 600, 601 の境界値テスト
 
-//複合条件 is_ua_mismatch === 1 
+//:to do //複合条件 is_ua_mismatch === 1 
 // and 
 // access_count is_over_threshold === 1 の場合のテスト
 */
@@ -690,17 +702,131 @@ $caseLabel = 'Record count = 3: session(01) + ip + session(02) の合計を確�
 $expectedCount = 3;
 checkRecordCount($caseLabel, $pdo, $expectedCount);
 
-/*test case session update (score change)/ip insert
-session base では、過去にアクセスあり、ip base では新規アクセスの場合のテスト
-ただし、session base の score は変化している場合です。 */
+// -------------------------------------------------------
+// session update (score change) / ip insert
+// $is_no_ua === 1
+//
+// このケースでは、
+// session base では過去にアクセスがあり（→ session は UPDATE）、
+// ip base では新規アクセス（→ ip は INSERT）の場合を確認します。
+// さらに、session の score が step1 → step2 で変化していることも確認します。
+//
+// step 1: CLEAR_DB で insert を行い、scoreSession=1 / scoreIp=1 を書き込む。
+// step 2: 同じ session_id / 異なる ip_address で NOT_CLEAR_DB にして実行する。
+//         session は既存 → UPDATE（scoreSession: 1+1=2、score が変化）
+//         ip は新規     → INSERT（scoreIp: 0+1=1）
+//
+// session ベースの score を step 1（1）と step 2（2）で意図的に異なる値にしている理由：
+// UPDATE 時に score が同じ値の場合と異なる値の場合で SQL の挙動が変わるため、
+// UPDATE が確実に実行（値が変化）されることを確認するために、異なる値にしている。
+//
+// step 3: record count が 3 であることを確認する。
+//         step 1 で su_change_session_01（session）+ 10.2.0.1（ip）= 2 レコード INSERT
+//         step 2 で su_change_session_01（session）= UPDATE（増えない）、
+//                  10.2.0.2（ip）= 1 レコード INSERT
+//         合計 3 レコードになることを確認する。
+// -------------------------------------------------------
 
-// step1: session insert / ip insert (CLEAR_DB)
+// step 1: insert (CLEAR_DB)
+$caseLabel = 'Case<br>session update (score change) / ip insert, step 1: insert (both)';
 
-// step2: session update (score change) / ip insert (NOT_CLEAR_DB)
+$contents = [
+    'session_id'       => 'su_change_session_01',  // step 1 のセッション ID
+    'ip_address'       => '10.2.0.1',
+    'simple_ua'        => '',  // is_no_ua が 1 なので、simple_ua は空になるという想定です。
+    'is_no_ua'         => 1,  // score +1
+    'is_ua_mismatch'   => 0,
+    'recaptcha_solved'  => 0,
+    'user_agent'       => '', //  ua がセットされていないばあいは、
+                              //  'user_agent' => '' となるロジックになっています。
+];
 
-// step3: record count が 3 であることを確認する。
+$uaData = [
+    'score_session'        => 0,  // DB に記録なし → 0
+    'score_ip'             => 0,  // DB に記録なし → 0
+    'access_count_session' => 0,  // 閾値 60
+    'access_count_ip'      => 0,  // 閾値 600
+    'is_decreased_session' => 0,
+    'is_decreased_ip'      => 0,
+    'is_no_anomaly_session' => 1,  // ここは、過去10分間に疑わしいアクセスがないというフラグです。
+    'is_no_anomaly_ip'      => 1,  // 同上、ロジック上
+                                   // 新規アクセスでは1となります。
+                                   // 疑わしいアクセスの場合は
+                                   // 減算処理は早期リターンされるため、
+                                   // 減算は行われません。
+];
 
+// 計算: previous(0) + is_no_ua(+1) = 1
+// 減算: is_no_ua===1 → isSuspiciousAccess===1 → decreaseScore() 早期リターン
+$scoreSessionExpected = 1;
+$scoreIpExpected      = 1;
 
+runTestWriteUaScores(
+    $caseLabel,
+    $contents,
+    $uaData,
+    $scoreSessionExpected,
+    $scoreIpExpected,
+    $pdo,
+    CLEAR_DB);
+
+// step 2: session UPDATE (score change) / ip INSERT (NOT_CLEAR_DB)
+// session_id は step 1 と同じ（→ session は UPDATE）
+// ip_address は step 1 と異なる（→ ip は新規 INSERT）
+// score_session に step 1 で DB に書かれた値 1 をセットすることで、
+// 「DB に session score 1 が残っている状態から同じセッションが再アクセスした」状況を模倣する。
+// これにより session score が 1 → 2 に変化することを確認する。
+$caseLabel = 'Case<br>session update (score change) / ip insert, step 2: session update / ip insert';
+
+$contents = [
+    'session_id'       => 'su_change_session_01',  // step 1 と同じ session_id → session UPDATE
+    'ip_address'       => '10.2.0.2',              // step 1 と異なる ip_address → ip INSERT
+    'simple_ua'        => '',  // is_no_ua が 1 なので、simple_ua は空になるという想定です。
+    'is_no_ua'         => 1,  // score +1
+    'is_ua_mismatch'   => 0,
+    'recaptcha_solved'  => 0,
+    'user_agent'       => '', //  ua がセットされていないばあいは、
+                              //  'user_agent' => '' となるロジックになっています。
+];
+
+$uaData = [
+    'score_session'        => 1,  // step 1 で DB に書かれた session score → score が変化する根拠
+    'score_ip'             => 0,  // 新規 IP → DB に記録なし → 0
+    'access_count_session' => 1,  // step 1 で 1count されているという想定
+    'access_count_ip'      => 0,  // 新規 IP なのでアクセス履歴なし
+    'is_decreased_session' => 0,
+    'is_decreased_ip'      => 0,
+    'is_no_anomaly_session' => 0,  // 過去10分間に疑わしいアクセスがあるというフラグです。
+    'is_no_anomaly_ip'      => 1,  // 同上
+                                   // 新規アクセスでは1となります。
+                                   // 疑わしいアクセスの場合は
+                                   // 減算処理は早期リターンされるため、
+                                   // 減算は行われません。
+];
+
+// score 計算:
+// session: previous(1) + is_no_ua(+1) = 2  ← step 1 の score(1) から変化していることを確認
+// ip:      previous(0) + is_no_ua(+1) = 1
+// 減算: is_no_ua===1 → isSuspiciousAccess===1 → decreaseScore() 早期リターン
+$scoreSessionExpected = 2;
+$scoreIpExpected      = 1;
+
+runTestWriteUaScores(
+    $caseLabel,
+    $contents,
+    $uaData,
+    $scoreSessionExpected,
+    $scoreIpExpected,
+    $pdo,
+    NOT_CLEAR_DB);  // クリアしない → session は UPDATE、ip は INSERT になることを確認
+
+// step 3: record count が 3 であることを確認する。
+//   step 1: su_change_session_01（session）+ 10.2.0.1（ip）= 2 レコード INSERT
+//   step 2: su_change_session_01（session）= UPDATE（レコード増えない）、10.2.0.2（ip）= 1 レコード INSERT
+//   合計 3 レコード
+$caseLabel = 'Record count = 3: session + ip(10.2.0.1) + ip(10.2.0.2) の合計を確認';
+$expectedCount = 3;
+checkRecordCount($caseLabel, $pdo, $expectedCount);
 
 
 // 以下は境界値テストです。
