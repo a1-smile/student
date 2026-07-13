@@ -854,3 +854,48 @@ test-write-ua-scores.php の session update / ip update の `checkRecordCount` �
 この方向性で実装に進めてよろしいでしょうか？
 
 To Do 項目が 5 件作成されました
+
+# 現在カバーできていない箇所
+【Critical】 decreaseScore() の未テスト分岐
+decreaseScore() には5つの分岐がありますが、2つが完全に未テストです。
+
+1. isSuspiciousAccess === 1  → return (no decrease)  ✅
+2. decreased === 1           → return (no decrease)  ❌ 未テスト
+3. isNoAnomaly === 1         → score -= 1, return    △ 部分的（score=0のみ）
+4. recaptchaSolved === 1     → score -= 4/1, return  ❌ 未テスト
+5. else                      → return (no decrease)  ✅
+
+必要なテストケース：
+
+#	テストケース	確認する分岐
+A	is_decreased_session/ip = 1 のとき score が変化しない	分岐2
+B	is_no_anomaly = 1 かつ score > 0 のとき -1 減算される	分岐3（実際の減算）
+C	recaptcha_solved = 1 のとき session -4、ip -1 減算される	分岐4
+D	recaptcha_solved = 1 かつ score < 4（session）のとき max(0) でクランプされる	分岐4 の floor
+
+
+【Important】 加算ロジックの未テスト組み合わせ
+#	テストケース	理由
+E	is_ua_mismatch = 1 単独（threshold なし）	テスト11は mismatch+threshold の複合のみ
+F	is_ua_mismatch = 1 && is_no_ua = 1 → mismatch が無視される	ロジックに isNoUa !== 1 の条件あり
+
+【Nice to have】 UPDATE/UPDATE の score 組み合わせ
+現在のテスト2は UPDATE/UPDATE だが score は両方変化している。
+
+#	テストケース	理由
+G	session UPDATE (score same) / ip UPDATE (score same)	両方 UPDATE かつ両方同値という最もシンプルな同値 UPDATE
+H	session UPDATE (score change) / ip UPDATE (score same)	混在パターン
+
+# 優先度まとめ
+Priority 1（ロジックパスが全く実行されていない）
+  A. is_decreased === 1  → 30分以内に減算済みのため skip
+  C. recaptcha_solved === 1  → session -4 / ip -1 の減算
+
+Priority 2（部分的にしか実行されていない）
+  B. is_no_anomaly === 1 かつ score > 0  → 実際に score が 1 下がることを確認
+
+Priority 3（組み合わせの網羅）
+  E. is_ua_mismatch = 1 単独
+  F. is_ua_mismatch = 1 + is_no_ua = 1 → mismatch が無視されること
+  D. recaptcha の score floor (max 0)
+  G/H. UPDATE/UPDATE の score 同値混在

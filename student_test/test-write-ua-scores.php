@@ -25,16 +25,15 @@ record count  | +2     | +1      | +1    | +0
 (pass)session insert / ip update (score ip change)
 (pass)session update (score session change) / ip insert
 
-//:to do //session insert / ip update but score ip same value
-//:to do //session update / ip insert but score session same value
+(pass)session insert / ip update but score ip same value
+(pass)session update / ip insert but score session same value
 (pass)subject_key 128文字の境界値テスト
 (pass)subject_key 129文字の境界値テスト
 (pass)access count session59, 60, 61 の境界値テスト
 (pass)access count ip 599, 600, 601 の境界値テスト
 
-//:to do //複合条件 is_ua_mismatch === 1 
-// and 
-// access_count is_over_threshold === 1 の場合のテスト
+(pass) //複合条件 is_ua_mismatch === 1
+and  access_count is_over_threshold === 1 の場合のテスト
 */
 
 /* risk score を
@@ -828,6 +827,333 @@ $caseLabel = 'Record count = 3: session + ip(10.2.0.1) + ip(10.2.0.2) の合計�
 $expectedCount = 3;
 checkRecordCount($caseLabel, $pdo, $expectedCount);
 
+/*---------------------------------------
+test case
+session insert / ip update
+score ip same as previous
+
+sql で、update する場合、
+score が同じ値の場合と異なる値の場合で
+挙動が変わるので、
+update で値が同じ場合もテストします。
+
+step1: insert (CLEAR_DB)
+is_no_ua===1 → score +1 for each subject_type
+ua===''
+simple_ua === '' (is_no_ua===1 の場合、simple_ua は '' になる想定)
+
+step2: session insert / ip update (NOT_CLEAR_DB)
+
+    step1 と異なる session_id / 
+    同じ ip_address でアクセスする。
+
+    score が変化しない場合を想定するため、
+    疑わしくないアクセスを設定する。
+    # $contents の内容
+    - 'simple_ua' は空文字ではない。
+    - 'is_no_ua' は 0 に設定する。
+    - 'is_ua_mismatch' は 0 に設定する。
+    - 'recaptcha_solved' は 0 に設定する。
+    - 'user_agent' は、set されている。
+
+    # $uaData の内容
+    - 'score_session' は、新規アクセスとして、
+    0 をセットする。
+    - 'score_ip' は、step1 で書き込んだ値をセットする。
+    つまり 1
+    - 'access_count_session' 
+    （過去1分間のアクセス数）
+    は新規アクセスとして、0 をセットする。
+    - 'access_count_ip' 
+    （過去1分間のアクセス数）
+    は、step1 で1アクセスしている想定。
+    つまり 1
+    - 'is_decreased_session' は 0
+    - 'is_decreased_ip' は 0
+    - 'is_no_anomaly_session' は
+    新規アクセスとして、
+    過去10分間に疑わしいアクセスがないという想定で
+    0、
+    で減算対象のロジックが適用されますが、
+    新規アクセスの場合 score は 0
+    で、ゼロよりも小さい値にはならないため、
+    減算は行われません。
+    - 'is_no_anomaly_ip' は
+    過去10分間に疑わしいアクセスが
+    step1 であったという想定で、0
+
+step3: record count が 3 であることを確認する。
+    step1: session + ip = 2 レコード INSERT
+    step2: session は新規 → INSERT、ip は既存 → UPDATE（増えない）
+    合計 3 レコードになることを確認する。
+---------------------------------------
+*/
+
+// -------------------------------------------------------
+// session insert / ip update
+// score ip same as previous
+//
+// このケースでは、
+// session base では新規アクセス（→ session は INSERT）
+// ip base では過去にアクセスがあり（→ ip は UPDATE）
+// かつ ip の score が step1 と step2 で同じ値になる場合を確認します。
+//
+// SQL の UPDATE では、score が同じ値の場合と異なる値の場合で
+// 挙動が変わる可能性があるため、score が同じ場合もテストします。
+//
+// step 1: CLEAR_DB で insert を行い、scoreSession=1 / scoreIp=1 を書き込む。
+//         is_no_ua=1 → score +1 for each subject_type
+//         ua=''、simple_ua='' (is_no_ua===1 の場合、simple_ua は '' になる想定)
+//
+// step 2: 異なる session_id / 同じ ip_address で NOT_CLEAR_DB にして実行する。
+//         疑わしくないアクセス（is_no_ua=0, is_ua_mismatch=0, access_count は閾値未満）
+//         is_no_anomaly_ip=0（step1 に疑わしいアクセスがあったため異常あり）→ 減算なし
+//         → score_ip = 1 のまま（step1 と同じ値で UPDATE）← このケースのキーポイント
+//         session は新規 → INSERT（score=0）
+//         ip は既存  → UPDATE（score=1、step1 と同値で UPDATE）
+//
+// step 3: record count が 3 であることを確認する。
+//         step 1 で session(01) + ip = 2 レコード INSERT
+//         step 2 で session(02) = 1 レコード INSERT、ip は UPDATE（増えない）
+//         合計 3 レコードになることを確認する。
+// -------------------------------------------------------
+
+// step 1: insert (CLEAR_DB)
+$caseLabel = 'Case<br>session insert / ip update (score ip same), step 1: insert (both)';
+
+$contents = [
+    'session_id'      => 'score_same_session_01',
+    'ip_address'      => '172.18.0.1',
+    'simple_ua'       => '',   // is_no_ua が 1 なので、simple_ua は空になる想定
+    'is_no_ua'        => 1,    // score +1
+    'is_ua_mismatch'  => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'      => '',   // ua がセットされていない場合は '' となる
+];
+
+$uaData = [
+    'score_session'        => 0,  // DB に記録なし → 0
+    'score_ip'             => 0,  // DB に記録なし → 0
+    'access_count_session' => 0,  // 閾値 60
+    'access_count_ip'      => 0,  // 閾値 600
+    'is_decreased_session' => 0,
+    'is_decreased_ip'      => 0,
+    'is_no_anomaly_session' => 0,  // is_no_ua=1 → isSuspiciousAccess=1 → decreaseScore() 早期リターン → 減算スキップ
+    'is_no_anomaly_ip'      => 0,  // 同上
+];
+
+// 計算: previous(0) + is_no_ua(+1) = 1
+// 減算: is_no_ua===1 → isSuspiciousAccess===1 → decreaseScore() 早期リターン
+$scoreSessionExpected = 1;
+$scoreIpExpected      = 1;
+
+runTestWriteUaScores(
+    $caseLabel,
+    $contents,
+    $uaData,
+    $scoreSessionExpected,
+    $scoreIpExpected,
+    $pdo,
+    CLEAR_DB);
+
+// step 2: session INSERT / ip UPDATE (NOT_CLEAR_DB)
+// score が変化しない場合を想定するため、疑わしくないアクセスを設定する。
+// session_id を変える（→ session は新規 INSERT）
+// ip_address は step 1 と同じ（→ ip は UPDATE）
+// is_no_anomaly_ip=0（step1 に疑わしいアクセスがあったため異常あり）→ 減算なし
+// → score_ip = 1 のまま（step1 と同じ値で UPDATE）
+$caseLabel = 'Case<br>session insert / ip update (score ip same), step 2: session insert / ip update';
+
+$contents = [
+    'session_id'      => 'score_same_session_02',  // step 1 と異なる session_id → session INSERT
+    'ip_address'      => '172.18.0.1',              // step 1 と同じ ip_address → ip UPDATE
+    'simple_ua'       => 'Chrome/91',               // is_no_ua=0 なので空文字ではない
+    'is_no_ua'        => 0,
+    'is_ua_mismatch'  => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+];
+
+$uaData = [
+    'score_session'        => 0,  // 新規セッション → DB に記録なし → 0
+    'score_ip'             => 1,  // step 1 で DB に書かれた ip score
+    'access_count_session' => 0,  // 新規アクセスとして 0
+    'access_count_ip'      => 1,  // step 1 で 1 アクセスしている想定
+    'is_decreased_session' => 0,
+    'is_decreased_ip'      => 0,
+    'is_no_anomaly_session' => 1,  // 新規セッション。で
+                                   // 減算対象になるロジック
+                                   // ですが、
+                                   // ゼロより小さくはならないので、
+                                   // 減算はスキップされます。
+    'is_no_anomaly_ip'      => 0,  // step1 に疑わしいアクセスがあったため 0（異常あり）
+                                   // → decreaseScore() で減算されない
+                                   // → score_ip = 1 のまま（step1 と同値で UPDATE）
+];
+
+// score 計算:
+// session: previous(0) + is_no_ua(0) = 0
+//          not suspicious → decrease check
+//          is_decreased=0 → is_no_anomaly_session=0 → skip -1
+//          recaptcha_solved=0 → skip decrease
+//          → score_session = 0
+// ip:      previous(1) + is_no_ua(0) = 1
+//          not suspicious → decrease check
+//          is_decreased=0 → is_no_anomaly_ip=0 → skip -1
+//          recaptcha_solved=0 → skip decrease
+//          → score_ip = 1（step1 と同じ値のまま UPDATE）← このケースのキーポイント
+$scoreSessionExpected = 0;
+$scoreIpExpected      = 1;
+
+runTestWriteUaScores(
+    $caseLabel,
+    $contents,
+    $uaData,
+    $scoreSessionExpected,
+    $scoreIpExpected,
+    $pdo,
+    NOT_CLEAR_DB);  // クリアしない → ip は UPDATE、session は INSERT になることを確認
+
+// step 3: record count が 3 であることを確認する。
+//   step 1: score_same_session_01（session）+ 172.18.0.1（ip）= 2 レコード INSERT
+//   step 2: score_same_session_02（session）= 1 レコード INSERT、172.18.0.1（ip）= UPDATE（増えない）
+//   合計 3 レコード
+$caseLabel = 'Record count = 3: session(01) + ip + session(02) の合計を確認（score ip same）';
+$expectedCount = 3;
+checkRecordCount($caseLabel, $pdo, $expectedCount);
+
+// -------------------------------------------------------
+// session update / ip insert
+// score session same as previous
+//
+// このケースでは、
+// session base では過去にアクセスがあり（→ session は UPDATE）、
+// ip base では新規アクセス（→ ip は INSERT）の場合を確認します。
+// さらに、session の score が step1 と step2 で同じ値になる場合を確認します。
+//
+// SQL の UPDATE では、score が同じ値の場合と異なる値の場合で
+// 挙動が変わる可能性があるため、score が同じ場合もテストします。
+//
+// step 1: CLEAR_DB で insert を行い、scoreSession=1 / scoreIp=1 を書き込む。
+//         is_no_ua=1 → score +1 for each subject_type
+//         ua=''、simple_ua='' (is_no_ua===1 の場合、simple_ua は '' になる想定)
+//
+// step 2: 同じ session_id / 異なる ip_address で NOT_CLEAR_DB にして実行する。
+//         疑わしくないアクセス（is_no_ua=0, is_ua_mismatch=0, access_count は閾値未満）
+//         is_no_anomaly_session=0（step1 に疑わしいアクセスがあったため異常あり）→ 減算なし
+//         → score_session = 1 のまま（step1 と同じ値で UPDATE）← このケースのキーポイント
+//         is_no_anomaly_ip=1（新規 IP、異常なし）→ score_ip = 0-1=-1 → max(0) = 0
+//         session は既存 → UPDATE（score=1、step1 と同値で UPDATE）
+//         ip は新規     → INSERT（score=0）
+//
+// step 3: record count が 3 であることを確認する。
+//         step 1 で session + ip = 2 レコード INSERT
+//         step 2 で session = UPDATE（増えない）、ip = 1 レコード INSERT
+//         合計 3 レコードになることを確認する。
+// -------------------------------------------------------
+
+// step 1: insert (CLEAR_DB)
+$caseLabel = 'Case<br>session update / ip insert (score session same), step 1: insert (both)';
+
+$contents = [
+    'session_id'      => 'ss_same_01',
+    'ip_address'      => '172.20.0.1',
+    'simple_ua'       => '',   // is_no_ua が 1 なので、simple_ua は空になる想定
+    'is_no_ua'        => 1,    // score +1
+    'is_ua_mismatch'  => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'      => '',   // ua がセットされていない場合は '' となる
+];
+
+$uaData = [
+    'score_session'        => 0,  // DB に記録なし → 0
+    'score_ip'             => 0,  // DB に記録なし → 0
+    'access_count_session' => 0,  // 閾値 60
+    'access_count_ip'      => 0,  // 閾値 600
+    'is_decreased_session' => 0,
+    'is_decreased_ip'      => 0,
+    'is_no_anomaly_session' => 0,  // is_no_ua=1 → isSuspiciousAccess=1 → decreaseScore() 早期リターン → 減算スキップ
+    'is_no_anomaly_ip'      => 0,  // 同上
+];
+
+// 計算: previous(0) + is_no_ua(+1) = 1
+// 減算: is_no_ua===1 → isSuspiciousAccess===1 → decreaseScore() 早期リターン
+$scoreSessionExpected = 1;
+$scoreIpExpected      = 1;
+
+runTestWriteUaScores(
+    $caseLabel,
+    $contents,
+    $uaData,
+    $scoreSessionExpected,
+    $scoreIpExpected,
+    $pdo,
+    CLEAR_DB);
+
+// step 2: session UPDATE / ip INSERT (NOT_CLEAR_DB)
+// score が変化しない場合を想定するため、疑わしくないアクセスを設定する。
+// session_id は step 1 と同じ（→ session は UPDATE）
+// ip_address は step 1 と異なる（→ ip は新規 INSERT）
+// is_no_anomaly_session=0（step1 に疑わしいアクセスがあったため異常あり）→ 減算なし
+// → score_session = 1 のまま（step1 と同じ値で UPDATE）
+// is_no_anomaly_ip=1（新規 IP のため異常なし）
+// → score_ip = 0 - 1 = -1 → max(0) = 0
+$caseLabel = 'Case<br>session update / ip insert (score session same), step 2: session update / ip insert';
+
+$contents = [
+    'session_id'      => 'ss_same_01',      // step 1 と同じ session_id → session UPDATE
+    'ip_address'      => '172.20.0.2',      // step 1 と異なる ip_address → ip INSERT
+    'simple_ua'       => 'Chrome/91',       // is_no_ua=0 なので空文字ではない
+    'is_no_ua'        => 0,
+    'is_ua_mismatch'  => 0,
+    'recaptcha_solved' => 0,
+    'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+];
+
+$uaData = [
+    'score_session'        => 1,  // step 1 で DB に書かれた session score
+    'score_ip'             => 0,  // 新規 IP → DB に記録なし → 0
+    'access_count_session' => 1,  // step 1 で 1 アクセスしている想定
+    'access_count_ip'      => 0,  // 新規 IP なのでアクセス履歴なし
+    'is_decreased_session' => 0,
+    'is_decreased_ip'      => 0,
+    'is_no_anomaly_session' => 0,  // step1 に疑わしいアクセスがあったため 0（異常あり）
+                                   // → decreaseScore() で減算されない
+                                   // → score_session = 1 のまま（step1 と同値で UPDATE）
+    'is_no_anomaly_ip'      => 1,  // 新規 IP のため異常なし → is_no_anomaly=1
+                                   // → score_ip = 0 - 1 = -1 → max(0) = 0
+                                   // ゼロより小さくはならないため、実質 0 で確定
+];
+
+// score 計算:
+// session: previous(1) + is_no_ua(0) = 1
+//          not suspicious → decrease check
+//          is_decreased=0 → is_no_anomaly_session=0 → skip -1
+//          recaptcha_solved=0 → skip decrease
+//          → score_session = 1（step1 と同じ値のまま UPDATE）← このケースのキーポイント
+// ip:      previous(0) + is_no_ua(0) = 0
+//          not suspicious → decrease check
+//          is_decreased=0 → is_no_anomaly_ip=1 → score = 0 - 1 = -1 → max(0) = 0
+//          → score_ip = 0
+$scoreSessionExpected = 1;
+$scoreIpExpected      = 0;
+
+runTestWriteUaScores(
+    $caseLabel,
+    $contents,
+    $uaData,
+    $scoreSessionExpected,
+    $scoreIpExpected,
+    $pdo,
+    NOT_CLEAR_DB);  // クリアしない → session は UPDATE、ip は INSERT になることを確認
+
+// step 3: record count が 3 であることを確認する。
+//   step 1: ss_same_01（session）+ 172.20.0.1（ip）= 2 レコード INSERT
+//   step 2: ss_same_01（session）= UPDATE（レコード増えない）、172.20.0.2（ip）= 1 レコード INSERT
+//   合計 3 レコード
+$caseLabel = 'Record count = 3: session + ip(172.20.0.1) + ip(172.20.0.2) の合計を確認（score session same）';
+$expectedCount = 3;
+checkRecordCount($caseLabel, $pdo, $expectedCount);
 
 // 以下は境界値テストです。
 
@@ -1315,6 +1641,20 @@ runTestCaseError(
     $uaData,
     $pdo
 );
+
+/* 許容範囲のカバレッジといえるための追加のテストケース
+    student_test\ua-scores-memo.md
+    を参照してください。
+
+    # decreaseScore()の分岐テスト
+    1. isSuspiciousAccess === 1  → return (no decrease)  ✅
+    2. decreased === 1           → return (no decrease)  ❌ 未テスト
+    3. isNoAnomaly === 1         → score -= 1, return    △ 部分的（score=0のみ）
+    4. recaptchaSolved === 1     → score -= 4/1, return  ❌ 未テスト
+    5. else                      → return (no decrease)  ✅
+
+
+*/
 //  データベース接続を閉じます。    
 $dbManager->disconnect();
 echo "Result: {$totalPass} passed, {$totalFail} failed.<br><br>";
