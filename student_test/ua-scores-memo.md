@@ -899,3 +899,105 @@ Priority 3（組み合わせの網羅）
   F. is_ua_mismatch = 1 + is_no_ua = 1 → mismatch が無視されること
   D. recaptcha の score floor (max 0)
   G/H. UPDATE/UPDATE の score 同値混在
+
+
+# review
+To Do リストを更新しました
+
+Read [](file:///c%3A/dev/student/write-ua.php#316-316), lines 316 to 400
+
+## `writeUaScores()` レビュー
+
+---
+
+### ✅ 良い点
+
+- **SQL インジェクション対策**: プレースホルダー（`:session_id` 等）を一貫して使用している
+- **例外ハンドリング**: `PDOException` を `DbWriteException` に適切にラップしている
+- **`rowCount()` コメント**: `ON DUPLICATE KEY UPDATE` 時の `rowCount()` が信頼できない理由が正確かつ詳細に説明されており、設計判断の根拠が明確
+
+---
+
+### ⚠️ 指摘事項
+
+**① 同名パラメーターの二重使用（要確認）**
+
+```php
+$sqlSession = "INSERT INTO ua_scores ... VALUES (..., :score_session, ...)
+               ON DUPLICATE KEY UPDATE score = :score_session, ...";
+```
+
+`:score_session` が同一 SQL 内で **2 回** 登場しています。PDO のエミュレーションモード ON（デフォルト）では動作しますが、エミュレーション OFF（ネイティブプリペアドステートメント）の環境では挙動が保証されません。
+
+より安全な書き方:
+```sql
+ON DUPLICATE KEY UPDATE score = VALUES(score), updated_at = VALUES(updated_at)
+```
+ただし `VALUES(col)` は MySQL 8.0.20 以降では非推奨のため、モダンな書き方は:
+```sql
+INSERT INTO ua_scores (...) VALUES (...) AS new_row
+ON DUPLICATE KEY UPDATE score = new_row.score, updated_at = new_row.updated_at
+```
+
+現在のテストがすべて PASS しているため、現環境（エミュレーション ON）では問題ありませんが、環境依存のコードであることは認識しておくべきです。
+
+---
+
+**② トランザクションなし（設計上の選択として確認）**
+
+session 書き込みと ip 書き込みが別々の try-catch に分かれています。session 書き込みが成功して ip 書き込みが失敗した場合、`ua_scores` テーブルに session のみ書き込まれた不整合な状態になります。
+
+```
+session UPSERT 成功 → ip UPSERT 失敗 → DbWriteException スロー
+→ ua_scores に session レコードのみ存在する状態
+```
+
+整合性を保証する場合はトランザクションでまとめる選択肢があります:
+```php
+$pdo->beginTransaction();
+try {
+    // session UPSERT
+    // ip UPSERT
+    $pdo->commit();
+} catch (PDOException $e) {
+    $pdo->rollBack();
+    throw new DbWriteException(...);
+}
+```
+
+ただし、スコアの session/ip は独立した指標として扱い、片方だけ更新されることを許容する設計であれば現状のままで問題ありません。**設計として意図した判断かどうかの確認をお勧めします。**
+
+---
+
+### 📋 まとめ
+
+| 項目 | 評価 | 対応 |
+|--|--|--|
+| SQL インジェクション対策 | ✅ | 不要 |
+| 例外ハンドリング | ✅ | 不要 |
+| `rowCount()` 方針 | ✅ | 不要 |
+| 同名パラメーター二重使用 | ⚠️ | 環境確認 or SQL リファクタリング推奨 |
+| トランザクションなし | ⚠️ | 設計意図の明確化推奨 |
+
+To Do 項目が 3 件作成されました
+
+
+```
+$sql = "
+INSERT INTO ua_scores (
+    subject_type,
+    subject_key,
+    score,
+    updated_at
+)
+VALUES (
+    'session',
+    :session_id,
+    :score_insert,
+    NOW()
+)
+ON DUPLICATE KEY UPDATE
+    score = :score_update,
+    updated_at = NOW()
+";
+```

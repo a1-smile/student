@@ -320,13 +320,40 @@ class WriteUa{
     $scoreSession = $this->scoreSession;
     $scoreIp = $this->scoreIp;
     // セッションベースのスコアを記録
-    $sqlSession = "INSERT INTO ua_scores (subject_type, subject_key, score, updated_at)
-                   VALUES ('session', :session_id, :score_session, NOW())
-                   ON DUPLICATE KEY UPDATE score = :score_session, updated_at = NOW()";
+
+    // $sqlSession = "INSERT INTO ua_scores (subject_type, subject_key, score, updated_at)
+    //                VALUES ('session', :session_id, :score_session, NOW())
+    //                ON DUPLICATE KEY UPDATE score = :score_session, updated_at = NOW()";
+
+    //  同一パラメーターを INSERT と UPDATE の両方でしようすると、
+    //  PDO::prepare() でエラーになることがあります。
+    //  そのため、コメントアウトして、
+    // INSERT と UPDATE で
+    // 別々のパラメーター名を使うようにします。
+
+    $sqlSession = "
+INSERT INTO ua_scores (
+    subject_type,
+    subject_key,
+    score,
+    updated_at
+)
+VALUES (
+    'session',
+    :session_id,
+    :score_insert,
+    NOW()
+)
+ON DUPLICATE KEY UPDATE
+    score = :score_update,
+    updated_at = NOW()
+";
+
     try{
       $stmtSession = $pdo->prepare($sqlSession);
       $stmtSession->bindParam(':session_id', $sessionId, PDO::PARAM_STR);
-      $stmtSession->bindParam(':score_session', $scoreSession, PDO::PARAM_INT);
+      $stmtSession->bindParam(':score_insert', $scoreSession, PDO::PARAM_INT);
+      $stmtSession->bindParam(':score_update', $scoreSession, PDO::PARAM_INT);
       $stmtSession->execute();
       //  INSERTが正しく行われたか確認することを、
       //  rowCount() でチェックすることは難しいです。
