@@ -329,15 +329,18 @@ class WriteUa{
     //  PDO::prepare() でエラーになることがあります。
     //  そのため、コメントアウトして、
     // INSERT と UPDATE で
-    // 別々のパラメーター名を使うようにします。
+    // 別々のscoreに対するパラメーター名
+    // (プレイスホルダー) を使うようにします。
+    // （:score_insert と :score_update ）を使うようにします。
+    //  以下のような記述に変更します。
 
     $sqlSession = "
-INSERT INTO ua_scores (
-    subject_type,
-    subject_key,
-    score,
-    updated_at
-)
+        INSERT INTO ua_scores (
+            subject_type,
+            subject_key,
+            score,
+            updated_at
+      )
 VALUES (
     'session',
     :session_id,
@@ -406,13 +409,32 @@ ON DUPLICATE KEY UPDATE
     } // END TRY CATCH
 
     // IPベースのスコアを記録
-    $sqlIp = "INSERT INTO ua_scores (subject_type, subject_key, score, updated_at)
-              VALUES ('ip', :ip_address, :score_ip, NOW())
-              ON DUPLICATE KEY UPDATE score = :score_ip, updated_at = NOW()";
+    // $sqlIp = "INSERT INTO ua_scores (subject_type, subject_key, score, updated_at)
+    //           VALUES ('ip', :ip_address, :score_ip, NOW())
+    //           ON DUPLICATE KEY UPDATE score = :score_ip, updated_at = NOW()";
+
+    $sqlIp = "
+INSERT INTO ua_scores (
+    subject_type,
+    subject_key,
+    score,
+    updated_at
+)
+VALUES (
+    'ip',
+    :ip_address,
+    :score_ip,
+    NOW()
+)
+ON DUPLICATE KEY UPDATE
+    score = :score_update_ip,
+    updated_at = NOW()
+";
     try{
       $stmtIp = $pdo->prepare($sqlIp);
       $stmtIp->bindParam(':ip_address', $ipAddress, PDO::PARAM_STR);
       $stmtIp->bindParam(':score_ip', $scoreIp, PDO::PARAM_INT);
+      $stmtIp->bindParam(':score_update_ip', $scoreIp, PDO::PARAM_INT);
       $stmtIp->execute();
     }catch(PDOException $e){
         throw new DbWriteException('writeUaScores (ip) failed: ' . $e->getMessage(),
