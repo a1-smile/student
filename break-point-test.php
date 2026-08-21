@@ -9,14 +9,18 @@
     <p>test start</p>
  <p>
     <?php
+    function test() {
+        echo "Hello, World!0";
+    }
     echo "Hello, World!1";
     $a = 1;
     echo "Hello, World!2";
     $b = 2;
+    test();
     echo "Hello, World!3";
     $c = $a + $b;
     echo "Hello, World!4";
     ?>
- </p>   
+Y </p>   
 </body>
 </html>
