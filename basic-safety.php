@@ -67,7 +67,10 @@ try {
     $error_id = uniqid('db_');
     error_log('DB接続に失敗: ' . $e->getMessage());
     die("システムエラーが発生しました。エラーID: $error_id");
-} catch (Exception $e) {
+} catch (Throwable $e) {
+    //  Exception ではなく 
+    //  Throwable をキャッチすることで、
+    //  Error も含めて捕捉できます。
     $error_id = uniqid('unexpected_');
     error_log('予期しないエラーが発生しました: ' . $e->getMessage());
     die("予期しないエラーが発生しました。エラーID: $error_id");
