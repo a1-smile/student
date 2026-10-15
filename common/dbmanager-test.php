@@ -16,6 +16,14 @@ class DBManager {
     }
     //  コンストラクタ
     public function __construct() {
+        //require で composer の autoload を読み込む
+        require __DIR__ . '/../vendor/autoload.php';
+        // vlucas に関する use
+        use Dotenv\Dotenv;
+        // 例外に関する use
+        use Dotenv\Exception\InvalidPathException;
+        use D
+        $dotenv = Dotenv::createImmutable(__DIR__ . '/../');
         $this->access_info = 'mysql:host=localhost;dbname=school;charset=utf8mb4';
         $this->user = 'root';
         $this->password = 'root';
