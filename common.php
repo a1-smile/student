@@ -31,25 +31,22 @@ $files_required = [
 ];
 
 foreach ($files_required as $file_name) {
-try {
-    $real_path = safe_file_path($file_name);
-    require_once $real_path;
-} catch (InvalidArgumentException $e) {
-    die("引数エラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
-} catch (LogicException $e) {
-    die("ℹ️ ファイルは既に読み込み済みです: " . $e->getMessage() . "<br>");    
-} catch (RuntimeException $e) {
-    die("ファイル読み込みエラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
-    
-} catch (ParseError $e) {
-    die("構文エラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
-    
-} catch (Error $e) {
-    die("致命的エラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
-    
-} catch (Exception $e) {
-    die("予期しないエラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
-}    
+    try {
+        $real_path = safe_file_path($file_name);
+        require_once $real_path;
+    } catch (InvalidArgumentException $e) {
+        die("引数エラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
+    } catch (LogicException $e) {
+        die("ℹ️ ファイルは既に読み込み済みです: " . $e->getMessage() . "<br>");
+    } catch (RuntimeException $e) {
+        die("ファイル読み込みエラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
+    } catch (ParseError $e) {
+        die("構文エラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
+    } catch (Error $e) {
+        die("致命的エラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
+    } catch (Exception $e) {
+        die("予期しないエラー: " . $e->getMessage() . "<br>エラーID: " . uniqid());
+    }
 }
 
 //  device_id クッキーをセットします。
@@ -62,7 +59,8 @@ set_device_id_cookie();
 //  $_SESSION['error'] が存在する場合は、
 //  $error にその値を格納します。
 //  $error を戻り値としてかえします。
-function get_error() {
+function get_error()
+{
     $error = '';
     if (isset($_SESSION['error'])) {
         $error = $_SESSION['error'];
@@ -108,13 +106,58 @@ function get_error() {
 // echo "common.php の最後で \$dbm の状態: " . (isset($dbm) ? 'セット済み' : '未セット') . "<br>";
 // //  デバッグ用コード終了
 
+//  .env ファイルの読み込みと環境変数の検証を行います。
+
+use Dotenv\Dotenv;
+use Dotenv\Exception\InvalidFileException;
+use Dotenv\Exception\InvalidPathException;
+use Dotenv\Exception\ValidationException;
+
 try {
-    $dbm = new DBManager();
-} catch (Exception $e) {
-    error_log('DBManager のインスタンス作成に失敗: ' . $e->getMessage());
-    die('DBManager のインスタンス作成に失敗しました');
+    require_once __DIR__ . '/common/get-db-env.php';
+} catch (InvalidFileException $e) {
+    error_log($e->getMessage());
+    exit('.env ファイルの形式が正しくありません。');
+} catch (InvalidPathException $e) {
+    error_log($e->getMessage());
+    exit('.env ファイルが見つかりません');
+} catch (ValidationException $e) {
+    error_log($e->getMessage());
+    exit('必須の環境変数が設定されていません: ');
 }
-//  この段階で $dbm は定義されていることは
-//  確認済みです。
 
+// 環境変数を取得
+$host = $_ENV['DB_HOST'];
+$name = $_ENV['DB_NAME'];
+$user = $_ENV['DB_USER'];
+$password = $_ENV['DB_PASSWORD'];
 
+//  インスタンス化 しかしまだ PDO 接続はしていない
+
+$dbm = new DBManager(
+    $host,
+    $name,
+    $user,
+    $password
+);
+
+// 一度 pdo 接続
+
+try {
+    //  ここで PDO 接続を試みる場合は、DBManager 内で行われる
+    $dbm->connect(); //  DBManager 内で PDO 接続
+} catch (PDOException $e) {
+    error_log('PDO 接続に失敗: ' . $e->getMessage());
+    die('PDO 接続に失敗しました');
+}
+
+//  ここまでで $dbm は PDO 接続済みの状態です。
+
+$pdo_connect = $dbm->get_db();
+
+//  切断
+$dbm->disconnect(); //  DBManager 内で PDO 接続を切断
+
+//  ここで $pdo_connect は切断前の PDO 接続オブジェクトを保持しています。
+
+$pdo_disconnect = $dbm->get_db();

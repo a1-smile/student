@@ -1,7 +1,7 @@
 <?php
 //  Composer がインストールしたクラスを
 //  使えるようにする記述
-require_once __DIR__ . '/vendor/autoload.php';
+require_once dirname(__DIR__) . '/vendor/autoload.php';
 
 //  Dotenv\Dotenv は Dotenv という名前空間
 //  にある Dotenv というクラスという意味。
@@ -10,16 +10,18 @@ use Dotenv\Exception\InvalidFileException;
 use Dotenv\Exception\InvalidPathException;
 use Dotenv\Exception\ValidationException;
 
-$dotenv = Dotenv::createImmutable(__DIR__);
+$dotenv = Dotenv::createImmutable(dirname(__DIR__));
 try {
     $dotenv->load();
 } catch (InvalidPathException $e) {
-    exit('.env ファイルが見つかりません');
+    //  .env ファイルが見つからない場合の処理
+    throw $e;  //  例外を再スロー
 } catch (InvalidFileException $e) {
-    exit('.env ファイルの形式が正しくありません。');
+    //  .env ファイルの形式が正しくない場合の処理
+    throw $e;  //  例外を再スロー
 }
 
-//  必須の設定値を確認する場合は、以下のように記述します。
+//  必須の設定値を確認する。
 try {
     $dotenv->required([
         'DB_HOST',
@@ -28,6 +30,6 @@ try {
         'DB_PASSWORD',
     ])->notEmpty();
 } catch (ValidationException $e) {
-    error_log($e->getMessage());
-    exit('必須の環境変数が設定されていません: ');
+    //  必須の環境変数が設定されていない場合の処理
+    throw $e;  //  例外を再スロー
 }
