@@ -281,6 +281,10 @@ try {
 }
 
 // 環境変数を取得
+
+
+
+
 $host = $_ENV['DB_HOST'];
 $name = $_ENV['DB_NAME'];
 $user = $_ENV['DB_USER'];
@@ -299,6 +303,8 @@ $dbm = new DBManager(
 
 try {
     //  ここで PDO 接続を試みる場合は、DBManager 内で行われる
+
+
     $dbm->connect(); //  DBManager 内で PDO 接続
 } catch (PDOException $e) {
     error_log('PDO 接続に失敗: ' . $e->getMessage());
