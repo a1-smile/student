@@ -1,0 +1,42 @@
+{
+    "workbench.colorTheme": "Dark+",
+    "editor.guides.bracketPairs": true,
+    "php.validate.executablePath": "C:\\MAMP\\bin\\php\\php8.3.1\\php.exe",
+    "php.validate.run": "onType",
+    "github.copilot.nextEditSuggestions.enabled": true,
+    "editor.fontFamily": "Intel One Mono, Consolas, 'Courier New', monospace",
+    "github.copilot.chat.codesearch.enabled": true,
+        "terminal.integrated.profiles.windows": {
+        
+        "PowerShell": {
+            "source": "PowerShell",
+            "icon": "terminal-powershell"
+        },
+        "Command Prompt": {
+            "path": [
+                "${env:windir}\\Sysnative\\cmd.exe",
+                "${env:windir}\\System32\\cmd.exe"
+            ],
+            "args": [],
+            "icon": {
+                "id": "terminal-cmd"
+            }
+        },
+        "Git Bash": {
+            "source": "Git Bash",
+            "icon": "terminal-git-bash"
+        }
+    },
+    "editor.fontSize": 16,
+    "workbench.secondarySideBar.defaultVisibility": "hidden",
+    "cSpell.userWords": [
+        "recaptcha",
+        "TINYINT"
+    ],
+    "editor.defaultFormatter": "bmewburn.vscode-intelephense-client",
+    "editor.formatOnSave": true,
+    // PHP の標準バリデーションを無効にし、診断は Intelephense に任せる
+    "php.validate.enable": false,
+    "php.suggest.basic": false,
+    "chat.viewSessions.orientation": "stacked"
+}

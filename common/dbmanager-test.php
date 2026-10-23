@@ -373,3 +373,9 @@ foreach ($students as $student) {
 }else {
     echo "学生情報が取得できませんでした。<br>";
 }
+// db から切断
+$db_manager->disconnect(); // 既存のインスタンスから切断
+$username = $_ENV['DB_USERNAME'];
+$db_name = $_ENV['DB_NAME']; 
+$password = $_ENV['DB_PASSWORD']; // 環境変数からパスワードを取得
+$anothor_instance = new DBManager();
